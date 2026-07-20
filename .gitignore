@@ -1,0 +1,11 @@
+.npm-cache/
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+.vite/
+__pycache__/
+.pytest_cache/
+.venv/
+.env
