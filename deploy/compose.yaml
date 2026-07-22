@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aisec
+      POSTGRES_USER: aisec
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aisec}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aisec -d aisec"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ../apps/api
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    environment:
+      DATABASE_URL: postgresql+asyncpg://aisec:${POSTGRES_PASSWORD:-aisec}@postgres:5432/aisec
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in deploy/.env}
+      ENGINE_MODE: ${ENGINE_MODE:-mock}
+      ENGINE_RETRY_LIMIT: ${ENGINE_RETRY_LIMIT:-2}
+      XIAOYI_BASE_URL: ${XIAOYI_BASE_URL:-http://host.docker.internal:49980}
+      XIAOYI_TOKEN: ${XIAOYI_TOKEN:-}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?set BOOTSTRAP_ADMIN_PASSWORD in deploy/.env}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - report_data:/app/data/reports
+
+volumes:
+  postgres_data:
+  report_data:

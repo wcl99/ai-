@@ -15,5 +15,7 @@ export default defineConfig({
     css: true,
     globals: true,
     include: ['src/**/*.test.{ts,tsx}'],
+    fileParallelism: false,
+    testTimeout: 15_000,
   },
 });

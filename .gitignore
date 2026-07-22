@@ -5,7 +5,13 @@ coverage/
 playwright-report/
 test-results/
 .vite/
+.vite-dev.*.log
 __pycache__/
 .pytest_cache/
 .venv/
 .env
+*.pem
+.run/
+data/*.db
+data/reports/
+.DS_Store

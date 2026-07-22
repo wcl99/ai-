@@ -5,6 +5,7 @@ export interface Metric {
   value: string;
   trend: string;
   tone: Tone;
+  icon?: string;
 }
 
 export type TaskStatus = '进行中' | '排队中' | '已完成' | '异常' | '已停止';

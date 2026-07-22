@@ -5,7 +5,7 @@ export const dashboardMetrics: Metric[] = [
   { label: '进行中任务', value: '312', trend: '+12.4%', tone: 'blue' },
   { label: '高危风险', value: '28', trend: '-7.7%', tone: 'red' },
   { label: '资产总数', value: '18,735', trend: '+9.1%', tone: 'purple' },
-  { label: '漏洞总数', value: '2,450', trend: '+14.3%', tone: 'green' },
+  { label: '漏洞总数', value: '2,450', trend: '+14.3%', tone: 'green', icon: 'metric-danger' },
 ];
 
 export const tasks: TaskRecord[] = [

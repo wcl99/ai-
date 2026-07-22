@@ -1,9 +1,37 @@
-import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons';
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+} from '@ant-design/icons';
 import { Card, Progress, Tag } from 'antd';
 import type { Metric, TaskStatus, Tone } from '../types';
 
 export function MetricCard({ metric }: { metric: Metric }) {
   const negative = metric.trend.startsWith('-');
+  const metricIcons: Record<string, string> = {
+    任务总数: 'metric-task',
+    进行中任务: 'metric-task-clock',
+    高危风险: 'metric-warning',
+    资产总数: 'metric-database',
+    漏洞总数: 'metric-vulnerability-total',
+    全部任务: 'metric-task-all',
+    排队中: 'metric-task-queued',
+    进行中: 'metric-task-running',
+    已完成: 'metric-task-completed',
+    异常任务: 'metric-task-abnormal',
+    今日新增: 'metric-task-today',
+    高危漏洞: 'metric-vulnerability-high',
+    中危漏洞: 'metric-vulnerability-medium',
+    待修复: 'metric-vulnerability-pending',
+    待复测: 'metric-vulnerability-retest',
+    已修复: 'metric-vulnerability-fixed',
+    报告总数: 'metric-report-total',
+    本周新增: 'metric-report-weekly',
+    待导出: 'metric-report-pending-export',
+    已导出: 'metric-report-exported',
+    待确认: 'metric-report-pending-confirm',
+    本月交付: 'metric-report-delivered',
+  };
+  const icon = metric.icon ?? metricIcons[metric.label];
   return (
     <Card className={`metric-card tone-${metric.tone}`} variant="borderless">
       <div className="metric-top">
@@ -13,7 +41,7 @@ export function MetricCard({ metric }: { metric: Metric }) {
         </Tag>
       </div>
       <strong>{metric.value}</strong>
-      <i />
+      {icon && <i><img src={'/ui-icons/' + icon + '.png'} alt="" /></i>}
     </Card>
   );
 }
@@ -31,7 +59,17 @@ export function StatusTag({ status }: { status: TaskStatus | string }) {
     已修复: 'green',
     待确认: 'orange',
   };
-  return <Tag color={color[status] ?? 'default'}>{status}</Tag>;
+  const icon = ['异常', '已停止'].includes(status)
+    ? 'error'
+    : ['排队中', '待修复', '待复测', '待确认'].includes(status)
+      ? 'warning'
+      : 'success';
+  return (
+    <Tag className="design-status-tag" color={color[status] ?? 'default'}>
+      <img src={'/ui-icons/status-' + icon + '.png'} alt="" />
+      {status}
+    </Tag>
+  );
 }
 
 export function ProgressCell({ value, tone = 'blue' }: { value: number; tone?: Tone }) {

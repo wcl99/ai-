@@ -1,4 +1,20 @@
-import { DownloadOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import {
+  BarChartOutlined,
+  CalendarOutlined,
+  CodeOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  ExperimentOutlined,
+  ExpandOutlined,
+  LinkOutlined,
+  MoreOutlined,
+  NumberOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  ThunderboltOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import { Button, Card, Checkbox, Drawer, Input, Select, Space, Table, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useMemo, useState } from 'react';
@@ -38,8 +54,8 @@ function PageFilters({ placeholder, action }: { placeholder: string; action?: Re
     <div className="filter-bar">
       <Input prefix={<SearchOutlined />} placeholder={placeholder} />
       <Select defaultValue="全部状态" options={['全部状态', '进行中', '已完成'].map((value) => ({ value }))} />
-      <Select defaultValue="全部类型" options={['全部类型', '渗透测试', '代码审计'].map((value) => ({ value }))} />
-      <Button>最近七天</Button>
+      <Select suffixIcon={<UserOutlined />} defaultValue="全部类型" options={['全部类型', '渗透测试', '代码审计'].map((value) => ({ value }))} />
+      <Button icon={<CalendarOutlined />}>最近七天</Button>
       <div className="filter-spacer" />
       <Button icon={<ReloadOutlined />}>刷新</Button>
       {action}
@@ -50,14 +66,14 @@ function PageFilters({ placeholder, action }: { placeholder: string; action?: Re
 export function TasksPage() {
   const columns: ColumnsType<TaskRecord> = [
     { title: '任务名称/ID', dataIndex: 'name', width: 210, render: (name, row) => <div className="primary-cell"><strong>{name}</strong><span>{row.id}</span></div> },
-    { title: '类型', dataIndex: 'type', width: 120 },
+    { title: '类型', dataIndex: 'type', width: 130, render: (type) => <ServiceType type={type} /> },
     { title: '目标/资产摘要', dataIndex: 'target', ellipsis: true },
     { title: '创建时间', dataIndex: 'createdAt', width: 170 },
     { title: '创建人', dataIndex: 'creator', width: 110 },
     { title: '当前状态', dataIndex: 'status', width: 100, render: (status) => <StatusTag status={status} /> },
     { title: '进度', dataIndex: 'progress', width: 150, render: (value, row) => <ProgressCell value={value} tone={row.status === '异常' ? 'red' : row.status === '已完成' ? 'green' : 'blue'} /> },
-    { title: '优先级', dataIndex: 'priority', width: 80, render: (value) => <Tag color={value === '高' ? 'red' : 'default'}>{value}</Tag> },
-    { title: '操作', width: 120, render: () => <Space><a>摘要</a><a>详情</a></Space> },
+    { title: '优先级', dataIndex: 'priority', width: 80, render: (value) => <span className={`priority-arrow ${value === '高' ? 'high' : value === '低' ? 'low' : ''}`}>{value === '高' ? '↑' : value === '低' ? '↓' : '—'}</span> },
+    { title: '操作', width: 150, render: () => <Space><a>摘要</a><a>详情</a><MoreOutlined /><DeleteOutlined /></Space> },
   ];
   return (
     <ListPage metrics={taskMetrics}>
@@ -72,27 +88,32 @@ export function VulnerabilitiesPage() {
   const columns: ColumnsType<VulnerabilityRecord> = useMemo(() => [
     { title: '', width: 44, render: () => <Checkbox /> },
     { title: '漏洞标题/漏洞 ID', dataIndex: 'title', width: 250, render: (title, row) => <div className="primary-cell"><strong>{title}</strong><span>{row.id}</span></div> },
-    { title: '来源模块', dataIndex: 'source', width: 110 },
+    { title: '来源模块', dataIndex: 'source', width: 120, render: (source) => <ServiceType type={source} /> },
     { title: '关联资产', dataIndex: 'asset', width: 180, ellipsis: true },
     { title: '所属任务', dataIndex: 'task', width: 180, ellipsis: true },
     { title: '首次发现时间', dataIndex: 'discoveredAt', width: 165 },
     { title: '状态', dataIndex: 'status', width: 90, render: (status) => <StatusTag status={status} /> },
     { title: '等级', dataIndex: 'severity', width: 80, render: (severity) => <Tag color={severity === '严重' ? 'red' : severity === '高危' ? 'orange' : 'blue'}>{severity}</Tag> },
     { title: 'AI 标签', dataIndex: 'tags', render: (tags: string[]) => tags.map((tag) => <Tag key={tag}>{tag}</Tag>) },
-    { title: '操作', width: 90, render: (_, row) => <a onClick={() => setSelected(row)}>详情</a> },
+    { title: '操作', width: 130, render: (_, row) => <Space><a onClick={() => setSelected(row)}>详情</a><a>处置</a><MoreOutlined /><DeleteOutlined /></Space> },
   ], []);
   return (
     <ListPage metrics={vulnMetrics}>
       <PageFilters placeholder="搜索漏洞标题、漏洞 ID、资产、任务..." action={<Button type="primary">搜索</Button>} />
       <Table rowKey="id" columns={columns} dataSource={vulnerabilities} pagination={{ pageSize: 5 }} scroll={{ x: 1350 }} />
-      <Drawer open={Boolean(selected)} width={560} title="漏洞详情" onClose={() => setSelected(undefined)}>
+      <Drawer open={Boolean(selected)} width={560} title={selected ? <Space>{selected.title}<Tag color="red">{selected.severity}</Tag></Space> : '漏洞详情'} extra={<ExpandOutlined />} onClose={() => setSelected(undefined)}>
         {selected && <div className="detail-drawer">
-          <Tag color="red">{selected.severity}</Tag><StatusTag status={selected.status} />
-          <h2>{selected.title}</h2><p className="muted">{selected.id}</p>
-          <Card size="small"><strong>关联资产</strong><p>{selected.asset}</p><strong>所属任务</strong><p>{selected.task}</p></Card>
-          <h3>漏洞描述</h3><p>{selected.description}</p>
-          <h3>AI 处置建议</h3><p>优先限制暴露端口，升级受影响组件，并完成凭据轮换后发起复测。</p>
-          <Button type="primary">创建修复任务</Button>
+          <div className="detail-meta">
+            <span><NumberOutlined /> 漏洞 ID <strong>{selected.id}</strong></span>
+            <span><ReloadOutlined /> 当前状态 <StatusTag status={selected.status} /></span>
+            <span><CodeOutlined /> 来源模块 <strong>{selected.source}</strong></span>
+            <span><LinkOutlined /> 关联资产 <a>{selected.asset}</a></span>
+            <span><CalendarOutlined /> 首次发现 <strong>{selected.discoveredAt}</strong></span>
+            <span><ReloadOutlined /> 最近更新 <strong>{selected.updatedAt}</strong></span>
+          </div>
+          <Card size="small" className="drawer-insight"><h3><ThunderboltOutlined /> AI 风险摘要</h3><p>{selected.description}</p><a>查看 AI 详细分析 ›</a></Card>
+          <Card size="small" className="drawer-insight"><h3><ExperimentOutlined /> 修复建议摘要</h3><p>升级受影响组件，限制暴露端口，并完成凭据轮换后发起复测。</p><a>查看修复详情 ›</a></Card>
+          <div className="drawer-actions"><Button type="primary" block>查看详情</Button><Button icon={<UserOutlined />} /><Button icon={<MoreOutlined />} /></div>
         </div>}
       </Drawer>
     </ListPage>
@@ -103,14 +124,14 @@ export function ReportsPage() {
   const columns: ColumnsType<ReportRecord> = [
     { title: '', width: 44, render: () => <Checkbox /> },
     { title: '报告名称', dataIndex: 'name', width: 250, render: (name, row) => <div className="primary-cell"><strong>{name}</strong><span>{row.id}</span></div> },
-    { title: '类型', dataIndex: 'type', width: 110 },
+    { title: '类型', dataIndex: 'type', width: 120, render: (type) => <ServiceType type={type} /> },
     { title: '资产分组', dataIndex: 'group', width: 120 },
     { title: '所属任务', dataIndex: 'task', width: 190 },
     { title: '创建时间', dataIndex: 'createdAt', width: 170 },
     { title: '状态', dataIndex: 'status', width: 90, render: (status) => <StatusTag status={status} /> },
     { title: '导出状态', dataIndex: 'exported', width: 100, render: (value) => <Tag color={value ? 'blue' : 'default'}>{value ? '已导出' : '未导出'}</Tag> },
     { title: '报告信息', dataIndex: 'risks', render: (risks: ReportRecord['risks']) => Object.entries(risks).map(([key, value]) => <Tag key={key}>{key} {value}</Tag>) },
-    { title: '操作', width: 110, render: () => <Space><a>详情</a><a>下载</a></Space> },
+    { title: '操作', width: 130, render: () => <Space><a>详情</a><a>下载</a><MoreOutlined /><DeleteOutlined /></Space> },
   ];
   return (
     <ListPage metrics={reportMetrics}>
@@ -119,6 +140,17 @@ export function ReportsPage() {
       <Table rowKey="id" columns={columns} dataSource={reports} pagination={{ pageSize: 6 }} scroll={{ x: 1300 }} />
     </ListPage>
   );
+}
+
+function ServiceType({ type }: { type: string }) {
+  const item = type === '渗透测试'
+    ? { icon: <ExperimentOutlined />, color: 'red' }
+    : type === '代码审计'
+      ? { icon: <CodeOutlined />, color: 'blue' }
+      : type === '应急响应'
+        ? { icon: <ThunderboltOutlined />, color: 'purple' }
+        : { icon: <BarChartOutlined />, color: 'green' };
+  return <span className={`service-type ${item.color}`}>{item.icon}{type}</span>;
 }
 
 function ListPage({ metrics, children }: { metrics: Metric[]; children: React.ReactNode }) {

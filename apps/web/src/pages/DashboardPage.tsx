@@ -2,10 +2,14 @@ import {
   BarChartOutlined,
   BugOutlined,
   CodeOutlined,
+  DatabaseOutlined,
   FileTextOutlined,
+  KeyOutlined,
   RadarChartOutlined,
   RobotOutlined,
   SafetyCertificateOutlined,
+  SettingOutlined,
+  TeamOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { Button, Card, Progress, Tag } from 'antd';
@@ -19,6 +23,15 @@ const featureCards = [
   { title: 'AI 代码审计', desc: '静态分析与逻辑漏洞挖掘', icon: <CodeOutlined />, tone: 'blue' },
   { title: 'AI 数据分析', desc: '多维数据聚合与趋势洞察', icon: <BarChartOutlined />, tone: 'green' },
 ];
+
+const quickLinks = [
+  ['资产中心', <DatabaseOutlined />],
+  ['报告中心', <BarChartOutlined />],
+  ['漏洞详情', <BugOutlined />],
+  ['系统设置', <SettingOutlined />],
+  ['团队管理', <TeamOutlined />],
+  ['授权管理', <KeyOutlined />],
+] as const;
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -72,9 +85,10 @@ export function DashboardPage() {
             {[50, 100, 150, 200].map((y) => (
               <line key={y} x1="36" y1={y} x2="620" y2={y} />
             ))}
-            <polyline points="36,220 130,190 220,145 310,155 400,90 500,125 620,45" />
-            <polyline className="line-purple" points="36,210 130,160 220,115 310,105 400,120 500,55 620,60" />
-            <polyline className="line-green" points="36,205 130,175 220,135 310,120 400,150 500,100 620,50" />
+            <path d="M36 224 C82 214 126 190 174 205 C226 222 274 190 310 102 C344 20 410 28 446 92 C480 154 505 238 550 238 C586 238 606 192 620 150" />
+            <path className="line-purple" d="M36 218 C92 205 132 160 182 132 C230 106 270 118 310 112 C360 104 392 70 430 58 C474 44 498 82 536 88 C574 94 602 70 620 42" />
+            <path className="line-green" d="M36 212 C90 194 134 166 182 142 C228 120 270 146 310 136 C356 124 394 82 430 74 C474 64 502 104 540 108 C576 112 604 82 620 52" />
+            <path className="line-orange" d="M36 228 C86 214 132 180 182 164 C230 148 270 178 310 168 C358 156 394 122 432 118 C474 114 500 148 540 154 C578 160 604 130 620 102" />
             <text x="36" y="250">05-30</text>
             <text x="210" y="250">05-31</text>
             <text x="390" y="250">06-01</text>
@@ -120,8 +134,8 @@ export function DashboardPage() {
         <Card variant="borderless">
           <SectionTitle icon={<BugOutlined />} title="快捷入口" />
           <div className="quick-grid">
-            {['资产中心', '报告中心', '漏洞详情', '系统设置', '团队管理', '授权管理'].map((item) => (
-              <Button key={item}>{item}</Button>
+            {quickLinks.map(([label, icon]) => (
+              <Button key={label} icon={icon}>{label}</Button>
             ))}
           </div>
         </Card>
