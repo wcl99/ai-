@@ -3,12 +3,78 @@ import asyncio
 import pytest
 from sqlalchemy import select
 
+import app.main as main_module
 from app.auth import create_token, password_hash
 from app.config import get_settings
 from app.db import SessionLocal
 from app.models import Organization, ScanPlan, Task, User
 
 from app.sync import sync_once
+
+
+async def test_liveness_is_independent_and_keeps_compatibility_alias(client):
+    live = await client.get("/health/live")
+    compatibility = await client.get("/health")
+
+    assert live.status_code == 200
+    assert live.json() == {"status": "ok"}
+    assert compatibility.json() == live.json()
+
+
+async def test_readiness_checks_the_database(client):
+    response = await client.get("/health/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
+
+
+async def test_readiness_reports_database_failure_without_details(client, monkeypatch):
+    class BrokenSession:
+        async def __aenter__(self):
+            raise OSError("database credentials must not leak")
+
+        async def __aexit__(self, *_):
+            return False
+
+    monkeypatch.setattr(main_module, "SessionLocal", BrokenSession)
+
+    response = await client.get("/health/ready")
+
+    assert response.status_code == 503
+    assert response.json() == {"status": "unavailable"}
+    assert "credentials" not in response.text
+
+
+async def test_same_origin_spa_serves_assets_and_browser_routes(
+    client, tmp_path, monkeypatch
+):
+    static_dir = tmp_path / "static"
+    assets_dir = static_dir / "assets"
+    assets_dir.mkdir(parents=True)
+    (static_dir / "index.html").write_text(
+        "<!doctype html><title>AI Security Platform</title>",
+        encoding="utf-8",
+    )
+    (assets_dir / "app.js").write_text("window.platformReady = true;", encoding="utf-8")
+    (static_dir / ".secret").write_text("must-not-leak", encoding="utf-8")
+    monkeypatch.setattr(get_settings(), "static_dir", static_dir)
+
+    root = await client.get("/")
+    asset = await client.get("/assets/app.js")
+    browser_route = await client.get("/tasks")
+    missing_api = await client.get("/api/v1/not-a-real-endpoint")
+    hidden_file = await client.get("/.secret")
+
+    assert root.status_code == 200
+    assert "AI Security Platform" in root.text
+    assert asset.status_code == 200
+    assert asset.text == "window.platformReady = true;"
+    assert browser_route.status_code == 200
+    assert browser_route.text == root.text
+    assert missing_api.status_code == 404
+    assert missing_api.json()["code"] == "NOT_FOUND"
+    assert hidden_file.status_code == 404
+    assert "must-not-leak" not in hidden_file.text
 
 
 async def test_authorized_plan_runs_through_mock_engine(authenticated_client):

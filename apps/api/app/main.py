@@ -9,7 +9,7 @@ from fastapi import Depends, FastAPI, Query, Request, Response, WebSocket, WebSo
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -108,6 +108,7 @@ async def bootstrap_admin(settings: Settings) -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     settings = get_settings()
+    settings.validate_runtime_security()
     settings.report_dir.mkdir(parents=True, exist_ok=True)
     await bootstrap_admin(settings)
     stop = asyncio.Event()
@@ -175,8 +176,19 @@ async def validation_error_handler(_: Request, exc: RequestValidationError):
 
 
 @app.get("/health")
-async def health():
+@app.get("/health/live")
+async def health_live():
     return {"status": "ok"}
+
+
+@app.get("/health/ready")
+async def health_ready():
+    try:
+        async with SessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+    except Exception:
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
+    return {"status": "ready"}
 
 
 @app.post("/api/v1/auth/login", response_model=LoginResponse)
@@ -899,3 +911,39 @@ async def ai_upload_log(payload: AiLogUpload, user: User = Depends(digital_user_
     session.add(item)
     await session.commit()
     return envelope({"log_id": str(item.id)})
+
+
+_RESERVED_BROWSER_PREFIXES = {
+    "api",
+    "docs",
+    "health",
+    "openapi.json",
+    "redoc",
+}
+
+
+@app.get("/{browser_path:path}", include_in_schema=False)
+async def serve_spa(browser_path: str) -> FileResponse:
+    """Serve built frontend assets and fall back browser routes to index.html."""
+    parts = [part for part in browser_path.split("/") if part]
+    if (
+        (parts and parts[0] in _RESERVED_BROWSER_PREFIXES)
+        or any(part in {".", ".."} or part.startswith(".") for part in parts)
+    ):
+        raise StarletteHTTPException(status_code=404, detail="Not Found")
+
+    static_dir = get_settings().static_dir.resolve()
+    index_file = (static_dir / "index.html").resolve()
+    requested = static_dir.joinpath(*parts).resolve() if parts else index_file
+    try:
+        requested.relative_to(static_dir)
+        index_file.relative_to(static_dir)
+    except ValueError as exc:
+        raise StarletteHTTPException(status_code=404, detail="Not Found") from exc
+
+    if requested.is_file():
+        return FileResponse(requested)
+
+    if not index_file.is_file():
+        raise StarletteHTTPException(status_code=404, detail="Not Found")
+    return FileResponse(index_file)
