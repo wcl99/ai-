@@ -21,11 +21,49 @@ export class ApiError extends Error {
 
 type ApiRequestOptions = Omit<RequestInit, 'body'> & { body?: unknown };
 
+let authGeneration = 0;
+
+export function getAuthGeneration() {
+  return authGeneration;
+}
+
+export function advanceAuthGeneration() {
+  authGeneration += 1;
+}
+
+function responseError(response: Response, body: string, requestAuthGeneration: number) {
+  if (
+    response.status === 401
+    && requestAuthGeneration === getAuthGeneration()
+    && typeof window !== 'undefined'
+  ) {
+    window.dispatchEvent(new CustomEvent('auth:unauthorized', {
+      detail: requestAuthGeneration,
+    }));
+  }
+  try {
+    const parsed: unknown = body ? JSON.parse(body) : undefined;
+    const error = platformErrorSchema.safeParse(parsed);
+    if (error.success) {
+      return new ApiError(
+        response.status,
+        error.data.code,
+        error.data.message,
+        error.data.details,
+      );
+    }
+  } catch {
+    // Non-JSON proxy and gateway responses use the stable fallback below.
+  }
+  return new ApiError(response.status, 'HTTP_ERROR', `Request failed (${response.status})`);
+}
+
 export async function apiRequest<T>(
   path: string,
   schema: z.ZodType<T>,
   options: ApiRequestOptions = {},
 ): Promise<T> {
+  const requestAuthGeneration = getAuthGeneration();
   const headers = new Headers(options.headers);
   if (options.body !== undefined) {
     headers.set('Content-Type', 'application/json');
@@ -37,26 +75,20 @@ export async function apiRequest<T>(
     headers,
   });
   const responseBody = await response.text();
-  let payload: unknown;
-  try {
-    payload = responseBody ? JSON.parse(responseBody) : undefined;
-  } catch (error) {
-    if (!response.ok) {
-      throw new ApiError(response.status, 'HTTP_ERROR', `Request failed (${response.status})`);
-    }
-    throw error;
-  }
   if (!response.ok) {
-    const error = platformErrorSchema.safeParse(payload);
-    if (error.success) {
-      throw new ApiError(
-        response.status,
-        error.data.code,
-        error.data.message,
-        error.data.details,
-      );
-    }
-    throw new ApiError(response.status, 'HTTP_ERROR', `Request failed (${response.status})`);
+    throw responseError(response, responseBody, requestAuthGeneration);
   }
+  const payload: unknown = responseBody ? JSON.parse(responseBody) : undefined;
   return schema.parse(payload);
+}
+
+export async function apiTextRequest(
+  path: string,
+  options: Omit<RequestInit, 'body'> = {},
+) {
+  const requestAuthGeneration = getAuthGeneration();
+  const response = await fetch(path, { ...options, credentials: 'include' });
+  const body = await response.text();
+  if (!response.ok) throw responseError(response, body, requestAuthGeneration);
+  return body;
 }

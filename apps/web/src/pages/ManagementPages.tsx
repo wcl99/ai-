@@ -3,18 +3,17 @@ import {
   CheckCircleFilled,
   CloudServerOutlined,
   DatabaseOutlined,
-  ExportOutlined,
-  ImportOutlined,
   KeyOutlined,
   LockOutlined,
   PlusOutlined,
   RobotOutlined,
   SafetyCertificateOutlined,
-  SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Alert,
   Button,
   Card,
   Checkbox,
@@ -36,42 +35,11 @@ import type { ColumnsType } from 'antd/es/table';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { createAsset, listAssets } from '../api/resources';
 import { MetricCard, StatusTag } from '../components/Ui';
-import type { Metric } from '../types';
+import type { AssetRecord, Metric } from '../types';
 
 type AssetType = 'domain' | 'ip' | 'http' | 'network_range';
-type AssetStatus = '已授权' | '待确认' | '已停用';
-type RiskLevel = '高' | '中' | '低' | '未知';
-
-interface AssetRecord {
-  id: string;
-  address: string;
-  type: AssetType;
-  service: string;
-  source: string;
-  owner: string;
-  status: AssetStatus;
-  risk: RiskLevel;
-  lastScannedAt: string;
-  tags: string[];
-}
-
-const initialAssets: AssetRecord[] = [
-  { id: 'AST-000128', address: 'admin.example.com', type: 'domain', service: 'HTTPS / 443', source: '手工录入', owner: '电商业务线', status: '已授权', risk: '高', lastScannedAt: '2026-07-19 16:42', tags: ['公网', '管理后台'] },
-  { id: 'AST-000127', address: '10.10.1.0/24', type: 'network_range', service: '256 个地址', source: '文件导入', owner: '基础设施组', status: '已授权', risk: '中', lastScannedAt: '2026-07-18 09:30', tags: ['内网', '核心网段'] },
-  { id: 'AST-000126', address: 'https://pay.example.com/api', type: 'http', service: 'HTTPS / 443', source: '数字人回传', owner: '支付业务线', status: '已授权', risk: '高', lastScannedAt: '2026-07-17 11:22', tags: ['API', '支付'] },
-  { id: 'AST-000125', address: '172.16.0.10', type: 'ip', service: 'Redis / 6379', source: '小易发现', owner: '办公网络', status: '待确认', risk: '高', lastScannedAt: '2026-07-16 18:04', tags: ['内网', '中间件'] },
-  { id: 'AST-000124', address: 'vpn.company.cn', type: 'domain', service: 'SSL VPN / 443', source: '手工录入', owner: '基础设施组', status: '已停用', risk: '低', lastScannedAt: '2026-07-12 10:08', tags: ['公网', 'VPN'] },
-];
-
-const assetMetrics: Metric[] = [
-  { label: '资产总数', value: '18,735', trend: '+9.10%', tone: 'blue' },
-  { label: '公网资产', value: '2,416', trend: '+4.80%', tone: 'purple' },
-  { label: '高风险资产', value: '126', trend: '-6.20%', tone: 'red' },
-  { label: '待确认', value: '38', trend: '+3', tone: 'orange' },
-  { label: '本周新增', value: '284', trend: '+12.40%', tone: 'green' },
-  { label: '已授权扫描', value: '17,962', trend: '+8.70%', tone: 'gray' },
-];
 
 const assetSchema = z.object({
   type: z.enum(['domain', 'ip', 'http', 'network_range']),
@@ -90,47 +58,49 @@ const assetTypeLabels: Record<AssetType, string> = {
 };
 
 export function AssetsPage() {
-  const [assets, setAssets] = useState(initialAssets);
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  const query = useQuery({
+    queryKey: ['assets', { page, pageSize: 10 }],
+    queryFn: () => listAssets({ page, pageSize: 10 }),
+  });
   const { control, handleSubmit, reset, formState: { errors } } = useForm<AssetFormValues>({
     resolver: zodResolver(assetSchema),
     defaultValues: { type: 'domain', address: '', owner: '', authorized: true },
   });
-  const filteredAssets = assets.filter((asset) =>
-    `${asset.address}${asset.id}${asset.owner}`.toLowerCase().includes(query.toLowerCase()),
-  );
+  const mutation = useMutation({
+    mutationFn: createAsset,
+    onSuccess: async () => {
+      reset();
+      setModalOpen(false);
+      setPage(1);
+      await queryClient.invalidateQueries({ queryKey: ['assets'] });
+      message.success('资产已添加');
+    },
+  });
 
-  const addAsset = (values: AssetFormValues) => {
-    setAssets((current) => [{
-      id: `AST-${String(current.length + 129).padStart(6, '0')}`,
-      address: values.address,
-      type: values.type,
-      service: '等待探测',
-      source: '手工录入',
-      owner: values.owner,
-      status: values.authorized ? '已授权' : '待确认',
-      risk: '未知',
-      lastScannedAt: '尚未扫描',
-      tags: ['新资产'],
-    }, ...current]);
-    reset();
-    setModalOpen(false);
-    message.success('资产已加入验证模型');
-  };
+  const addAsset = (values: AssetFormValues) => mutation.mutate({
+    asset_type: values.type,
+    address: values.address,
+    owner: values.owner,
+    authorized: values.authorized,
+  });
+
+  const assets = query.data?.items ?? [];
+  const assetMetrics: Metric[] = [
+    { label: '资产总数', value: query.data && !query.isError ? String(query.data.total) : '—', tone: 'blue' },
+    { label: '本页已授权', value: query.data && !query.isError ? String(assets.filter((asset) => asset.authorized).length) : '—', tone: 'green' },
+    { label: '本页待授权', value: query.data && !query.isError ? String(assets.filter((asset) => !asset.authorized).length) : '—', tone: 'orange' },
+  ];
 
   const columns: ColumnsType<AssetRecord> = [
-    { title: '', width: 42, render: () => <Checkbox /> },
     { title: '资产地址/ID', dataIndex: 'address', width: 245, render: (address, row) => <div className="primary-cell"><strong>{address}</strong><span>{row.id}</span></div> },
-    { title: '类型', dataIndex: 'type', width: 105, render: (type: AssetType) => <Tag color="blue">{assetTypeLabels[type]}</Tag> },
-    { title: '服务信息', dataIndex: 'service', width: 145 },
-    { title: '所属业务', dataIndex: 'owner', width: 140 },
-    { title: '来源', dataIndex: 'source', width: 120 },
-    { title: '授权状态', dataIndex: 'status', width: 100, render: (status) => <StatusTag status={status} /> },
-    { title: '风险', dataIndex: 'risk', width: 75, render: (risk: RiskLevel) => <Tag color={risk === '高' ? 'red' : risk === '中' ? 'orange' : risk === '低' ? 'green' : 'default'}>{risk}</Tag> },
-    { title: '最近扫描', dataIndex: 'lastScannedAt', width: 155 },
+    { title: '类型', dataIndex: 'type', width: 105, render: (type: AssetType) => <Tag color="blue">{assetTypeLabels[type] ?? type}</Tag> },
+    { title: '服务信息', dataIndex: 'service', width: 145, render: (value) => value ?? '—' },
+    { title: '所属业务', dataIndex: 'owner', width: 140, render: (value) => value ?? '—' },
+    { title: '授权状态', dataIndex: 'authorized', width: 110, render: (value) => <StatusTag status={value ? '已授权' : '待确认'} /> },
     { title: '标签', dataIndex: 'tags', render: (tags: string[]) => tags.map((tag) => <Tag key={tag}>{tag}</Tag>) },
-    { title: '操作', width: 130, fixed: 'right', render: () => <Space><a>详情</a><a>发起扫描</a></Space> },
   ];
 
   return (
@@ -138,20 +108,20 @@ export function AssetsPage() {
       <div className="metric-grid metric-grid-six">{assetMetrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}</div>
       <Card variant="borderless" className="data-card">
         <div className="filter-bar">
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} prefix={<SearchOutlined />} placeholder="搜索资产地址、ID、所属业务..." />
-          <Select defaultValue="全部类型" options={['全部类型', '域名', 'IP', 'HTTP 地址', '网段'].map((value) => ({ value }))} />
-          <Select defaultValue="全部授权状态" options={['全部授权状态', '已授权', '待确认', '已停用'].map((value) => ({ value }))} />
-          <Select defaultValue="全部风险" options={['全部风险', '高风险', '中风险', '低风险'].map((value) => ({ value }))} />
           <div className="filter-spacer" />
-          <Button icon={<ImportOutlined />}>导入资产</Button>
-          <Button icon={<ExportOutlined />}>导出</Button>
+          <Button onClick={() => query.refetch()}>刷新</Button>
+          <Button disabled title="导入接口尚未确认">导入资产</Button>
+          <Button disabled title="导出接口尚未确认">导出</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>新增资产</Button>
         </div>
-        <div className="table-toolbar"><span>已选择 <strong>0</strong> 项</span><span className="muted">资产授权后才允许发起真实扫描</span></div>
-        <Table rowKey="id" columns={columns} dataSource={filteredAssets} pagination={{ pageSize: 6 }} scroll={{ x: 1320 }} />
+        <div className="table-toolbar"><span className="muted">资产授权后才允许发起真实扫描</span></div>
+        {query.isError ? <Alert type="error" showIcon message={query.error instanceof Error ? query.error.message : '资产加载失败'} action={<Button onClick={() => query.refetch()}>重试</Button>} /> : (
+          <Table rowKey="id" columns={columns} dataSource={assets} loading={query.isPending} locale={{ emptyText: '暂无资产数据' }} pagination={{ current: page, pageSize: 10, total: query.data?.total ?? 0, showSizeChanger: false, onChange: setPage }} scroll={{ x: 900 }} />
+        )}
       </Card>
 
-      <Modal title="新增资产" open={modalOpen} onCancel={() => setModalOpen(false)} onOk={handleSubmit(addAsset)} okText="确认添加">
+      <Modal title="新增资产" open={modalOpen} onCancel={() => setModalOpen(false)} onOk={handleSubmit(addAsset)} okText="确认添加" confirmLoading={mutation.isPending}>
+        {mutation.isError && <Alert type="error" showIcon message={mutation.error instanceof Error ? mutation.error.message : '资产添加失败'} />}
         <Form layout="vertical" className="asset-form">
           <Form.Item label="资产类型">
             <Controller name="type" control={control} render={({ field }) => (

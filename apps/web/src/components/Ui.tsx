@@ -6,7 +6,7 @@ import { Card, Progress, Tag } from 'antd';
 import type { Metric, TaskStatus, Tone } from '../types';
 
 export function MetricCard({ metric }: { metric: Metric }) {
-  const negative = metric.trend.startsWith('-');
+  const negative = metric.trend?.startsWith('-') ?? false;
   const metricIcons: Record<string, string> = {
     任务总数: 'metric-task',
     进行中任务: 'metric-task-clock',
@@ -36,9 +36,11 @@ export function MetricCard({ metric }: { metric: Metric }) {
     <Card className={`metric-card tone-${metric.tone}`} variant="borderless">
       <div className="metric-top">
         <span>{metric.label}</span>
-        <Tag color={negative ? 'green' : metric.tone === 'red' ? 'red' : 'blue'}>
-          {negative ? <ArrowDownOutlined /> : <ArrowUpOutlined />} {metric.trend}
-        </Tag>
+        {metric.trend && (
+          <Tag color={negative ? 'green' : metric.tone === 'red' ? 'red' : 'blue'}>
+            {negative ? <ArrowDownOutlined /> : <ArrowUpOutlined />} {metric.trend}
+          </Tag>
+        )}
       </div>
       <strong>{metric.value}</strong>
       {icon && <i><img src={'/ui-icons/' + icon + '.png'} alt="" /></i>}

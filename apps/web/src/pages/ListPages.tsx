@@ -1,143 +1,228 @@
 import {
   BarChartOutlined,
-  CalendarOutlined,
   CodeOutlined,
-  DeleteOutlined,
-  DownloadOutlined,
   ExperimentOutlined,
-  ExpandOutlined,
-  LinkOutlined,
-  MoreOutlined,
-  NumberOutlined,
-  PlusOutlined,
   ReloadOutlined,
-  SearchOutlined,
   ThunderboltOutlined,
-  UserOutlined,
 } from '@ant-design/icons';
-import { Button, Card, Checkbox, Drawer, Input, Select, Space, Table, Tag } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
-import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert, Button, Card, Drawer, Dropdown, Select, Space, Table, Tag } from 'antd';
+import type { MenuProps } from 'antd';
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
+import { useState } from 'react';
+import {
+  listReports,
+  listTasks,
+  listVulnerabilities,
+  previewReport,
+  reportDownloadUrl,
+  updateVulnerability,
+} from '../api/resources';
+import type {
+  TaskStatusCode,
+  VulnerabilitySeverityCode,
+  VulnerabilityStatusCode,
+} from '../api/resources';
 import { MetricCard, ProgressCell, StatusTag } from '../components/Ui';
-import { reports, tasks, vulnerabilities } from '../data/mock';
 import type { Metric, ReportRecord, TaskRecord, VulnerabilityRecord } from '../types';
 
-const taskMetrics: Metric[] = [
-  { label: '全部任务', value: '1,284', trend: '+8.2%', tone: 'gray' },
-  { label: '排队中', value: '12', trend: '+2', tone: 'orange' },
-  { label: '进行中', value: '8', trend: '+3', tone: 'blue' },
-  { label: '已完成', value: '1,250', trend: '+12.5%', tone: 'green' },
-  { label: '异常任务', value: '4', trend: '-2', tone: 'red' },
-  { label: '今日新增', value: '26', trend: '+18.6%', tone: 'purple' },
-];
+const PAGE_SIZE = 10;
 
-const vulnMetrics: Metric[] = [
-  { label: '漏洞总数', value: '3,247', trend: '+4.70%', tone: 'purple' },
-  { label: '高危漏洞', value: '412', trend: '+5.84%', tone: 'red' },
-  { label: '中危漏洞', value: '1,562', trend: '+3.80%', tone: 'orange' },
-  { label: '待修复', value: '2,135', trend: '+6.26%', tone: 'purple' },
-  { label: '待复测', value: '325', trend: '-3.16%', tone: 'blue' },
-  { label: '已修复', value: '1,128', trend: '+9.42%', tone: 'green' },
-];
+function dateTime(value: string) {
+  return value.replace('T', ' ').replace('Z', '').slice(0, 19);
+}
 
-const reportMetrics: Metric[] = [
-  { label: '报告总数', value: '1,286', trend: '+8.20%', tone: 'purple' },
-  { label: '本周新增', value: '42', trend: '+12.50%', tone: 'red' },
-  { label: '待导出', value: '18', trend: '+6.30%', tone: 'orange' },
-  { label: '已导出', value: '1,102', trend: '+5.10%', tone: 'blue' },
-  { label: '待确认', value: '24', trend: '-4.00%', tone: 'purple' },
-  { label: '本月交付', value: '86', trend: '+18.60%', tone: 'green' },
-];
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : '请求失败，请稍后重试';
+}
 
-function PageFilters({ placeholder, action }: { placeholder: string; action?: React.ReactNode }) {
+function ErrorState({ error, retry }: { error: unknown; retry: () => void }) {
   return (
-    <div className="filter-bar">
-      <Input prefix={<SearchOutlined />} placeholder={placeholder} />
-      <Select defaultValue="全部状态" options={['全部状态', '进行中', '已完成'].map((value) => ({ value }))} />
-      <Select suffixIcon={<UserOutlined />} defaultValue="全部类型" options={['全部类型', '渗透测试', '代码审计'].map((value) => ({ value }))} />
-      <Button icon={<CalendarOutlined />}>最近七天</Button>
-      <div className="filter-spacer" />
-      <Button icon={<ReloadOutlined />}>刷新</Button>
-      {action}
-    </div>
+    <Alert
+      className="resource-error"
+      type="error"
+      showIcon
+      message={errorMessage(error)}
+      action={<Button onClick={retry}>重试</Button>}
+    />
   );
 }
 
+function pagination(
+  page: number,
+  total: number,
+  setPage: (page: number) => void,
+): TablePaginationConfig {
+  return {
+    current: page,
+    pageSize: PAGE_SIZE,
+    total,
+    showSizeChanger: false,
+    onChange: setPage,
+  };
+}
+
+function pageMetrics(
+  totalLabel: string,
+  total: number | undefined,
+  isError: boolean,
+  rows: Array<{ label: string; value: number; tone: Metric['tone']; icon: string }>,
+): Metric[] {
+  const loaded = total !== undefined && !isError;
+  return [
+    { label: totalLabel, value: loaded ? String(total) : '—', tone: 'gray' },
+    ...rows.map((row) => ({ ...row, value: loaded ? String(row.value) : '—' })),
+  ];
+}
+
 export function TasksPage() {
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState<TaskStatusCode>();
+  const query = useQuery({
+    queryKey: ['tasks', { page, pageSize: PAGE_SIZE, status }],
+    queryFn: () => listTasks({ page, pageSize: PAGE_SIZE, status }),
+  });
+  const rows = query.data?.items ?? [];
+  const metrics = pageMetrics('全部任务', query.data?.total, query.isError, [
+    { label: '本页排队', value: rows.filter((item) => item.statusCode === 'QUEUED').length, tone: 'orange', icon: 'metric-task-queued' },
+    { label: '本页进行中', value: rows.filter((item) => item.statusCode === 'RUNNING').length, tone: 'blue', icon: 'metric-task-running' },
+    { label: '本页已完成', value: rows.filter((item) => item.statusCode === 'SUCCEEDED').length, tone: 'green', icon: 'metric-task-completed' },
+    { label: '本页异常', value: rows.filter((item) => item.statusCode === 'FAILED').length, tone: 'red', icon: 'metric-task-abnormal' },
+  ]);
   const columns: ColumnsType<TaskRecord> = [
-    { title: '任务名称/ID', dataIndex: 'name', width: 210, render: (name, row) => <div className="primary-cell"><strong>{name}</strong><span>{row.id}</span></div> },
+    { title: '任务名称/ID', dataIndex: 'name', width: 220, render: (name, row) => <div className="primary-cell"><strong>{name}</strong><span>{row.id}</span></div> },
     { title: '类型', dataIndex: 'type', width: 130, render: (type) => <ServiceType type={type} /> },
     { title: '目标/资产摘要', dataIndex: 'target', ellipsis: true },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170 },
+    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: dateTime },
     { title: '创建人', dataIndex: 'creator', width: 110 },
-    { title: '当前状态', dataIndex: 'status', width: 100, render: (status) => <StatusTag status={status} /> },
+    { title: '当前状态', dataIndex: 'status', width: 110, render: (value) => <StatusTag status={value} /> },
     { title: '进度', dataIndex: 'progress', width: 150, render: (value, row) => <ProgressCell value={value} tone={row.status === '异常' ? 'red' : row.status === '已完成' ? 'green' : 'blue'} /> },
-    { title: '优先级', dataIndex: 'priority', width: 80, render: (value) => <span className={`priority-arrow ${value === '高' ? 'high' : value === '低' ? 'low' : ''}`}>{value === '高' ? '↑' : value === '低' ? '↓' : '—'}</span> },
-    { title: '操作', width: 150, render: () => <Space><a>摘要</a><a>详情</a><MoreOutlined /><DeleteOutlined /></Space> },
+    { title: '阶段', dataIndex: 'phase', width: 120, render: (value) => value || '—' },
   ];
+
   return (
-    <ListPage metrics={taskMetrics}>
-      <PageFilters placeholder="搜索任务名称、ID..." action={<Button type="primary" icon={<PlusOutlined />}>新建任务</Button>} />
-      <Table rowKey="id" columns={columns} dataSource={tasks} pagination={{ pageSize: 6 }} />
+    <ListPage metrics={metrics}>
+      <div className="filter-bar">
+        <Select
+          aria-label="任务状态"
+          value={status}
+          allowClear
+          placeholder="全部状态"
+          options={[
+            ['QUEUED', '排队中'], ['RUNNING', '进行中'], ['SUCCEEDED', '已完成'], ['FAILED', '异常'], ['CANCELLED', '已停止'],
+          ].map(([value, label]) => ({ value, label }))}
+          onChange={(value) => { setStatus(value as TaskStatusCode | undefined); setPage(1); }}
+        />
+        <div className="filter-spacer" />
+        <Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button>
+      </div>
+      {query.isError ? <ErrorState error={query.error} retry={() => query.refetch()} /> : (
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={rows}
+          loading={query.isPending}
+          locale={{ emptyText: '暂无任务数据' }}
+          pagination={pagination(page, query.data?.total ?? 0, setPage)}
+          scroll={{ x: 1200 }}
+        />
+      )}
     </ListPage>
   );
 }
 
 export function VulnerabilitiesPage() {
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [severity, setSeverity] = useState<VulnerabilitySeverityCode>();
+  const [status, setStatus] = useState<VulnerabilityStatusCode>();
   const [selected, setSelected] = useState<VulnerabilityRecord>();
-  const columns: ColumnsType<VulnerabilityRecord> = useMemo(() => [
-    { title: '', width: 44, render: () => <Checkbox /> },
-    { title: '漏洞标题/漏洞 ID', dataIndex: 'title', width: 250, render: (title, row) => <div className="primary-cell"><strong>{title}</strong><span>{row.id}</span></div> },
-    { title: '来源模块', dataIndex: 'source', width: 120, render: (source) => <ServiceType type={source} /> },
-    { title: '关联资产', dataIndex: 'asset', width: 180, ellipsis: true },
-    { title: '所属任务', dataIndex: 'task', width: 180, ellipsis: true },
-    { title: '首次发现时间', dataIndex: 'discoveredAt', width: 165 },
-    { title: '状态', dataIndex: 'status', width: 90, render: (status) => <StatusTag status={status} /> },
-    { title: '等级', dataIndex: 'severity', width: 80, render: (severity) => <Tag color={severity === '严重' ? 'red' : severity === '高危' ? 'orange' : 'blue'}>{severity}</Tag> },
-    { title: 'AI 标签', dataIndex: 'tags', render: (tags: string[]) => tags.map((tag) => <Tag key={tag}>{tag}</Tag>) },
-    { title: '操作', width: 130, render: (_, row) => <Space><a onClick={() => setSelected(row)}>详情</a><a>处置</a><MoreOutlined /><DeleteOutlined /></Space> },
-  ], []);
+  const query = useQuery({
+    queryKey: ['vulnerabilities', { page, pageSize: PAGE_SIZE, severity, status }],
+    queryFn: () => listVulnerabilities({ page, pageSize: PAGE_SIZE, severity, status }),
+  });
+  const mutation = useMutation({
+    mutationFn: ({ id, nextStatus }: { id: string; nextStatus: VulnerabilityStatusCode }) => updateVulnerability(id, nextStatus),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vulnerabilities'] }),
+  });
+  const rows = query.data?.items ?? [];
+  const metrics = pageMetrics('漏洞总数', query.data?.total, query.isError, [
+    { label: '本页高危', value: rows.filter((item) => ['严重', '高危'].includes(item.severity)).length, tone: 'red', icon: 'metric-vulnerability-high' },
+    { label: '本页中危', value: rows.filter((item) => item.severity === '中危').length, tone: 'orange', icon: 'metric-vulnerability-medium' },
+    { label: '本页待修复', value: rows.filter((item) => item.statusCode === 'OPEN').length, tone: 'purple', icon: 'metric-vulnerability-pending' },
+    { label: '本页待复测', value: rows.filter((item) => item.statusCode === 'RETESTING').length, tone: 'blue', icon: 'metric-vulnerability-retest' },
+    { label: '本页已修复', value: rows.filter((item) => item.statusCode === 'FIXED').length, tone: 'green', icon: 'metric-vulnerability-fixed' },
+  ]);
+  const statusMenu = (row: VulnerabilityRecord): MenuProps => ({
+    items: [
+      { key: 'FIXING', label: '标记修复中' },
+      { key: 'RETESTING', label: '标记待复测' },
+      { key: 'FIXED', label: '标记已修复' },
+      { key: 'OPEN', label: '重新打开' },
+    ],
+    onClick: ({ key }) => mutation.mutate({ id: row.id, nextStatus: key as VulnerabilityStatusCode }),
+  });
+  const columns: ColumnsType<VulnerabilityRecord> = [
+    { title: '漏洞标题/漏洞 ID', dataIndex: 'title', width: 260, render: (title, row) => <div className="primary-cell"><strong>{title}</strong><span>{row.id}</span></div> },
+    { title: '关联资产', dataIndex: 'asset', width: 190, ellipsis: true },
+    { title: '所属任务', dataIndex: 'task', width: 190, ellipsis: true },
+    { title: '首次发现时间', dataIndex: 'discoveredAt', width: 170, render: dateTime },
+    { title: '状态', dataIndex: 'status', width: 100, render: (value) => <StatusTag status={value} /> },
+    { title: '等级', dataIndex: 'severity', width: 90, render: (value) => <Tag color={value === '严重' ? 'red' : value === '高危' ? 'orange' : 'blue'}>{value}</Tag> },
+    { title: '标签', dataIndex: 'tags', render: (tags: string[]) => tags.map((tag) => <Tag key={tag}>{tag}</Tag>) },
+    { title: '操作', width: 190, render: (_, row) => <Space><Button type="link" onClick={() => setSelected(row)}>详情</Button><Dropdown menu={statusMenu(row)}><Button type="link" loading={mutation.isPending} aria-label="处置漏洞">处置漏洞</Button></Dropdown></Space> },
+  ];
+
   return (
-    <ListPage metrics={vulnMetrics}>
-      <PageFilters placeholder="搜索漏洞标题、漏洞 ID、资产、任务..." action={<Button type="primary">搜索</Button>} />
-      <Table rowKey="id" columns={columns} dataSource={vulnerabilities} pagination={{ pageSize: 5 }} scroll={{ x: 1350 }} />
-      <Drawer open={Boolean(selected)} width={560} title={selected ? <Space>{selected.title}<Tag color="red">{selected.severity}</Tag></Space> : '漏洞详情'} extra={<ExpandOutlined />} onClose={() => setSelected(undefined)}>
-        {selected && <div className="detail-drawer">
-          <div className="detail-meta">
-            <span><NumberOutlined /> 漏洞 ID <strong>{selected.id}</strong></span>
-            <span><ReloadOutlined /> 当前状态 <StatusTag status={selected.status} /></span>
-            <span><CodeOutlined /> 来源模块 <strong>{selected.source}</strong></span>
-            <span><LinkOutlined /> 关联资产 <a>{selected.asset}</a></span>
-            <span><CalendarOutlined /> 首次发现 <strong>{selected.discoveredAt}</strong></span>
-            <span><ReloadOutlined /> 最近更新 <strong>{selected.updatedAt}</strong></span>
-          </div>
-          <Card size="small" className="drawer-insight"><h3><ThunderboltOutlined /> AI 风险摘要</h3><p>{selected.description}</p><a>查看 AI 详细分析 ›</a></Card>
-          <Card size="small" className="drawer-insight"><h3><ExperimentOutlined /> 修复建议摘要</h3><p>升级受影响组件，限制暴露端口，并完成凭据轮换后发起复测。</p><a>查看修复详情 ›</a></Card>
-          <div className="drawer-actions"><Button type="primary" block>查看详情</Button><Button icon={<UserOutlined />} /><Button icon={<MoreOutlined />} /></div>
-        </div>}
+    <ListPage metrics={metrics}>
+      <div className="filter-bar">
+        <Select aria-label="漏洞等级" value={severity} allowClear placeholder="全部等级" options={['critical', 'high', 'medium', 'low'].map((value) => ({ value }))} onChange={(value) => { setSeverity(value as VulnerabilitySeverityCode | undefined); setPage(1); }} />
+        <Select aria-label="漏洞状态" value={status} allowClear placeholder="全部状态" options={['OPEN', 'FIXING', 'RETESTING', 'FIXED'].map((value) => ({ value }))} onChange={(value) => { setStatus(value as VulnerabilityStatusCode | undefined); setPage(1); }} />
+        <div className="filter-spacer" />
+        <Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button>
+      </div>
+      {mutation.isError && <Alert type="error" showIcon message={errorMessage(mutation.error)} />}
+      {query.isError ? <ErrorState error={query.error} retry={() => query.refetch()} /> : (
+        <Table rowKey="id" columns={columns} dataSource={rows} loading={query.isPending} locale={{ emptyText: '暂无漏洞数据' }} pagination={pagination(page, query.data?.total ?? 0, setPage)} scroll={{ x: 1250 }} />
+      )}
+      <Drawer open={Boolean(selected)} width={560} title={selected?.title ?? '漏洞详情'} onClose={() => setSelected(undefined)}>
+        {selected && <div className="detail-drawer"><div className="detail-meta"><span>漏洞 ID <strong>{selected.id}</strong></span><span>当前状态 <StatusTag status={selected.status} /></span><span>关联资产 <strong>{selected.asset}</strong></span><span>首次发现 <strong>{dateTime(selected.discoveredAt)}</strong></span><span>最近更新 <strong>{dateTime(selected.updatedAt)}</strong></span></div><Card size="small" className="drawer-insight"><h3><ThunderboltOutlined /> 风险描述</h3><p>{selected.description ?? '暂无描述'}</p></Card></div>}
       </Drawer>
     </ListPage>
   );
 }
 
 export function ReportsPage() {
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<ReportRecord>();
+  const query = useQuery({
+    queryKey: ['reports', { page, pageSize: PAGE_SIZE }],
+    queryFn: () => listReports({ page, pageSize: PAGE_SIZE }),
+  });
+  const preview = useMutation({ mutationFn: previewReport });
+  const rows = query.data?.items ?? [];
+  const metrics: Metric[] = [{ label: '报告总数', value: query.data && !query.isError ? String(query.data.total) : '—', tone: 'gray' }];
   const columns: ColumnsType<ReportRecord> = [
-    { title: '', width: 44, render: () => <Checkbox /> },
-    { title: '报告名称', dataIndex: 'name', width: 250, render: (name, row) => <div className="primary-cell"><strong>{name}</strong><span>{row.id}</span></div> },
-    { title: '类型', dataIndex: 'type', width: 120, render: (type) => <ServiceType type={type} /> },
-    { title: '资产分组', dataIndex: 'group', width: 120 },
+    { title: '报告名称', dataIndex: 'name', width: 280, render: (name, row) => <div className="primary-cell"><strong>{name}</strong><span>{row.id}</span></div> },
+    { title: '格式', dataIndex: 'format', width: 100, render: (value) => <Tag color="blue">{String(value).toUpperCase()}</Tag> },
+    { title: '所属计划', dataIndex: 'plan', width: 190 },
     { title: '所属任务', dataIndex: 'task', width: 190 },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170 },
-    { title: '状态', dataIndex: 'status', width: 90, render: (status) => <StatusTag status={status} /> },
-    { title: '导出状态', dataIndex: 'exported', width: 100, render: (value) => <Tag color={value ? 'blue' : 'default'}>{value ? '已导出' : '未导出'}</Tag> },
-    { title: '报告信息', dataIndex: 'risks', render: (risks: ReportRecord['risks']) => Object.entries(risks).map(([key, value]) => <Tag key={key}>{key} {value}</Tag>) },
-    { title: '操作', width: 130, render: () => <Space><a>详情</a><a>下载</a><MoreOutlined /><DeleteOutlined /></Space> },
+    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: dateTime },
+    { title: '状态', dataIndex: 'status', width: 110, render: (value) => <StatusTag status={value} /> },
+    { title: '操作', width: 160, render: (_, row) => <Space><Button type="link" disabled={!row.previewSupported} onClick={() => { setSelected(row); preview.mutate(row.id); }}>预览</Button><a href={reportDownloadUrl(row.id)} download>下载</a></Space> },
   ];
+
   return (
-    <ListPage metrics={reportMetrics}>
-      <PageFilters placeholder="搜索报告名称、ID、任务、创建人..." action={<Button type="primary">搜索</Button>} />
-      <div className="table-toolbar"><span>已选择 <strong>0</strong> 项</span><Button icon={<DownloadOutlined />}>批量导出</Button></div>
-      <Table rowKey="id" columns={columns} dataSource={reports} pagination={{ pageSize: 6 }} scroll={{ x: 1300 }} />
+    <ListPage metrics={metrics}>
+      <div className="filter-bar"><div className="filter-spacer" /><Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button></div>
+      {query.isError ? <ErrorState error={query.error} retry={() => query.refetch()} /> : (
+        <Table rowKey="id" columns={columns} dataSource={rows} loading={query.isPending} locale={{ emptyText: '暂无报告数据' }} pagination={pagination(page, query.data?.total ?? 0, setPage)} scroll={{ x: 1200 }} />
+      )}
+      <Drawer open={Boolean(selected)} width={680} title={selected?.name ?? '报告预览'} onClose={() => { setSelected(undefined); preview.reset(); }}>
+        {preview.isPending && <p>正在加载报告...</p>}
+        {preview.isError && <Alert type="error" showIcon message={errorMessage(preview.error)} />}
+        {preview.data && <pre className="report-preview">{preview.data}</pre>}
+      </Drawer>
     </ListPage>
   );
 }

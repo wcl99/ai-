@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ApiError } from '../api/client';
+import { useEffect } from 'react';
+import {
+  advanceAuthGeneration,
+  ApiError,
+  getAuthGeneration,
+} from '../api/client';
 import { getCurrentUser, login as requestLogin, logout as requestLogout } from './api';
 import { AuthContext } from './AuthContext';
 import type { AuthContextValue } from './AuthContext';
@@ -8,6 +13,15 @@ const authQueryKey = ['auth', 'me'] as const;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
+  useEffect(() => {
+    const clearExpiredSession = (event: Event) => {
+      if ((event as CustomEvent<number>).detail !== getAuthGeneration()) return;
+      queryClient.setQueryData(authQueryKey, null);
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' });
+    };
+    window.addEventListener('auth:unauthorized', clearExpiredSession);
+    return () => window.removeEventListener('auth:unauthorized', clearExpiredSession);
+  }, [queryClient]);
   const session = useQuery({
     queryKey: authQueryKey,
     queryFn: async () => {
@@ -22,11 +36,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
   const loginMutation = useMutation({
     mutationFn: requestLogin,
-    onSuccess: (user) => queryClient.setQueryData(authQueryKey, user),
+    onSuccess: (user) => {
+      advanceAuthGeneration();
+      queryClient.setQueryData(authQueryKey, user);
+    },
   });
   const logoutMutation = useMutation({
     mutationFn: requestLogout,
     onSuccess: () => {
+      advanceAuthGeneration();
       queryClient.setQueryData(authQueryKey, null);
       queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' });
     },

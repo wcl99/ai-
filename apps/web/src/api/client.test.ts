@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { apiRequest } from './client';
+import { apiRequest, apiTextRequest } from './client';
 
 describe('apiRequest', () => {
   afterEach(() => {
@@ -71,5 +71,19 @@ describe('apiRequest', () => {
 
     await expect(apiRequest('/api/v1/example', z.object({ value: z.string() }))).rejects
       .toMatchObject({ status: 502, code: 'HTTP_ERROR', message: 'Request failed (502)' });
+  });
+
+  it('reads authenticated plain text responses', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('# report', {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(apiTextRequest('/api/v1/reports/1/content')).resolves.toBe('# report');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/reports/1/content',
+      expect.objectContaining({ credentials: 'include' }),
+    );
   });
 });
