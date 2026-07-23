@@ -6,6 +6,7 @@ const retriedTaskId = '66666666-6666-4666-8666-666666666666';
 
 test('runs the authorized platform golden path without contacting the engine', async ({ page }) => {
   let planCreates = 0;
+  let assetUpdates = 0;
   let confirmations = 0;
   let taskCreates = 0;
   let taskStatus = 'RUNNING';
@@ -42,7 +43,7 @@ test('runs the authorized platform golden path without contacting the engine', a
               action: 'can_port_result',
               success: true,
               hasResult: true,
-              hosts: [{ host: 'admin.example.test', alive: true, ports: [] }],
+              hosts: [{ host: 'admin.example.test', hostType: 'domain', alive: true, ports: [] }],
               portCount: 0,
             };
         queueMicrotask(() => this.onmessage?.(
@@ -123,6 +124,20 @@ test('runs the authorized platform golden path without contacting the engine', a
         authorization_confirmed: false,
       });
       return fulfill(plan, 201);
+    }
+    if (pathname === `/api/v1/scan-plans/${planId}/assets` && request.method() === 'PATCH') {
+      assetUpdates += 1;
+      expect(request.postDataJSON()).toEqual({
+        asset_list: [{ host: 'admin.example.test', hostType: 'domain', alive: true, ports: [] }],
+      });
+      return fulfill({
+        ...plan,
+        asset_list: [{ host: 'admin.example.test', hostType: 'domain', alive: true, ports: [] }],
+        snapshot: {
+          authorization_confirmed: false,
+          asset_list: [{ host: 'admin.example.test', hostType: 'domain', alive: true, ports: [] }],
+        },
+      });
     }
     if (pathname === `/api/v1/scan-plans/${planId}/confirm`) {
       confirmations += 1;
@@ -219,11 +234,13 @@ test('runs the authorized platform golden path without contacting the engine', a
 
   await expect(page.locator('.analysis-result')).toContainText('DRAFT');
   expect(planCreates).toBe(1);
+  expect(assetUpdates).toBe(0);
   expect(confirmations).toBe(0);
   expect(taskCreates).toBe(0);
 
   await page.locator('.modal-actions button').click();
   await page.locator('.modal-actions button').click();
+  expect(assetUpdates).toBe(1);
   await page.locator('.authorization-confirmation input[type="checkbox"]').check();
   await page.locator('.modal-actions button').click();
 
