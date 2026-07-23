@@ -12,6 +12,14 @@ cd ai-
 
 先阅读根目录及子目录的 `AGENTS.md`。推荐环境：Git、Docker Desktop、Node.js 20+、Python 3.12+。
 
+## 支持的开发工具链
+
+- Node.js 20.x 与 npm 锁文件安装；CI 使用 Node.js 20。
+- Python 3.12；后端开发依赖通过 `python -m pip install -e "apps/api[dev]"` 安装。
+- Docker Desktop 与 Docker Compose v2，用于 PostgreSQL 和完整验证环境。
+
+本地命令和 CI 使用同一组构建、Lint 与测试入口。不要用其他 Python 版本生成或提交环境产物。
+
 ## 启动完整验证环境
 
 ```powershell
@@ -35,8 +43,11 @@ docker compose -f deploy/compose.yaml up --build
 ## 验证命令
 
 ```powershell
+npm --prefix apps/web ci
 npm --prefix apps/web run build
+npm --prefix apps/web run lint
 npm --prefix apps/web run test
+python -m pip install -e "apps/api[dev]"
 python -m ruff check apps/api
 python -m pytest apps/api/tests
 ```
