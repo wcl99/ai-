@@ -5,6 +5,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
+import { AuthProvider } from './auth/AuthProvider';
 import './styles.css';
 
 const queryClient = new QueryClient({
@@ -25,9 +26,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       }}
     >
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <App />
-        </BrowserRouter>
+        <AuthProvider>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <App />
+          </BrowserRouter>
+        </AuthProvider>
       </QueryClientProvider>
     </ConfigProvider>
   </React.StrictMode>,

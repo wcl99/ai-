@@ -3,10 +3,12 @@ import {
   SearchOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
-import { Avatar, Input, Layout, Menu, Space, Typography } from 'antd';
+import { Alert, Avatar, Dropdown, Input, Layout, Menu, Space, Typography } from 'antd';
 import type { MenuProps } from 'antd';
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import expertAvatar from '../../../../素材/工作 (7) 3.png';
+import { useAuth } from '../auth/AuthContext';
 
 const { Header, Sider, Content } = Layout;
 
@@ -95,6 +97,13 @@ const pageTitles: Record<string, string> = {
   '/settings': '平台设置',
 };
 
+const roleLabels: Record<string, string> = {
+  admin: '管理员',
+  security_expert: '安全专家',
+  operator: '操作员',
+  auditor: '审计员',
+};
+
 interface AppShellProps {
   children: React.ReactNode;
 }
@@ -102,6 +111,8 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
+  const [logoutError, setLogoutError] = useState<string | null>(null);
   const basePath = location.pathname.startsWith('/pentest/session') ? '/pentest' : location.pathname;
   const title = pageTitles[basePath] ?? 'AI 安服平台';
   const openSection = basePath === '/pentest'
@@ -113,6 +124,19 @@ export function AppShell({ children }: AppShellProps) {
         : basePath.startsWith('/reports')
           ? 'report'
           : undefined;
+  const profileMenu: MenuProps = {
+    items: [{ key: 'logout', label: '退出登录' }],
+    onClick: async ({ key }) => {
+      if (key !== 'logout') return;
+      setLogoutError(null);
+      try {
+        await logout();
+        navigate('/login', { replace: true });
+      } catch (error) {
+        setLogoutError(error instanceof Error ? error.message : '退出登录失败，请稍后重试');
+      }
+    },
+  };
 
   return (
     <Layout className="app-shell">
@@ -144,17 +168,29 @@ export function AppShell({ children }: AppShellProps) {
             <HeaderIcon name="ai" label="AI 助手" />
             <HeaderIcon name="theme" label="切换主题" />
             <HeaderIcon name="notification" label="通知" />
-            <div className="profile">
-              <div>
-                <strong>安全专家</strong>
-                <span>Aiscanner</span>
-              </div>
-              <Avatar size={42} src={expertAvatar} />
-              <img className="profile-chevron" src="/ui-icons/arrow-down.png" alt="" />
-              <i />
-            </div>
+            <Dropdown menu={profileMenu} trigger={['click']}>
+              <button type="button" className="profile" aria-label="用户菜单">
+                <span className="profile-copy">
+                  <strong>{user?.name ?? user?.username}</strong>
+                  <span>{roleLabels[user?.role ?? ''] ?? user?.role}</span>
+                </span>
+                <Avatar size={42} src={expertAvatar} />
+                <img className="profile-chevron" src="/ui-icons/arrow-down.png" alt="" />
+                <i />
+              </button>
+            </Dropdown>
           </Space>
         </Header>
+        {logoutError && (
+          <Alert
+            className="shell-error"
+            type="error"
+            showIcon
+            closable
+            message={logoutError}
+            onClose={() => setLogoutError(null)}
+          />
+        )}
         <Content className={basePath === '/pentest' ? 'app-content pentest-content' : 'app-content'}>
           {children}
         </Content>
