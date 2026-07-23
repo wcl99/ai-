@@ -3,13 +3,15 @@ import re
 import uuid
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, Query, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .auth import (
     AuthenticationError,
@@ -32,6 +34,7 @@ from .schemas import (
     AiPlanStart,
     AiReportUpload,
     AiVulnerabilityUpload,
+    ApiEnvelope,
     AssetCreate,
     AuditLogRead,
     AssetRead,
@@ -40,17 +43,21 @@ from .schemas import (
     LoginResponse,
     OrganizationRead,
     OrganizationUpdate,
+    PageData,
     QAMessageCreate,
     QAMessageRead,
+    ReportListRead,
     ReportRead,
     ScanPlanCreate,
     ScanPlanRead,
     TaskCreate,
     TaskEventRead,
+    TaskListRead,
     TaskRead,
     UserCreate,
     UserRead,
     UserUpdate,
+    VulnerabilityListRead,
     VulnerabilityRead,
     VulnerabilityUpdate,
 )
@@ -60,6 +67,20 @@ from .sync import sync_forever
 
 def envelope(data=None, *, message="ok") -> dict:
     return {"success": True, "message": message, "data": data}
+
+
+def public_report_url(value: str | None) -> str | None:
+    if not value:
+        return None
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+    ):
+        return None
+    return value
 
 
 async def bootstrap_admin(settings: Settings) -> None:
@@ -111,7 +132,33 @@ app.add_middleware(
 
 @app.exception_handler(AuthenticationError)
 async def authentication_error_handler(_: Request, __: AuthenticationError):
-    return JSONResponse(status_code=401, content={"success": False, "code": "UNAUTHORIZED", "message": "Authentication required"})
+    return JSONResponse(
+        status_code=401,
+        content={
+            "success": False,
+            "code": "UNAUTHORIZED",
+            "message": "Authentication required",
+            "details": None,
+        },
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error_handler(_: Request, exc: StarletteHTTPException):
+    code = {
+        404: "NOT_FOUND",
+        405: "METHOD_NOT_ALLOWED",
+    }.get(exc.status_code, "HTTP_ERROR")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "code": code,
+            "message": str(exc.detail),
+            "details": None,
+        },
+        headers=exc.headers,
+    )
 
 
 @app.exception_handler(AppError)
@@ -144,8 +191,29 @@ async def login(payload: LoginRequest, response: Response, session: AsyncSession
         raise AuthenticationError
     user = users[0]
     token = create_token(user, settings)
-    response.set_cookie("access_token", token, max_age=settings.jwt_ttl_seconds, httponly=True, samesite="lax", secure=False)
+    response.set_cookie(
+        "access_token",
+        token,
+        max_age=settings.jwt_ttl_seconds,
+        httponly=True,
+        samesite=settings.cookie_samesite,
+        secure=settings.cookie_secure,
+    )
     return LoginResponse(token=token, expires_in=settings.jwt_ttl_seconds, user=UserRead.model_validate(user))
+
+
+@app.post("/api/v1/auth/logout")
+async def logout(
+    response: Response,
+    settings: Settings = Depends(get_settings),
+):
+    response.delete_cookie(
+        "access_token",
+        httponly=True,
+        samesite=settings.cookie_samesite,
+        secure=settings.cookie_secure,
+    )
+    return envelope(message="logged out")
 
 
 @app.get("/api/v1/auth/me", response_model=UserRead)
@@ -277,11 +345,11 @@ async def list_audit_logs(action: str | None = Query(default=None, max_length=10
     return envelope(page_data([AuditLogRead.model_validate(item) for item in items], total or 0, page, page_size))
 
 
-@app.get("/api/v1/assets")
+@app.get("/api/v1/assets", response_model=ApiEnvelope[PageData[AssetRead]])
 async def list_assets(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
     where = Asset.org_id == user.org_id
     total = await session.scalar(select(func.count()).select_from(Asset).where(where))
-    items = list(await session.scalars(select(Asset).where(where).order_by(Asset.created_at.desc()).offset((page - 1) * page_size).limit(page_size)))
+    items = list(await session.scalars(select(Asset).where(where).order_by(Asset.created_at.desc(), Asset.id.desc()).offset((page - 1) * page_size).limit(page_size)))
     return envelope(page_data([AssetRead.model_validate(item) for item in items], total or 0, page, page_size))
 
 
@@ -336,10 +404,50 @@ async def confirm_plan(plan_id: uuid.UUID, user: User = Depends(require_roles("a
     return plan
 
 
-@app.get("/api/v1/tasks")
-async def list_tasks(user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
-    items = list(await session.scalars(select(Task).where(Task.org_id == user.org_id).order_by(Task.created_at.desc())))
-    return envelope([TaskRead.model_validate(item) for item in items])
+@app.get("/api/v1/tasks", response_model=ApiEnvelope[PageData[TaskListRead]])
+async def list_tasks(
+    status: str | None = Query(default=None, max_length=32),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    criteria = [Task.org_id == user.org_id]
+    if status:
+        criteria.append(Task.status == status)
+    plan_join = and_(Task.plan_id == ScanPlan.id, ScanPlan.org_id == user.org_id)
+    creator_join = and_(Task.created_by == User.id, User.org_id == user.org_id)
+    total = await session.scalar(
+        select(func.count())
+        .select_from(Task)
+        .join(ScanPlan, plan_join)
+        .join(User, creator_join)
+        .where(*criteria)
+    )
+    rows = (
+        await session.execute(
+            select(Task, ScanPlan, User.name)
+            .join(ScanPlan, plan_join)
+            .join(User, creator_join)
+            .where(*criteria)
+            .order_by(Task.created_at.desc(), Task.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).all()
+    items = [
+        TaskListRead.model_validate(
+            {
+                **TaskRead.model_validate(task).model_dump(),
+                "plan_name": plan.name,
+                "test_type": plan.test_type,
+                "targets": plan.targets,
+                "created_by_name": creator_name,
+            }
+        )
+        for task, plan, creator_name in rows
+    ]
+    return envelope(page_data(items, total or 0, page, page_size))
 
 
 @app.post("/api/v1/tasks", response_model=TaskRead, status_code=201)
@@ -453,15 +561,69 @@ async def retry_task(task_id: uuid.UUID, user: User = Depends(require_roles("adm
     return retried
 
 
-@app.get("/api/v1/vulnerabilities")
-async def list_vulnerabilities(severity: str | None = None, status: str | None = None, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
-    query = select(Vulnerability).where(Vulnerability.org_id == user.org_id)
+@app.get(
+    "/api/v1/vulnerabilities",
+    response_model=ApiEnvelope[PageData[VulnerabilityListRead]],
+)
+async def list_vulnerabilities(
+    severity: str | None = None,
+    status: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    criteria = [Vulnerability.org_id == user.org_id]
     if severity:
-        query = query.where(Vulnerability.severity == severity)
+        criteria.append(Vulnerability.severity == severity)
     if status:
-        query = query.where(Vulnerability.status == status)
-    items = list(await session.scalars(query.order_by(Vulnerability.created_at.desc())))
-    return envelope([VulnerabilityRead.model_validate(item) for item in items])
+        criteria.append(Vulnerability.status == status)
+    total = await session.scalar(
+        select(func.count()).select_from(Vulnerability).where(*criteria)
+    )
+    rows = (
+        await session.execute(
+            select(Vulnerability, Task.name)
+            .outerjoin(
+                Task,
+                and_(
+                    Vulnerability.task_id == Task.id,
+                    Task.org_id == user.org_id,
+                ),
+            )
+            .where(*criteria)
+            .order_by(Vulnerability.created_at.desc(), Vulnerability.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).all()
+    items = []
+    for item, task_name in rows:
+        raw_tags = item.data_json.get("tags", [])
+        tags = (
+            [tag for tag in raw_tags if isinstance(tag, str)]
+            if isinstance(raw_tags, list)
+            else []
+        )
+        items.append(
+            VulnerabilityListRead.model_validate(
+                {
+                    "id": item.id,
+                    "plan_id": item.plan_id,
+                    "task_id": item.task_id,
+                    "asset_key": item.asset_key,
+                    "title": item.title,
+                    "severity": item.severity,
+                    "status": item.status,
+                    "description": item.description,
+                    "created_at": item.created_at,
+                    "updated_at": item.updated_at,
+                    "task_name": task_name,
+                    "tags": tags,
+                }
+            )
+        )
+    return envelope(page_data(items, total or 0, page, page_size))
 
 
 @app.get("/api/v1/vulnerabilities/{vulnerability_id}", response_model=VulnerabilityRead)
@@ -482,15 +644,53 @@ async def update_vulnerability(vulnerability_id: uuid.UUID, payload: Vulnerabili
     return item
 
 
-@app.get("/api/v1/reports")
-async def list_reports(task_id: uuid.UUID | None = None, plan_id: uuid.UUID | None = None, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
-    query = select(Report).where(Report.org_id == user.org_id)
+@app.get("/api/v1/reports", response_model=ApiEnvelope[PageData[ReportListRead]])
+async def list_reports(
+    task_id: uuid.UUID | None = None,
+    plan_id: uuid.UUID | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    criteria = [Report.org_id == user.org_id]
     if task_id:
-        query = query.where(Report.task_id == task_id)
+        criteria.append(Report.task_id == task_id)
     if plan_id:
-        query = query.where(Report.plan_id == plan_id)
-    items = list(await session.scalars(query.order_by(Report.created_at.desc())))
-    return envelope([ReportRead.model_validate(item) for item in items])
+        criteria.append(Report.plan_id == plan_id)
+    plan_join = and_(Report.plan_id == ScanPlan.id, ScanPlan.org_id == user.org_id)
+    total = await session.scalar(
+        select(func.count())
+        .select_from(Report)
+        .join(ScanPlan, plan_join)
+        .where(*criteria)
+    )
+    rows = (
+        await session.execute(
+            select(Report, ScanPlan.name, Task.name)
+            .join(ScanPlan, plan_join)
+            .outerjoin(
+                Task,
+                and_(Report.task_id == Task.id, Task.org_id == user.org_id),
+            )
+            .where(*criteria)
+            .order_by(Report.created_at.desc(), Report.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).all()
+    items = [
+        ReportListRead.model_validate(
+            {
+                **ReportRead.model_validate(report).model_dump(),
+                "external_url": public_report_url(report.external_url),
+                "plan_name": plan_name,
+                "task_name": task_name,
+            }
+        )
+        for report, plan_name, task_name in rows
+    ]
+    return envelope(page_data(items, total or 0, page, page_size))
 
 
 async def scoped_report(session: AsyncSession, report_id: uuid.UUID, user: User) -> Report:
@@ -502,7 +702,13 @@ async def scoped_report(session: AsyncSession, report_id: uuid.UUID, user: User)
 
 @app.get("/api/v1/reports/{report_id}", response_model=ReportRead)
 async def read_report(report_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
-    return await scoped_report(session, report_id, user)
+    report = await scoped_report(session, report_id, user)
+    return ReportRead.model_validate(
+        {
+            **ReportRead.model_validate(report).model_dump(),
+            "external_url": public_report_url(report.external_url),
+        }
+    )
 
 
 @app.get("/api/v1/reports/{report_id}/download")
@@ -652,7 +858,8 @@ async def ai_upload_asset(payload: AiAssetUpload, user: User = Depends(digital_u
 async def ai_upload_vulnerability(payload: AiVulnerabilityUpload, user: User = Depends(digital_user_dependency()), session: AsyncSession = Depends(get_session)):
     await get_plan(session, payload.plan_id, user)
     task = await result_task(session, payload.task_id, payload.plan_id, user)
-    item = Vulnerability(org_id=user.org_id, plan_id=payload.plan_id, task_id=task.id if task else None, asset_key=payload.asset_key, title=payload.title or str(payload.data.get("title") or payload.data.get("name") or "Untitled vulnerability"), severity=payload.severity or str(payload.data.get("severity") or "unknown").lower(), description=payload.data.get("description"), data_json=payload.data)
+    data = redact_sensitive(payload.data)
+    item = Vulnerability(org_id=user.org_id, plan_id=payload.plan_id, task_id=task.id if task else None, asset_key=payload.asset_key, title=payload.title or str(data.get("title") or data.get("name") or "Untitled vulnerability"), severity=payload.severity or str(data.get("severity") or "unknown").lower(), description=data.get("description"), data_json=data)
     session.add(item)
     await session.commit()
     await session.refresh(item)
@@ -661,6 +868,10 @@ async def ai_upload_vulnerability(payload: AiVulnerabilityUpload, user: User = D
 
 @app.post("/api/ai/upload-report")
 async def ai_upload_report(payload: AiReportUpload, user: User = Depends(digital_user_dependency()), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    if payload.external_url and (
+        payload.external_url.username or payload.external_url.password
+    ):
+        raise AppError(422, "INVALID_REPORT_URL", "Report URL cannot contain credentials")
     await get_plan(session, payload.plan_id, user)
     task = await result_task(session, payload.task_id, payload.plan_id, user)
     if payload.content is None and payload.external_url is None:

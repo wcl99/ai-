@@ -21,6 +21,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://aisec:${POSTGRES_PASSWORD:-aisec}@postgres:5432/aisec
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in deploy/.env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
       ENGINE_MODE: ${ENGINE_MODE:-mock}
       ENGINE_RETRY_LIMIT: ${ENGINE_RETRY_LIMIT:-2}
       XIAOYI_BASE_URL: ${XIAOYI_BASE_URL:-http://host.docker.internal:49980}

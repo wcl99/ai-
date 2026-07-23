@@ -77,9 +77,9 @@ async def test_sync_persists_child_tasks_and_redacts_engine_payload(authenticate
     assert report.status == "EXTERNAL"
 
     listed = await authenticated_client.get(f"/api/v1/reports?task_id={task.json()['id']}")
-    assert listed.json()["data"][0]["external_url"] == "http://engine.local/reports/parent.pdf"
+    assert listed.json()["data"]["items"][0]["external_url"] == "http://engine.local/reports/parent.pdf"
     unavailable = await authenticated_client.get(
-        f"/api/v1/reports/{listed.json()['data'][0]['id']}/download"
+        f"/api/v1/reports/{listed.json()['data']['items'][0]['id']}/download"
     )
     assert unavailable.status_code == 404
 

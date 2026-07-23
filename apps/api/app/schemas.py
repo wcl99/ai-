@@ -4,6 +4,18 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
+class ApiEnvelope[T](BaseModel):
+    success: bool = True
+    message: str = "ok"
+    data: T
+
+
+class PageData[T](BaseModel):
+    items: list[T]
+    total: int
+    page: int
+    page_size: int
+
 
 class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -115,6 +127,7 @@ class AssetRead(ORMModel):
     authorized: bool
     data_json: dict
     created_at: datetime
+    updated_at: datetime
 
 
 class ScanPlanCreate(BaseModel):
@@ -163,6 +176,13 @@ class TaskRead(ORMModel):
     updated_at: datetime
 
 
+class TaskListRead(TaskRead):
+    plan_name: str
+    test_type: str
+    targets: list[str]
+    created_by_name: str
+
+
 class TaskEventRead(ORMModel):
     id: uuid.UUID
     event_type: str
@@ -207,6 +227,21 @@ class VulnerabilityRead(ORMModel):
     updated_at: datetime
 
 
+class VulnerabilityListRead(ORMModel):
+    id: uuid.UUID
+    plan_id: uuid.UUID
+    task_id: uuid.UUID | None
+    asset_key: str | None
+    title: str
+    severity: str
+    status: str
+    description: str | None
+    created_at: datetime
+    updated_at: datetime
+    task_name: str | None
+    tags: list[str]
+
+
 class ReportRead(ORMModel):
     id: uuid.UUID
     plan_id: uuid.UUID
@@ -217,6 +252,11 @@ class ReportRead(ORMModel):
     external_url: str | None
     status: str
     created_at: datetime
+
+
+class ReportListRead(ReportRead):
+    plan_name: str
+    task_name: str | None
 
 
 class AuditLogRead(ORMModel):

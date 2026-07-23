@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     jwt_secret: str = Field(min_length=32)
     jwt_issuer: str = "ai-security-platform"
     jwt_ttl_seconds: int = 3600
+    cookie_secure: bool = False
+    cookie_samesite: Literal["lax", "strict"] = "lax"
     cors_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
     engine_mode: Literal["mock", "xiaoyi"] = "mock"
     xiaoyi_base_url: str = "http://127.0.0.1:49980"
