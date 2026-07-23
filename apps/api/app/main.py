@@ -51,6 +51,7 @@ from .schemas import (
     QAMessageRead,
     ReportListRead,
     ReportRead,
+    ScanPlanAssetUpdate,
     ScanPlanCreate,
     ScanPlanRead,
     TaskCreate,
@@ -64,7 +65,7 @@ from .schemas import (
     VulnerabilityRead,
     VulnerabilityUpdate,
 )
-from .services import add_audit, create_plan, create_task, get_plan, safe_report_path
+from .services import add_audit, create_plan, create_task, get_plan, normalize_asset_list, safe_report_path
 from .sync import sync_forever
 
 
@@ -409,6 +410,20 @@ async def read_plan(plan_id: uuid.UUID, user: User = Depends(current_user), sess
     return await get_plan(session, plan_id, user)
 
 
+@app.patch("/api/v1/scan-plans/{plan_id}/assets", response_model=ScanPlanRead)
+async def update_plan_assets(plan_id: uuid.UUID, payload: ScanPlanAssetUpdate, user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session)):
+    plan = await get_plan(session, plan_id, user)
+    if plan.status != "DRAFT":
+        raise AppError(409, "PLAN_NOT_DRAFT", "Scan plan assets can only be changed before confirmation")
+    asset_list = normalize_asset_list(payload.asset_list)
+    plan.asset_list = asset_list
+    plan.snapshot = {**plan.snapshot, "asset_list": asset_list}
+    await add_audit(session, user, "plan.assets.update", "scan_plan", plan.id)
+    await session.commit()
+    await session.refresh(plan)
+    return plan
+
+
 @app.post("/api/v1/scan-plans/{plan_id}/confirm", response_model=ScanPlanRead)
 async def confirm_plan(plan_id: uuid.UUID, user: User = Depends(require_roles("admin", "security_expert")), session: AsyncSession = Depends(get_session)):
     plan = await get_plan(session, plan_id, user)
@@ -498,6 +513,15 @@ async def task_children(task_id: uuid.UUID, user: User = Depends(current_user), 
     await scoped_task(session, task_id, user)
     items = list(await session.scalars(select(Task).where(Task.parent_id == task_id, Task.org_id == user.org_id)))
     return envelope([TaskRead.model_validate(item) for item in items])
+
+
+@app.get("/api/v1/tasks/{task_id}/tools")
+async def task_tools(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
+    task = await scoped_task(session, task_id, user)
+    if not task.external_task_id:
+        return envelope([])
+    client = get_engine_client(get_settings())
+    return envelope(await client.get_tools(task.external_task_id))
 
 
 @app.get("/api/v1/tasks/{task_id}/events")
@@ -817,7 +841,9 @@ async def precheck_socket(websocket: WebSocket):
         await websocket.close(code=4403)
         return
     client = get_engine_client(settings)
-    try:
+    session_factory = getattr(client, "precheck_session", None)
+
+    async def handle_messages(precheck_session=None):
         while True:
             message = await websocket.receive_json()
             if not isinstance(message, dict):
@@ -835,7 +861,10 @@ async def precheck_socket(websocket: WebSocket):
                 await websocket.send_json({"action": "can_error", "success": False, "message": "Invalid precheck payload"})
                 continue
             try:
-                result = await client.precheck(validated.model_dump())
+                if precheck_session is not None:
+                    result = await precheck_session.send(validated.model_dump())
+                else:
+                    result = await client.precheck(validated.model_dump())
             except AppError as exc:
                 await websocket.send_json(
                     {
@@ -846,6 +875,13 @@ async def precheck_socket(websocket: WebSocket):
                 )
                 continue
             await websocket.send_json(result)
+
+    try:
+        if callable(session_factory):
+            async with session_factory() as precheck_session:
+                await handle_messages(precheck_session)
+        else:
+            await handle_messages()
     except WebSocketDisconnect:
         return
 

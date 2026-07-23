@@ -90,6 +90,7 @@ class LoginResponse(BaseModel):
 
 
 AssetType = Literal["domain", "ip", "http", "network_range", "ip_port"]
+HostType = Literal["domain", "ip"]
 
 
 class AssetCreate(BaseModel):
@@ -179,6 +180,7 @@ class PortPrecheckHost(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     host: str = Field(min_length=1, max_length=512)
+    hostType: HostType
 
     @field_validator("host")
     @classmethod
@@ -196,6 +198,12 @@ class PortPrecheckRequest(BaseModel):
 
     action: Literal["can_port"]
     hosts: list[PortPrecheckHost] = Field(min_length=1, max_length=64)
+
+
+class ScanPlanAssetUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    asset_list: list[dict] = Field(min_length=1, max_length=128)
 
 
 class TaskCreate(BaseModel):

@@ -1,7 +1,9 @@
 import asyncio
+import uuid
 
 from sqlalchemy import select
 
+import app.main as main_module
 from app import sync
 from app.config import get_settings
 from app.db import SessionLocal
@@ -86,6 +88,39 @@ async def test_sync_persists_child_tasks_and_redacts_engine_payload(authenticate
         f"/api/v1/reports/{listed.json()['data']['items'][0]['id']}/download"
     )
     assert unavailable.status_code == 404
+
+
+async def test_task_tools_are_normalized(authenticated_client, monkeypatch):
+    class ToolEngine:
+        async def get_tools(self, external_task_id: str):
+            assert external_task_id == "external-with-tools"
+            return [{"id": "nmap", "name": "Nmap", "status": "COMPLETED"}]
+
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": "Tool plan",
+            "targets": ["example.test"],
+            "asset_list": [{"host": "example.test", "hostType": "domain"}],
+        },
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+    task = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": plan.json()["id"], "request_id": "tool-normalization"},
+    )
+    async with SessionLocal() as session:
+        stored = await session.scalar(select(Task).where(Task.id == uuid.UUID(task.json()["id"])))
+        stored.external_task_id = "external-with-tools"
+        await session.commit()
+
+    monkeypatch.setattr(main_module, "get_engine_client", lambda settings: ToolEngine())
+    response = await authenticated_client.get(f"/api/v1/tasks/{task.json()['id']}/tools")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == [
+        {"id": "nmap", "name": "Nmap", "status": "COMPLETED"}
+    ]
 
 def test_engine_report_url_rejects_unsupported_or_credentialed_urls():
     assert sync.engine_report_url({"reportUrl": "ftp://engine.local/report.pdf"}) is None

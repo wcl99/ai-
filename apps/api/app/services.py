@@ -1,3 +1,4 @@
+import json
 import uuid
 from pathlib import Path
 
@@ -6,8 +7,44 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .errors import AppError
+from .engine import _contains_deprecated_fields
 from .models import AuditLog, ScanPlan, Task, TaskEvent, User
 from .schemas import ScanPlanCreate
+
+
+def _host_type_for_target(target: str) -> str:
+    return "ip" if target.replace(".", "").isdigit() else "domain"
+
+
+def normalize_asset_list(asset_list: list[dict]) -> list[dict]:
+    normalized = []
+    seen = set()
+    for item in asset_list:
+        if not isinstance(item, dict):
+            raise AppError(422, "INVALID_ASSET_LIST", "Asset list item must be an object")
+        host = str(
+            item.get("host") or item.get("domain") or item.get("address") or ""
+        ).strip().lower()
+        if not host:
+            raise AppError(422, "INVALID_ASSET_LIST", "Asset host is required")
+        host_type = str(item.get("hostType") or item.get("asset_type") or "domain").strip()
+        if host_type not in {"domain", "ip"}:
+            raise AppError(422, "INVALID_ASSET_LIST", "Asset hostType must be domain or ip")
+        ports = item.get("ports", [])
+        key = (host, host_type, json.dumps(ports, sort_keys=True, default=str))
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append({**item, "host": host, "hostType": host_type})
+    if not normalized:
+        raise AppError(422, "INVALID_ASSET_LIST", "Asset list cannot be empty")
+    return normalized
+
+
+def asset_list_from_targets(targets: list[str]) -> list[dict]:
+    return normalize_asset_list(
+        [{"host": target, "hostType": _host_type_for_target(target)} for target in targets]
+    )
 
 
 async def get_plan(session: AsyncSession, plan_id: uuid.UUID, user: User) -> ScanPlan:
@@ -26,10 +63,11 @@ async def create_plan(
     if not targets:
         raise AppError(422, "INVALID_TARGET", "至少需要一个有效目标")
     status = "READY" if payload.authorization_confirmed else "DRAFT"
+    asset_list = normalize_asset_list(payload.asset_list) if payload.asset_list else []
     snapshot = {
         "test_type": payload.test_type,
         "targets": targets,
-        "asset_list": payload.asset_list,
+        "asset_list": asset_list,
         "templates": payload.templates,
         "description": payload.description,
         "time_limit": payload.time_limit,
@@ -42,7 +80,7 @@ async def create_plan(
         test_type=payload.test_type,
         status=status,
         targets=targets,
-        asset_list=payload.asset_list,
+        asset_list=asset_list,
         templates=payload.templates,
         description=payload.description,
         time_limit=payload.time_limit,
@@ -61,6 +99,19 @@ async def create_task(
 ) -> Task:
     if plan.status != "READY":
         raise AppError(409, "PLAN_NOT_READY", "扫描计划尚未确认授权范围")
+    if _contains_deprecated_fields(plan.snapshot):
+        raise AppError(
+            400,
+            "INVALID_ENGINE_PAYLOAD",
+            "Scan plan snapshot contains deprecated Xiaoyi fields",
+        )
+    asset_list = plan.snapshot.get("asset_list") or plan.asset_list
+    if asset_list:
+        asset_list = normalize_asset_list(asset_list)
+    else:
+        asset_list = asset_list_from_targets(plan.targets)
+    plan.asset_list = asset_list
+    plan.snapshot = {**plan.snapshot, "asset_list": asset_list}
     request_id = request_id or str(uuid.uuid4())
     query = select(Task).where(
         Task.org_id == user.org_id,

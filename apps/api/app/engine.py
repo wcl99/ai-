@@ -152,6 +152,9 @@ class MockEngineClient:
     async def get_children(self, external_task_id: str) -> list[EngineTask]:
         return []
 
+    async def get_tools(self, external_task_id: str) -> list[dict]:
+        return []
+
     async def precheck(self, message: dict) -> dict:
         action = message.get("action")
         if action == "can_subdomain":
@@ -199,6 +202,9 @@ class XiaoyiEngineClient:
     @property
     def headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.settings.xiaoyi_token}"} if self.settings.xiaoyi_token else {}
+
+    def precheck_session(self) -> "XiaoyiPrecheckSession":
+        return XiaoyiPrecheckSession(self.settings, self.headers)
 
     async def create_task(self, payload: dict, request_id: str) -> EngineTask:
         body = {**payload, "request_id": request_id}
@@ -251,6 +257,24 @@ class XiaoyiEngineClient:
             raise AppError(502, "INVALID_ENGINE_PAYLOAD", "小易子任务响应格式无效")
         return [parse_engine_task(item, "") for item in data if isinstance(item, dict)]
 
+    async def get_tools(self, external_task_id: str) -> list[dict]:
+        try:
+            async with httpx.AsyncClient(timeout=self.settings.engine_timeout_seconds) as client:
+                response = await client.get(
+                    f"{self.settings.xiaoyi_base_url.rstrip('/')}/api/osCore/task/{external_task_id}/tools",
+                    headers=self.headers,
+                )
+                response.raise_for_status()
+                payload = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise engine_error(exc, "query task tools") from exc
+        data = payload.get("data", payload) if isinstance(payload, dict) else payload
+        if isinstance(data, dict):
+            data = data.get("tools", data.get("items", []))
+        if not isinstance(data, list):
+            raise AppError(502, "INVALID_ENGINE_PAYLOAD", "Invalid Xiaoyi tools response")
+        return [item for item in data if isinstance(item, dict)]
+
     async def stop_task(self, external_task_id: str) -> None:
         try:
             async with httpx.AsyncClient(timeout=self.settings.engine_timeout_seconds) as client:
@@ -279,6 +303,46 @@ class XiaoyiEngineClient:
                             return data
         except Exception as exc:
             raise AppError(502, "ENGINE_UNAVAILABLE", "小易预查连接失败") from exc
+
+
+    async def precheck(self, message: dict) -> dict:
+        try:
+            async with self.precheck_session() as session:
+                return await session.send(message)
+        except Exception as exc:
+            raise AppError(502, "ENGINE_UNAVAILABLE", "Xiaoyi precheck connection failed") from exc
+
+
+class XiaoyiPrecheckSession:
+    def __init__(self, settings: Settings, headers: dict[str, str]):
+        self.settings = settings
+        self.headers = headers
+        self.socket = None
+
+    async def __aenter__(self):
+        base = self.settings.xiaoyi_base_url.rstrip("/")
+        ws_url = base.replace("https://", "wss://").replace("http://", "ws://")
+        self.socket = await websockets.connect(
+            f"{ws_url}/api/osCore/ws/asset-can",
+            additional_headers=self.headers,
+            open_timeout=self.settings.engine_timeout_seconds,
+            ping_interval=20,
+        )
+        return self
+
+    async def __aexit__(self, *_):
+        if self.socket is not None:
+            await self.socket.close()
+
+    async def send(self, message: dict) -> dict:
+        if self.socket is None:
+            raise AppError(502, "ENGINE_UNAVAILABLE", "Xiaoyi precheck is not connected")
+        async with asyncio.timeout(self.settings.engine_timeout_seconds):
+            await self.socket.send(json.dumps(message, ensure_ascii=False))
+            while True:
+                data = httpx.Response(200, content=await self.socket.recv()).json()
+                if data.get("action") in {"can_subdomain_result", "can_port_result", "can_error"}:
+                    return data
 
 
 def _contains_deprecated_fields(value: object) -> bool:

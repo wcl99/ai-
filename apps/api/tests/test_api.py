@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import select
+from starlette.websockets import WebSocketDisconnect
 
 import app.main as main_module
 from app.auth import create_token, password_hash
@@ -227,6 +228,165 @@ async def test_plan_confirmation_is_audited_and_task_creation_is_idempotent(
         "/api/v1/audit-logs?action=task.create"
     )
     assert task_audits.json()["data"]["total"] == 1
+
+
+async def test_draft_asset_list_can_update_before_confirmation(authenticated_client):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={"name": "Draft assets", "targets": ["example.test"]},
+    )
+
+    updated = await authenticated_client.patch(
+        f"/api/v1/scan-plans/{plan.json()['id']}/assets",
+        json={
+            "asset_list": [
+                {"host": "WWW.Example.Test", "hostType": "domain", "ports": [443]},
+                {"host": "www.example.test", "hostType": "domain", "ports": [443]},
+            ]
+        },
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["asset_list"] == [
+        {"host": "www.example.test", "hostType": "domain", "ports": [443]}
+    ]
+    assert updated.json()["snapshot"]["asset_list"] == updated.json()["asset_list"]
+
+
+async def test_confirmed_plan_asset_list_is_frozen(authenticated_client):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={"name": "Frozen assets", "targets": ["example.test"]},
+    )
+    saved = await authenticated_client.patch(
+        f"/api/v1/scan-plans/{plan.json()['id']}/assets",
+        json={"asset_list": [{"host": "example.test", "hostType": "domain"}]},
+    )
+    assert saved.status_code == 200
+    confirmed = await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+    )
+
+    rejected = await authenticated_client.patch(
+        f"/api/v1/scan-plans/{plan.json()['id']}/assets",
+        json={"asset_list": [{"host": "other.test", "hostType": "domain"}]},
+    )
+
+    assert confirmed.json()["status"] == "READY"
+    assert confirmed.json()["snapshot"]["asset_list"] == [
+        {"host": "example.test", "hostType": "domain"}
+    ]
+    assert rejected.status_code == 409
+    assert rejected.json()["code"] == "PLAN_NOT_DRAFT"
+
+
+async def test_task_creation_freezes_direct_target_asset_list(authenticated_client):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={"name": "Direct target", "targets": ["Example.Test"]},
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+
+    task = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": plan.json()["id"], "request_id": "direct-target-assets"},
+    )
+    frozen = await authenticated_client.get(f"/api/v1/scan-plans/{plan.json()['id']}")
+
+    assert task.status_code == 201
+    assert frozen.json()["snapshot"]["asset_list"] == [
+        {"host": "example.test", "hostType": "domain"}
+    ]
+
+
+async def test_precheck_socket_reuses_one_upstream_session(monkeypatch):
+    sent_messages = []
+    accepted = []
+
+    class FakeSession:
+        entered = 0
+        exited = 0
+
+        async def __aenter__(self):
+            FakeSession.entered += 1
+            return self
+
+        async def __aexit__(self, *_):
+            FakeSession.exited += 1
+
+        async def send(self, message):
+            sent_messages.append(message)
+            if message["action"] == "can_subdomain":
+                return {
+                    "action": "can_subdomain_result",
+                    "success": True,
+                    "hasResult": True,
+                    "domains": [{"domain": "www.example.test", "type": "subdomain"}],
+                    "subdomainCount": 1,
+                }
+            return {
+                "action": "can_port_result",
+                "success": True,
+                "hasResult": True,
+                "hosts": [{"host": "example.test", "hostType": "domain", "ports": [443]}],
+                "portCount": 1,
+            }
+
+    class FakeClient:
+        def precheck_session(self):
+            return FakeSession()
+
+        async def precheck(self, message):
+            raise AssertionError("precheck_socket should use the reusable session")
+
+    class FakeWebSocket:
+        def __init__(self):
+            self.messages = [
+                {"action": "can_subdomain", "domains": ["example.test"]},
+                {
+                    "action": "can_port",
+                    "hosts": [{"host": "example.test", "hostType": "domain"}],
+                },
+            ]
+            self.sent = []
+
+        async def accept(self):
+            accepted.append(True)
+
+        async def close(self, code=1000):
+            self.close_code = code
+
+        async def receive_json(self):
+            if not self.messages:
+                raise WebSocketDisconnect()
+            return self.messages.pop(0)
+
+        async def send_json(self, message):
+            self.sent.append(message)
+
+    async def fake_websocket_user(websocket, settings):
+        return SimpleNamespace(role="admin")
+
+    monkeypatch.setattr(main_module, "websocket_user", fake_websocket_user)
+    monkeypatch.setattr(main_module, "get_engine_client", lambda settings: FakeClient())
+    websocket = FakeWebSocket()
+
+    await main_module.precheck_socket(websocket)
+
+    assert accepted == [True]
+    assert FakeSession.entered == 1
+    assert FakeSession.exited == 1
+    assert sent_messages == [
+        {"action": "can_subdomain", "domains": ["example.test"]},
+        {
+            "action": "can_port",
+            "hosts": [{"host": "example.test", "hostType": "domain"}],
+        },
+    ]
+    assert [message["action"] for message in websocket.sent] == [
+        "can_subdomain_result",
+        "can_port_result",
+    ]
 
 async def test_request_id_cannot_be_reused_for_another_plan(authenticated_client):
     plans = []

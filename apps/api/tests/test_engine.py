@@ -3,6 +3,7 @@ import httpx
 import asyncio
 
 import pytest
+from pydantic import ValidationError
 
 from app.config import Settings, get_settings
 from app.engine import (
@@ -15,6 +16,7 @@ from app.engine import (
     redact_sensitive,
 )
 from app.errors import AppError
+from app.schemas import PortPrecheckRequest
 
 
 def test_maps_external_task_state():
@@ -25,6 +27,21 @@ def test_maps_external_task_state():
 
 def test_rejects_deprecated_precheck_fields_at_any_depth():
     assert _contains_deprecated_fields({"params": {"scan_port": True}})
+
+
+def test_port_precheck_requires_host_type():
+    valid = PortPrecheckRequest.model_validate(
+        {
+            "action": "can_port",
+            "hosts": [{"host": "example.test", "hostType": "domain"}],
+        }
+    )
+
+    assert valid.hosts[0].hostType == "domain"
+    with pytest.raises(ValidationError):
+        PortPrecheckRequest.model_validate(
+            {"action": "can_port", "hosts": [{"host": "example.test"}]}
+        )
 
 
 def test_test_suite_forces_mock_engine_without_credentials():
@@ -66,6 +83,75 @@ async def test_xiaoyi_precheck_receive_has_a_total_timeout(monkeypatch):
 
     assert captured.value.code == "ENGINE_UNAVAILABLE"
     assert not _contains_deprecated_fields({"targets": ["example.test"]})
+
+
+async def test_xiaoyi_precheck_session_reuses_one_socket(monkeypatch):
+    sent_messages: list[dict] = []
+    connect_urls: list[str] = []
+    responses = [
+        {
+            "action": "can_subdomain_result",
+            "success": True,
+            "hasResult": True,
+            "domains": [{"domain": "www.example.test", "type": "subdomain"}],
+            "subdomainCount": 1,
+        },
+        {
+            "action": "can_port_result",
+            "success": True,
+            "hasResult": True,
+            "hosts": [{"host": "example.test", "hostType": "domain", "ports": [443]}],
+            "portCount": 1,
+        },
+    ]
+
+    class FakeSocket:
+        async def send(self, message):
+            import json
+
+            sent_messages.append(json.loads(message))
+
+        async def recv(self):
+            import json
+
+            return json.dumps(responses.pop(0))
+
+        async def close(self):
+            return None
+
+    async def fake_connect(url, **kwargs):
+        connect_urls.append(url)
+        return FakeSocket()
+
+    monkeypatch.setattr("app.engine.websockets.connect", fake_connect)
+    settings = Settings(
+        jwt_secret="test-secret-that-is-at-least-32-characters",
+        engine_mode="xiaoyi",
+        engine_timeout_seconds=1,
+        xiaoyi_base_url="https://xiaoyi.example",
+    )
+
+    async with XiaoyiEngineClient(settings).precheck_session() as session:
+        first = await session.send(
+            {"action": "can_subdomain", "domains": ["example.test"]}
+        )
+        second = await session.send(
+            {
+                "action": "can_port",
+                "hosts": [{"host": "example.test", "hostType": "domain"}],
+            }
+        )
+
+    assert first["action"] == "can_subdomain_result"
+    assert second["action"] == "can_port_result"
+    assert connect_urls == ["wss://xiaoyi.example/api/osCore/ws/asset-can"]
+    assert sent_messages == [
+        {"action": "can_subdomain", "domains": ["example.test"]},
+        {
+            "action": "can_port",
+            "hosts": [{"host": "example.test", "hostType": "domain"}],
+        },
+    ]
 
 
 def test_parses_child_task_and_redacts_nested_secrets():
