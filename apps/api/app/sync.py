@@ -8,12 +8,28 @@ from sqlalchemy import select
 
 from .config import Settings
 from .db import SessionLocal
-from .engine import TERMINAL_STATUSES, get_engine_client, redact_sensitive
+from .engine import EngineTask, TERMINAL_STATUSES, get_engine_client, redact_sensitive
 from .errors import AppError
 from .models import Report, ScanPlan, Task, TaskEvent
 
 logger = logging.getLogger(__name__)
 RETRYABLE_ENGINE_CODES = {"ENGINE_UNAVAILABLE"}
+ACTIVE_STATUS_RANK = {"QUEUED": 0, "RUNNING": 1}
+
+
+def apply_engine_state(task: Task, result: EngineTask) -> None:
+    status = result.status
+    phase = result.phase
+    if (
+        status not in TERMINAL_STATUSES
+        and ACTIVE_STATUS_RANK.get(status, -1)
+        < ACTIVE_STATUS_RANK.get(task.status, -1)
+    ):
+        status = task.status
+        phase = task.phase
+    task.status = status
+    task.phase = phase
+    task.progress = max(task.progress, result.progress)
 
 
 def engine_report_url(raw: dict) -> str | None:
@@ -99,7 +115,7 @@ async def sync_children(session, client, parent: Task) -> None:
             await session.flush()
             existing[result.external_task_id] = child
         previous = (child.status, child.phase, child.progress)
-        child.status, child.phase, child.progress = result.status, result.phase, result.progress
+        apply_engine_state(child, result)
         child.raw_external = redact_sensitive(result.raw)
         await sync_report(session, child, result.raw)
         if created or previous != (child.status, child.phase, child.progress):
@@ -142,22 +158,14 @@ async def sync_once(settings: Settings) -> None:
                     else:
                         result = await client.create_task(plan.snapshot, task.request_id)
                         task.external_task_id = result.external_task_id
-                        task.status, task.phase, task.progress = (
-                            result.status,
-                            result.phase,
-                            result.progress,
-                        )
+                        apply_engine_state(task, result)
                         task.raw_external = redact_sensitive(result.raw)
                         task.sync_failures = 0
                         task.error_code = task.error_message = None
                         await sync_report(session, task, result.raw)
                 else:
                     result = await client.get_task(task.external_task_id, task.progress)
-                    task.status, task.phase, task.progress = (
-                        result.status,
-                        result.phase,
-                        result.progress,
-                    )
+                    apply_engine_state(task, result)
                     task.raw_external = redact_sensitive(result.raw)
                     task.sync_failures = 0
                     task.error_code = task.error_message = None

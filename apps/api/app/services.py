@@ -2,6 +2,7 @@ import uuid
 from pathlib import Path
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .errors import AppError
@@ -61,10 +62,18 @@ async def create_task(
     if plan.status != "READY":
         raise AppError(409, "PLAN_NOT_READY", "扫描计划尚未确认授权范围")
     request_id = request_id or str(uuid.uuid4())
-    existing = await session.scalar(select(Task).where(Task.request_id == request_id))
+    query = select(Task).where(
+        Task.org_id == user.org_id,
+        Task.request_id == request_id,
+    )
+    existing = await session.scalar(query)
     if existing:
-        if existing.org_id != user.org_id:
-            raise AppError(403, "FORBIDDEN", "幂等键不属于当前组织")
+        if existing.plan_id != plan.id:
+            raise AppError(
+                409,
+                "IDEMPOTENCY_CONFLICT",
+                "Request ID is already bound to another scan plan",
+            )
         return existing
     task = Task(
         org_id=user.org_id,
@@ -76,7 +85,20 @@ async def create_task(
         phase="INIT",
     )
     session.add(task)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError:
+        await session.rollback()
+        existing = await session.scalar(query)
+        if existing is None:
+            raise
+        if existing.plan_id != plan.id:
+            raise AppError(
+                409,
+                "IDEMPOTENCY_CONFLICT",
+                "Request ID is already bound to another scan plan",
+            ) from None
+        return existing
     session.add(TaskEvent(task_id=task.id, event_type="created", message="平台任务已创建"))
     await add_audit(session, user, "task.create", "task", task.id)
     await session.commit()

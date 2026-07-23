@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI, Query, Request, Response, WebSocket, WebSo
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from pydantic import ValidationError
 from sqlalchemy import and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -44,6 +45,8 @@ from .schemas import (
     OrganizationRead,
     OrganizationUpdate,
     PageData,
+    DomainPrecheckRequest,
+    PortPrecheckRequest,
     QAMessageCreate,
     QAMessageRead,
     ReportListRead,
@@ -397,7 +400,8 @@ async def list_plans(user: User = Depends(current_user), session: AsyncSession =
 
 @app.post("/api/v1/scan-plans", response_model=ScanPlanRead, status_code=201)
 async def add_plan(payload: ScanPlanCreate, user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session)):
-    return await create_plan(session, payload, user)
+    draft = payload.model_copy(update={"authorization_confirmed": False})
+    return await create_plan(session, draft, user)
 
 
 @app.get("/api/v1/scan-plans/{plan_id}", response_model=ScanPlanRead)
@@ -580,6 +584,8 @@ async def retry_task(task_id: uuid.UUID, user: User = Depends(require_roles("adm
 async def list_vulnerabilities(
     severity: str | None = None,
     status: str | None = None,
+    task_id: uuid.UUID | None = None,
+    plan_id: uuid.UUID | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     user: User = Depends(current_user),
@@ -590,6 +596,10 @@ async def list_vulnerabilities(
         criteria.append(Vulnerability.severity == severity)
     if status:
         criteria.append(Vulnerability.status == status)
+    if task_id:
+        criteria.append(Vulnerability.task_id == task_id)
+    if plan_id:
+        criteria.append(Vulnerability.plan_id == plan_id)
     total = await session.scalar(
         select(func.count()).select_from(Vulnerability).where(*criteria)
     )
@@ -799,24 +809,43 @@ async def websocket_user(websocket: WebSocket, settings: Settings) -> User | Non
 async def precheck_socket(websocket: WebSocket):
     settings = get_settings()
     user = await websocket_user(websocket, settings)
+    await websocket.accept()
     if user is None:
         await websocket.close(code=4401)
         return
-    await websocket.accept()
+    if user.role not in {"admin", "operator", "security_expert"}:
+        await websocket.close(code=4403)
+        return
     client = get_engine_client(settings)
     try:
         while True:
             message = await websocket.receive_json()
-            action = message.get("action")
-            allowed = {"can_subdomain": {"action", "domains"}, "can_port": {"action", "hosts"}}
-            if action not in allowed or set(message) - allowed[action]:
+            if not isinstance(message, dict):
                 await websocket.send_json({"action": "can_error", "success": False, "message": "Invalid precheck payload"})
                 continue
-            values = message.get("domains" if action == "can_subdomain" else "hosts")
-            if not isinstance(values, list) or not 1 <= len(values) <= 64:
-                await websocket.send_json({"action": "can_error", "success": False, "message": "Precheck requires 1-64 targets"})
+            action = message.get("action")
+            try:
+                if action == "can_subdomain":
+                    validated = DomainPrecheckRequest.model_validate(message)
+                elif action == "can_port":
+                    validated = PortPrecheckRequest.model_validate(message)
+                else:
+                    raise ValueError
+            except (ValidationError, ValueError):
+                await websocket.send_json({"action": "can_error", "success": False, "message": "Invalid precheck payload"})
                 continue
-            await websocket.send_json(await client.precheck(message))
+            try:
+                result = await client.precheck(validated.model_dump())
+            except AppError as exc:
+                await websocket.send_json(
+                    {
+                        "action": "can_error",
+                        "success": False,
+                        "message": exc.message,
+                    }
+                )
+                continue
+            await websocket.send_json(result)
     except WebSocketDisconnect:
         return
 

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 from dataclasses import dataclass
@@ -270,11 +271,12 @@ class XiaoyiEngineClient:
                 additional_headers=self.headers,
                 open_timeout=self.settings.engine_timeout_seconds,
             ) as socket:
-                await socket.send(json.dumps(message, ensure_ascii=False))
-                while True:
-                    data = httpx.Response(200, content=await socket.recv()).json()
-                    if data.get("action") in {"can_subdomain_result", "can_port_result", "can_error"}:
-                        return data
+                async with asyncio.timeout(self.settings.engine_timeout_seconds):
+                    await socket.send(json.dumps(message, ensure_ascii=False))
+                    while True:
+                        data = httpx.Response(200, content=await socket.recv()).json()
+                        if data.get("action") in {"can_subdomain_result", "can_port_result", "can_error"}:
+                            return data
         except Exception as exc:
             raise AppError(502, "ENGINE_UNAVAILABLE", "小易预查连接失败") from exc
 

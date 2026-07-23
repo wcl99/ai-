@@ -1,6 +1,8 @@
 import asyncio
+from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import select
 
 import app.main as main_module
@@ -8,6 +10,7 @@ from app.auth import create_token, password_hash
 from app.config import get_settings
 from app.db import SessionLocal
 from app.models import Organization, ScanPlan, Task, User
+from app.schemas import DomainPrecheckRequest, PortPrecheckRequest
 
 from app.sync import sync_once
 
@@ -43,6 +46,88 @@ async def test_readiness_reports_database_failure_without_details(client, monkey
     assert response.status_code == 503
     assert response.json() == {"status": "unavailable"}
     assert "credentials" not in response.text
+
+
+def test_precheck_payload_models_reject_nested_or_oversized_values():
+    with pytest.raises(ValidationError):
+        PortPrecheckRequest.model_validate(
+            {
+                "action": "can_port",
+                "hosts": [{"host": "example.test", "authorization": "secret"}],
+            }
+        )
+    with pytest.raises(ValidationError):
+        DomainPrecheckRequest.model_validate(
+            {"action": "can_subdomain", "domains": ["x" * 254]}
+        )
+
+
+async def test_auditor_cannot_open_precheck_websocket(monkeypatch):
+    class FakeWebSocket:
+        closed_with = None
+
+        async def accept(self):
+            return None
+
+        async def close(self, code):
+            self.closed_with = code
+
+    async def auditor(*_):
+        return SimpleNamespace(role="auditor")
+
+    socket = FakeWebSocket()
+    monkeypatch.setattr(main_module, "websocket_user", auditor)
+
+    await main_module.precheck_socket(socket)
+
+    assert socket.closed_with == 4403
+
+
+async def test_precheck_websocket_returns_protocol_and_engine_errors(monkeypatch):
+    class FailingEngine:
+        async def precheck(self, message):
+            raise main_module.AppError(502, "ENGINE_UNAVAILABLE", "Engine unavailable")
+
+    class FakeWebSocket:
+        def __init__(self):
+            self.messages = [
+                [],
+                {"action": "can_subdomain", "domains": ["example.test"]},
+            ]
+            self.sent = []
+
+        async def accept(self):
+            return None
+
+        async def receive_json(self):
+            if self.messages:
+                return self.messages.pop(0)
+            raise main_module.WebSocketDisconnect
+
+        async def send_json(self, message):
+            self.sent.append(message)
+
+    async def admin(*_):
+        return SimpleNamespace(role="admin")
+
+    socket = FakeWebSocket()
+    monkeypatch.setattr(main_module, "websocket_user", admin)
+    monkeypatch.setattr(main_module, "get_engine_client", lambda settings: FailingEngine())
+
+    await main_module.precheck_socket(socket)
+
+    assert socket.sent == [
+        {
+            "action": "can_error",
+            "success": False,
+            "message": "Invalid precheck payload",
+        },
+        {
+            "action": "can_error",
+            "success": False,
+            "message": "Engine unavailable",
+        },
+    ]
 
 
 async def test_same_origin_spa_serves_assets_and_browser_routes(
@@ -89,6 +174,10 @@ async def test_authorized_plan_runs_through_mock_engine(authenticated_client):
     )
     assert plan_response.status_code == 201
     plan_id = plan_response.json()["id"]
+    confirmation = await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan_id}/confirm"
+    )
+    assert confirmation.status_code == 200
 
     task_response = await authenticated_client.post(
         "/api/v1/tasks", json={"plan_id": plan_id, "request_id": "golden-path-001"}
@@ -105,6 +194,66 @@ async def test_authorized_plan_runs_through_mock_engine(authenticated_client):
     assert result.json()["status"] == "SUCCEEDED"
 
 
+async def test_plan_confirmation_is_audited_and_task_creation_is_idempotent(
+    authenticated_client,
+):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={"name": "Audited authorization", "targets": ["example.test"]},
+    )
+    plan_id = plan.json()["id"]
+
+    confirmation = await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan_id}/confirm"
+    )
+    assert confirmation.status_code == 200
+    audits = await authenticated_client.get(
+        "/api/v1/audit-logs?action=plan.confirm"
+    )
+    assert audits.status_code == 200
+    assert audits.json()["data"]["total"] == 1
+    assert audits.json()["data"]["items"][0]["resource_id"] == plan_id
+
+    payload = {"plan_id": plan_id, "request_id": "stable-task-submission"}
+    first = await authenticated_client.post("/api/v1/tasks", json=payload)
+    repeated = await authenticated_client.post("/api/v1/tasks", json=payload)
+
+    assert first.status_code == 201
+    assert repeated.status_code == 201
+    assert repeated.json()["id"] == first.json()["id"]
+    listed = await authenticated_client.get("/api/v1/tasks")
+    assert listed.json()["data"]["total"] == 1
+    task_audits = await authenticated_client.get(
+        "/api/v1/audit-logs?action=task.create"
+    )
+    assert task_audits.json()["data"]["total"] == 1
+
+async def test_request_id_cannot_be_reused_for_another_plan(authenticated_client):
+    plans = []
+    for name in ("First idempotent plan", "Second idempotent plan"):
+        plan = await authenticated_client.post(
+            "/api/v1/scan-plans",
+            json={"name": name, "targets": ["example.test"]},
+        )
+        await authenticated_client.post(
+            f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+        )
+        plans.append(plan.json()["id"])
+
+    first = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": plans[0], "request_id": "plan-bound-request"},
+    )
+    conflict = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": plans[1], "request_id": "plan-bound-request"},
+    )
+
+    assert first.status_code == 201
+    assert conflict.status_code == 409
+    assert conflict.json()["code"] == "IDEMPOTENCY_CONFLICT"
+
+
 async def test_draft_plan_cannot_start(authenticated_client):
     plan_response = await authenticated_client.post(
         "/api/v1/scan-plans",
@@ -115,6 +264,53 @@ async def test_draft_plan_cannot_start(authenticated_client):
     )
     assert response.status_code == 409
     assert response.json()["code"] == "PLAN_NOT_READY"
+
+
+async def test_operator_cannot_bypass_separate_plan_authorization(authenticated_client):
+    created = await authenticated_client.post(
+        "/api/v1/users",
+        json={
+            "username": "operator",
+            "name": "Test Operator",
+            "password": "operator-password-is-long-enough",
+            "role": "operator",
+        },
+    )
+    assert created.status_code == 201
+    login = await authenticated_client.post(
+        "/api/v1/auth/login",
+        json={"username": "operator", "password": "operator-password-is-long-enough"},
+    )
+    assert login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['token']}"}
+
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        headers=headers,
+        json={
+            "name": "Untrusted inline authorization",
+            "targets": ["example.test"],
+            "authorization_confirmed": True,
+        },
+    )
+
+    assert plan.status_code == 201
+    assert plan.json()["status"] == "DRAFT"
+    assert plan.json()["snapshot"]["authorization_confirmed"] is False
+
+    task = await authenticated_client.post(
+        "/api/v1/tasks",
+        headers=headers,
+        json={"plan_id": plan.json()["id"], "request_id": "operator-bypass-attempt"},
+    )
+    assert task.status_code == 409
+    assert task.json()["code"] == "PLAN_NOT_READY"
+
+    confirmation = await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm",
+        headers=headers,
+    )
+    assert confirmation.status_code == 403
 
 
 async def test_assets_are_available_to_the_frontend(authenticated_client):
@@ -156,6 +352,10 @@ async def test_task_list_contract_includes_plan_and_creator_summaries(
             "authorization_confirmed": True,
         },
     )
+    confirmation = await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+    )
+    assert confirmation.status_code == 200
     await authenticated_client.post(
         "/api/v1/tasks",
         json={"plan_id": plan.json()["id"], "request_id": "list-contract-task"},
@@ -184,6 +384,10 @@ async def test_task_qa_messages_are_scoped_and_persisted(authenticated_client):
             "authorization_confirmed": True,
         },
     )
+    confirmation = await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+    )
+    assert confirmation.status_code == 200
     task = await authenticated_client.post(
         "/api/v1/tasks",
         json={"plan_id": plan.json()["id"], "request_id": "qa-message-test"},

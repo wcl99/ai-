@@ -250,13 +250,20 @@ export async function createAsset(input: AssetCreateInput) {
 export async function listVulnerabilities(input: {
   severity?: VulnerabilitySeverityCode;
   status?: VulnerabilityStatusCode;
+  taskId?: string;
+  planId?: string;
   page: number;
   pageSize: number;
 }) {
   const severity = vulnerabilitySeverityFilterSchema.optional().parse(input.severity);
   const status = vulnerabilityStatusSchema.optional().parse(input.status);
   const query = params([
-    ['severity', severity], ['status', status], ['page', input.page], ['page_size', input.pageSize],
+    ['severity', severity],
+    ['status', status],
+    ['task_id', input.taskId],
+    ['plan_id', input.planId],
+    ['page', input.page],
+    ['page_size', input.pageSize],
   ]);
   const response = await apiRequest(`/api/v1/vulnerabilities?${query}`, pageEnvelope(vulnerabilityListSchema));
   return result(response.data, mapVulnerability);

@@ -87,3 +87,14 @@ def test_database_password_is_encoded_by_sqlalchemy_url():
     assert "random%40password%3A%2F%23%25value" in (
         settings.database_connection_url_string
     )
+
+
+def test_empty_database_password_keeps_explicit_database_url():
+    settings = Settings(
+        _env_file=None,
+        jwt_secret="test-secret-that-is-at-least-32-characters",
+        database_url="sqlite+aiosqlite:///:memory:",
+        database_password="",
+    )
+
+    assert settings.database_connection_url == "sqlite+aiosqlite:///:memory:"

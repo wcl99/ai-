@@ -41,7 +41,10 @@ class Settings(BaseSettings):
 
     @property
     def database_connection_url(self) -> str | URL:
-        if self.database_password is None:
+        if (
+            self.database_password is None
+            or not self.database_password.get_secret_value()
+        ):
             return self.database_url
         return URL.create(
             drivername="postgresql+asyncpg",

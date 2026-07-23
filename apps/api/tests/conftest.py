@@ -1,8 +1,12 @@
 import os
 
-os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
-os.environ.setdefault("JWT_SECRET", "test-secret-that-is-at-least-32-characters")
-os.environ.setdefault("ENGINE_MODE", "mock")
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ["DATABASE_PASSWORD"] = ""
+os.environ["APP_ENVIRONMENT"] = "test"
+os.environ["JWT_SECRET"] = "test-secret-that-is-at-least-32-characters"
+os.environ["ENGINE_MODE"] = "mock"
+os.environ["XIAOYI_BASE_URL"] = "http://127.0.0.1:1"
+os.environ["XIAOYI_TOKEN"] = ""
 
 import pytest
 from httpx import ASGITransport, AsyncClient

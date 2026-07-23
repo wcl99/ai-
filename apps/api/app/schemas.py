@@ -155,6 +155,49 @@ class ScanPlanRead(ORMModel):
     created_at: datetime
 
 
+class DomainPrecheckRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["can_subdomain"]
+    domains: list[str] = Field(min_length=1, max_length=64)
+
+    @field_validator("domains")
+    @classmethod
+    def validate_domains(cls, values: list[str]) -> list[str]:
+        normalized = [value.strip() for value in values]
+        if any(
+            not value
+            or len(value) > 253
+            or any(character.isspace() or ord(character) < 32 for character in value)
+            for value in normalized
+        ):
+            raise ValueError("Invalid precheck domain")
+        return normalized
+
+
+class PortPrecheckHost(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    host: str = Field(min_length=1, max_length=512)
+
+    @field_validator("host")
+    @classmethod
+    def validate_host(cls, value: str) -> str:
+        value = value.strip()
+        if not value or any(
+            character.isspace() or ord(character) < 32 for character in value
+        ):
+            raise ValueError("Invalid precheck host")
+        return value
+
+
+class PortPrecheckRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["can_port"]
+    hosts: list[PortPrecheckHost] = Field(min_length=1, max_length=64)
+
+
 class TaskCreate(BaseModel):
     plan_id: uuid.UUID
     request_id: str | None = Field(default=None, min_length=8, max_length=80)

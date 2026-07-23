@@ -70,12 +70,13 @@ class ScanPlan(Base, TimestampMixin):
 
 class Task(Base, TimestampMixin):
     __tablename__ = "tasks"
+    __table_args__ = (UniqueConstraint("org_id", "request_id"),)
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
     plan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("scan_plans.id"), index=True)
     parent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id"), index=True)
     created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
-    request_id: Mapped[str] = mapped_column(String(80), unique=True)
+    request_id: Mapped[str] = mapped_column(String(80))
     external_task_id: Mapped[str | None] = mapped_column(String(160), unique=True)
     name: Mapped[str] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(32), default="QUEUED", index=True)

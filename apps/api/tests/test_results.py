@@ -16,6 +16,10 @@ async def create_task(client, name: str, request_id: str) -> tuple[str, str]:
             "authorization_confirmed": True,
         },
     )
+    confirmation = await client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+    )
+    assert confirmation.status_code == 200
     task = await client.post(
         "/api/v1/tasks",
         json={"plan_id": plan.json()["id"], "request_id": request_id},
@@ -92,6 +96,41 @@ async def test_vulnerability_list_contract_has_page_and_safe_task_summary(
     assert "finding-secret" not in response.text
     assert "nested-secret" not in response.text
     assert "data_json" not in page["items"][0]
+
+
+async def test_vulnerability_list_filters_by_task_and_plan(authenticated_client):
+    first_plan, first_task = await create_task(
+        authenticated_client, "First filtered task", "first-filtered-result"
+    )
+    second_plan, second_task = await create_task(
+        authenticated_client, "Second filtered task", "second-filtered-result"
+    )
+    for plan_id, task_id, title in (
+        (first_plan, first_task, "First task finding"),
+        (second_plan, second_task, "Second task finding"),
+    ):
+        await authenticated_client.post(
+            "/api/ai/upload-vulnerability",
+            json={
+                "plan_id": plan_id,
+                "task_id": task_id,
+                "data": {"title": title},
+            },
+        )
+
+    by_task = await authenticated_client.get(
+        f"/api/v1/vulnerabilities?task_id={first_task}"
+    )
+    by_plan = await authenticated_client.get(
+        f"/api/v1/vulnerabilities?plan_id={second_plan}"
+    )
+
+    assert [item["title"] for item in by_task.json()["data"]["items"]] == [
+        "First task finding"
+    ]
+    assert [item["title"] for item in by_plan.json()["data"]["items"]] == [
+        "Second task finding"
+    ]
 
 
 async def test_vulnerability_upload_redacts_nested_credentials(authenticated_client):

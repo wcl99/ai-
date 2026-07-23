@@ -1,6 +1,12 @@
 import httpx
 
+import asyncio
+
+import pytest
+
+from app.config import Settings, get_settings
 from app.engine import (
+    XiaoyiEngineClient,
     _contains_deprecated_fields,
     engine_error,
     map_phase,
@@ -8,6 +14,7 @@ from app.engine import (
     parse_engine_task,
     redact_sensitive,
 )
+from app.errors import AppError
 
 
 def test_maps_external_task_state():
@@ -18,6 +25,46 @@ def test_maps_external_task_state():
 
 def test_rejects_deprecated_precheck_fields_at_any_depth():
     assert _contains_deprecated_fields({"params": {"scan_port": True}})
+
+
+def test_test_suite_forces_mock_engine_without_credentials():
+    settings = get_settings()
+
+    assert settings.engine_mode == "mock"
+    assert settings.xiaoyi_token in {None, ""}
+    assert settings.xiaoyi_base_url == "http://127.0.0.1:1"
+
+
+async def test_xiaoyi_precheck_receive_has_a_total_timeout(monkeypatch):
+    class HangingSocket:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return False
+
+        async def send(self, message):
+            return None
+
+        async def recv(self):
+            await asyncio.Event().wait()
+
+    monkeypatch.setattr(
+        "app.engine.websockets.connect",
+        lambda *args, **kwargs: HangingSocket(),
+    )
+    settings = Settings(
+        jwt_secret="test-secret-that-is-at-least-32-characters",
+        engine_mode="xiaoyi",
+        engine_timeout_seconds=0.01,
+    )
+
+    with pytest.raises(AppError) as captured:
+        await XiaoyiEngineClient(settings).precheck(
+            {"action": "can_subdomain", "domains": ["example.test"]}
+        )
+
+    assert captured.value.code == "ENGINE_UNAVAILABLE"
     assert not _contains_deprecated_fields({"targets": ["example.test"]})
 
 

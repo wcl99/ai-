@@ -54,6 +54,10 @@ async def test_sync_persists_child_tasks_and_redacts_engine_payload(authenticate
             "authorization_confirmed": True,
         },
     )
+    confirmation = await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+    )
+    assert confirmation.status_code == 200
     task = await authenticated_client.post(
         "/api/v1/tasks",
         json={"plan_id": plan.json()["id"], "request_id": "child-sync-test"},
@@ -103,6 +107,25 @@ class FlakyEngine:
         return EngineTask("recovered-task", "SUCCEEDED", "FINISHED", 100, {})
 
 
+class RestartEngine:
+    def __init__(self, result: EngineTask):
+        self.result = result
+
+    async def create_task(self, payload: dict, request_id: str) -> EngineTask:
+        return self.result
+
+    async def get_task(
+        self, external_task_id: str, current_progress: float = 0
+    ) -> EngineTask:
+        return self.result
+
+    async def get_children(self, external_task_id: str) -> list[EngineTask]:
+        return []
+
+    async def stop_task(self, external_task_id: str) -> None:
+        return None
+
+
 async def create_queued_task(client, name: str, request_id: str) -> str:
     plan = await client.post(
         "/api/v1/scan-plans",
@@ -112,11 +135,38 @@ async def create_queued_task(client, name: str, request_id: str) -> str:
             "authorization_confirmed": True,
         },
     )
+    confirmation = await client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+    )
+    assert confirmation.status_code == 200
     task = await client.post(
         "/api/v1/tasks",
         json={"plan_id": plan.json()["id"], "request_id": request_id},
     )
     return task.json()["id"]
+
+
+async def test_fresh_sync_iteration_rediscovers_task_without_regressing_state(
+    authenticated_client, monkeypatch
+):
+    task_id = await create_queued_task(
+        authenticated_client, "Restart recovery", "restart-recovery-request"
+    )
+    before_restart = RestartEngine(
+        EngineTask("restart-external", "RUNNING", "SCANNING", 60, {})
+    )
+    monkeypatch.setattr(sync, "get_engine_client", lambda settings: before_restart)
+    await sync.sync_once(get_settings())
+
+    after_restart = RestartEngine(
+        EngineTask("restart-external", "QUEUED", "INIT", 20, {})
+    )
+    monkeypatch.setattr(sync, "get_engine_client", lambda settings: after_restart)
+    await sync.sync_once(get_settings())
+
+    recovered = await authenticated_client.get(f"/api/v1/tasks/{task_id}")
+    assert recovered.json()["status"] == "RUNNING"
+    assert recovered.json()["progress"] == 60
 
 
 async def test_transient_engine_failures_retry_and_recover(authenticated_client, monkeypatch):
