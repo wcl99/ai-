@@ -203,12 +203,13 @@ async def sync_once(settings: Settings) -> None:
                 else:
                     task.status = "FAILED"
                     task.phase = "FINISHED"
+                    error_details = redact_sensitive(exc.details or {})
                     session.add(
                         TaskEvent(
                             task_id=task.id,
                             event_type="failed",
                             message=exc.message,
-                            data_json={"code": exc.code},
+                            data_json={"code": exc.code, **error_details},
                         )
                     )
             except Exception:

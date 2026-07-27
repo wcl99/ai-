@@ -280,6 +280,29 @@ async def test_confirmed_plan_asset_list_is_frozen(authenticated_client):
     assert rejected.json()["code"] == "PLAN_NOT_DRAFT"
 
 
+async def test_confirmation_freezes_xiaoyi_context(authenticated_client):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": "Xiaoyi frozen context",
+            "test_type": "standard",
+            "targets": ["example.test"],
+        },
+    )
+
+    confirmed = await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+    )
+
+    context = confirmed.json()["snapshot"]["xiaoyi_context"]
+    assert context["org_id"]
+    assert context["user_id"] == "admin"
+    assert context["plan_id"] == plan.json()["id"]
+    assert context["scan_mode"] == "standard"
+    assert context["scan_speed"] == "quick"
+    assert context["download_intermediate_results"] is True
+
+
 async def test_task_creation_freezes_direct_target_asset_list(authenticated_client):
     plan = await authenticated_client.post(
         "/api/v1/scan-plans",

@@ -9,6 +9,7 @@ from app.config import Settings, get_settings
 from app.engine import (
     XiaoyiEngineClient,
     _contains_deprecated_fields,
+    build_xiaoyi_chat_payload,
     engine_error,
     map_phase,
     map_status,
@@ -27,6 +28,110 @@ def test_maps_external_task_state():
 
 def test_rejects_deprecated_precheck_fields_at_any_depth():
     assert _contains_deprecated_fields({"params": {"scan_port": True}})
+
+
+def test_builds_documented_xiaoyi_ip_port_payload():
+    snapshot = {
+        "xiaoyi_context": {
+            "org_id": "org-1",
+            "user_id": "admin",
+            "plan_id": "plan-1",
+            "scan_mode": "standard",
+            "scan_speed": "quick",
+            "download_intermediate_results": True,
+        },
+        "asset_list": [
+            {
+                "host": "139.198.31.136",
+                "hostType": "ip",
+                "ports": [
+                    {
+                        "port": 81,
+                        "state": "open",
+                        "service": "http",
+                        "protocol": "tcp",
+                    }
+                ],
+            }
+        ],
+    }
+
+    assert build_xiaoyi_chat_payload(snapshot) == {
+        **snapshot["xiaoyi_context"],
+        "asset_list": [
+            {
+                "asset_type": "ip_port",
+                "asset_address": [
+                    {"address": "139.198.31.136", "port": 81, "service": "http"}
+                ],
+                "whitebox_context": "",
+            }
+        ],
+    }
+
+
+async def test_xiaoyi_create_task_sends_documented_body_without_request_id(
+    monkeypatch,
+):
+    sent = {}
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return False
+
+        async def post(self, url, json, headers):
+            sent.update(json)
+            request = httpx.Request("POST", url)
+            return httpx.Response(
+                200,
+                request=request,
+                json={"taskId": "real-1", "status": "PENDING"},
+            )
+
+    monkeypatch.setattr(
+        "app.engine.httpx.AsyncClient", lambda **kwargs: FakeClient()
+    )
+    settings = Settings(
+        jwt_secret="test-secret-that-is-at-least-32-characters",
+        engine_mode="xiaoyi",
+        xiaoyi_base_url="https://xiaoyi.test",
+    )
+    snapshot = {
+        "xiaoyi_context": {
+            "org_id": "org-1",
+            "user_id": "admin",
+            "plan_id": "plan-1",
+            "scan_mode": "standard",
+            "scan_speed": "quick",
+            "download_intermediate_results": True,
+        },
+        "asset_list": [
+            {
+                "host": "139.198.31.136",
+                "hostType": "ip",
+                "ports": [{"port": 81, "service": "http"}],
+            }
+        ],
+    }
+
+    result = await XiaoyiEngineClient(settings).create_task(
+        snapshot, "local-request-id"
+    )
+
+    assert result.external_task_id == "real-1"
+    assert "request_id" not in sent
+    assert set(sent) == {
+        "org_id",
+        "user_id",
+        "plan_id",
+        "scan_mode",
+        "scan_speed",
+        "download_intermediate_results",
+        "asset_list",
+    }
 
 
 def test_port_precheck_requires_host_type():
@@ -185,3 +290,22 @@ def test_classifies_engine_http_errors_without_exposing_response_body():
     assert unavailable.code == "ENGINE_UNAVAILABLE"
     assert "sensitive" not in unavailable.message
     assert engine_error(ValueError("invalid json"), "查询任务").code == "INVALID_ENGINE_PAYLOAD"
+
+
+def test_engine_rejection_details_are_bounded_and_redacted():
+    request = httpx.Request("POST", "https://xiaoyi.test/api/osCore/chat")
+    response = httpx.Response(
+        400,
+        request=request,
+        json={"error": "token=secret asset_list 不能为空" + "x" * 600},
+    )
+
+    error = engine_error(
+        httpx.HTTPStatusError("failed", request=request, response=response),
+        "创建任务",
+    )
+
+    assert error.details is not None
+    assert error.details["upstream_error"].startswith("token=*** asset_list 不能为空")
+    assert "secret" not in error.details["upstream_error"]
+    assert len(error.details["upstream_error"]) == 500

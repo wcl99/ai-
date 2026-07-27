@@ -440,7 +440,19 @@ async def confirm_plan(plan_id: uuid.UUID, user: User = Depends(require_roles("a
     # Confirmation freezes the authorized scope in the snapshot consumed by the engine.
     plan = await get_plan(session, plan_id, user)
     plan.status = "READY"
-    plan.snapshot = {**plan.snapshot, "authorization_confirmed": True, "confirmed_by": str(user.id)}
+    plan.snapshot = {
+        **plan.snapshot,
+        "authorization_confirmed": True,
+        "confirmed_by": str(user.id),
+        "xiaoyi_context": {
+            "org_id": str(user.org_id),
+            "user_id": user.username,
+            "plan_id": str(plan.id),
+            "scan_mode": plan.test_type,
+            "scan_speed": "quick",
+            "download_intermediate_results": True,
+        },
+    }
     await add_audit(session, user, "plan.confirm", "scan_plan", plan.id)
     await session.commit()
     await session.refresh(plan)

@@ -51,7 +51,14 @@ def engine_error(exc: Exception, action: str) -> AppError:
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
         if status in {400, 422}:
-            return AppError(400, "ENGINE_REJECTED", f"小易拒绝{action}请求")
+            summary = upstream_error_summary(exc.response)
+            details = {"upstream_error": summary} if summary else None
+            return AppError(
+                400,
+                "ENGINE_REJECTED",
+                f"小易拒绝{action}请求",
+                details,
+            )
         if status in {401, 403}:
             return AppError(502, "ENGINE_AUTH_FAILED", "小易引擎鉴权失败")
         if status == 404:
@@ -113,6 +120,89 @@ def redact_sensitive(value: object) -> object:
     if isinstance(value, str):
         return redact_sensitive_text(value)
     return value
+
+
+def upstream_error_summary(response: httpx.Response) -> str:
+    """Return a bounded, redacted business error from a rejected Xiaoyi response."""
+    try:
+        payload = response.json()
+    except ValueError:
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    value = payload.get("error") or payload.get("message")
+    if not isinstance(value, str):
+        return ""
+    return redact_sensitive_text(value)[:500]
+
+
+def build_xiaoyi_chat_payload(snapshot: dict) -> dict:
+    """Convert a frozen platform plan into Xiaoyi's documented chat contract."""
+    if _contains_deprecated_fields(snapshot):
+        raise AppError(400, "INVALID_ENGINE_PAYLOAD", "任务参数包含已废弃的预查字段")
+    context = snapshot.get("xiaoyi_context")
+    required_context = {
+        "org_id",
+        "user_id",
+        "plan_id",
+        "scan_mode",
+        "scan_speed",
+        "download_intermediate_results",
+    }
+    if not isinstance(context, dict) or not required_context.issubset(context):
+        raise AppError(400, "INVALID_ENGINE_PAYLOAD", "扫描计划缺少小易任务上下文")
+
+    assets = []
+    for item in snapshot.get("asset_list") or []:
+        if not isinstance(item, dict):
+            raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易任务资产格式无效")
+        host = str(item.get("host") or "").strip()
+        if not host:
+            raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易任务资产地址不能为空")
+        whitebox_context = str(item.get("whitebox_context") or "")
+        ports = item.get("ports") or []
+        if ports:
+            addresses = []
+            seen = set()
+            for port in ports:
+                details = port if isinstance(port, dict) else {"port": port}
+                try:
+                    number = int(details.get("port"))
+                except (TypeError, ValueError):
+                    raise AppError(
+                        400, "INVALID_ENGINE_PAYLOAD", "小易任务端口格式无效"
+                    ) from None
+                if number < 1 or number > 65535:
+                    raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易任务端口范围无效")
+                key = (host, number)
+                if key in seen:
+                    continue
+                seen.add(key)
+                addresses.append(
+                    {
+                        "address": host,
+                        "port": number,
+                        "service": str(details.get("service") or ""),
+                    }
+                )
+            assets.append(
+                {
+                    "asset_type": "ip_port",
+                    "asset_address": addresses,
+                    "whitebox_context": whitebox_context,
+                }
+            )
+        else:
+            assets.append(
+                {
+                    "asset_type": str(item.get("hostType") or "domain"),
+                    "asset_address": [host],
+                    "whitebox_context": whitebox_context,
+                }
+            )
+    if not assets:
+        raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易任务资产不能为空")
+    return {key: context[key] for key in required_context} | {"asset_list": assets}
 
 
 def parse_engine_task(
@@ -214,9 +304,8 @@ class XiaoyiEngineClient:
         return XiaoyiPrecheckSession(self.settings, self.headers)
 
     async def create_task(self, payload: dict, request_id: str) -> EngineTask:
-        body = {**payload, "request_id": request_id}
-        if _contains_deprecated_fields(body):
-            raise AppError(400, "INVALID_ENGINE_PAYLOAD", "任务参数包含已废弃的预查字段")
+        # Platform idempotency uses request_id locally; Xiaoyi's documented body omits it.
+        body = build_xiaoyi_chat_payload(payload)
         try:
             async with httpx.AsyncClient(timeout=self.settings.engine_timeout_seconds) as client:
                 response = await client.post(

@@ -255,6 +255,32 @@ async def test_non_retryable_engine_error_fails_immediately(authenticated_client
     assert failed.json()["error_code"] == "ENGINE_REJECTED"
 
 
+async def test_rejected_engine_detail_is_saved_in_task_event(
+    authenticated_client, monkeypatch
+):
+    class RejectedEngine:
+        async def create_task(self, payload: dict, request_id: str) -> EngineTask:
+            raise AppError(
+                400,
+                "ENGINE_REJECTED",
+                "小易拒绝创建任务请求",
+                {"upstream_error": "asset_list 不能为空"},
+            )
+
+    task_id = await create_queued_task(
+        authenticated_client, "Rejected detail", "rejected-detail-request"
+    )
+    monkeypatch.setattr(sync, "get_engine_client", lambda settings: RejectedEngine())
+
+    await sync.sync_once(get_settings())
+
+    events = await authenticated_client.get(f"/api/v1/tasks/{task_id}/events")
+    assert events.json()["data"][-1]["data_json"] == {
+        "code": "ENGINE_REJECTED",
+        "upstream_error": "asset_list 不能为空",
+    }
+
+
 async def test_stop_request_reaches_terminal_state(authenticated_client):
     task_id = await create_queued_task(
         authenticated_client, "Stop task", "stop-task-request"
