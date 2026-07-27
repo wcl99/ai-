@@ -30,10 +30,10 @@ from .engine import (
     get_engine_client,
     redact_sensitive,
     redact_sensitive_text,
-    xiaoyi_numeric_id,
+    resolve_xiaoyi_org_id,
 )
 from .errors import AppError
-from .models import AiLog, Asset, AuditLog, Organization, QAMessage, Report, ScanPlan, Task, TaskEvent, User, Vulnerability
+from .models import AiLog, Asset, AuditLog, Organization, QAMessage, Report, ScanPlan, Task, TaskEvent, User, Vulnerability, XiaoyiPlanMapping
 from .schemas import (
     AiAssetUpload,
     AiLogRead,
@@ -453,19 +453,22 @@ async def confirm_plan(
         return plan
     if plan.status != "DRAFT":
         raise AppError(409, "PLAN_NOT_DRAFT", "只有草稿计划可以确认")
+    mapping = await session.scalar(
+        select(XiaoyiPlanMapping).where(XiaoyiPlanMapping.plan_id == plan.id)
+    )
+    if mapping is None:
+        mapping = XiaoyiPlanMapping(plan_id=plan.id)
+        session.add(mapping)
+        await session.flush()
     plan.status = "READY"
     plan.snapshot = {
         **plan.snapshot,
         "authorization_confirmed": True,
         "confirmed_by": str(user.id),
         "xiaoyi_context": {
-            "org_id": (
-                settings.xiaoyi_org_id
-                if settings.xiaoyi_org_id is not None
-                else xiaoyi_numeric_id(user.org_id)
-            ),
+            "org_id": resolve_xiaoyi_org_id(settings),
             "user_id": settings.xiaoyi_user_id or user.username,
-            "plan_id": xiaoyi_numeric_id(plan.id),
+            "plan_id": mapping.id,
             "scan_mode": plan.test_type,
             "scan_speed": "quick",
             "download_intermediate_results": True,

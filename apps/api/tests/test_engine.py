@@ -15,6 +15,7 @@ from app.engine import (
     map_status,
     parse_engine_task,
     redact_sensitive,
+    resolve_xiaoyi_org_id,
 )
 from app.errors import AppError
 from app.schemas import PortPrecheckRequest
@@ -104,6 +105,31 @@ def test_rejects_non_integer_xiaoyi_org_and_plan_ids():
             "org_id": "uuid-org",
             "user_id": "admin",
             "plan_id": "uuid-plan",
+            "scan_mode": "standard",
+            "scan_speed": "quick",
+            "download_intermediate_results": True,
+        },
+        "asset_list": [{"host": "example.test", "hostType": "domain"}],
+    }
+
+    with pytest.raises(AppError) as captured:
+        build_xiaoyi_chat_payload(snapshot)
+
+    assert captured.value.code == "INVALID_ENGINE_PAYLOAD"
+
+
+@pytest.mark.parametrize(
+    ("org_id", "plan_id"),
+    [(0, 1), (-1, 1), (1, 0), (1, 2_147_483_648)],
+)
+def test_rejects_xiaoyi_ids_outside_positive_java_integer_range(
+    org_id, plan_id
+):
+    snapshot = {
+        "xiaoyi_context": {
+            "org_id": org_id,
+            "user_id": "admin",
+            "plan_id": plan_id,
             "scan_mode": "standard",
             "scan_speed": "quick",
             "download_intermediate_results": True,
@@ -211,6 +237,28 @@ def test_blank_xiaoyi_org_id_is_treated_as_unconfigured():
     )
 
     assert settings.xiaoyi_org_id is None
+
+
+def test_xiaoyi_mode_requires_an_explicit_org_mapping():
+    settings = Settings(
+        jwt_secret="test-secret-that-is-at-least-32-characters",
+        engine_mode="xiaoyi",
+        xiaoyi_org_id=None,
+    )
+
+    with pytest.raises(AppError) as captured:
+        resolve_xiaoyi_org_id(settings)
+
+    assert captured.value.code == "ENGINE_IDENTITY_NOT_CONFIGURED"
+
+
+def test_blank_xiaoyi_user_id_is_treated_as_unconfigured():
+    settings = Settings(
+        jwt_secret="test-secret-that-is-at-least-32-characters",
+        xiaoyi_user_id="   ",
+    )
+
+    assert settings.xiaoyi_user_id is None
 
 
 async def test_xiaoyi_precheck_receive_has_a_total_timeout(monkeypatch):

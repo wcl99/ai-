@@ -10,7 +10,7 @@ import app.main as main_module
 from app.auth import create_token, password_hash
 from app.config import get_settings
 from app.db import SessionLocal
-from app.models import Organization, ScanPlan, Task, User
+from app.models import Organization, ScanPlan, Task, User, XiaoyiPlanMapping
 from app.schemas import DomainPrecheckRequest, PortPrecheckRequest
 
 from app.sync import sync_once
@@ -334,6 +334,33 @@ async def test_reconfirmation_keeps_the_original_xiaoyi_actor(authenticated_clie
     assert second.status_code == 200
     assert second.json()["snapshot"] == first.json()["snapshot"]
     assert second.json()["snapshot"]["xiaoyi_context"]["user_id"] == "admin"
+
+
+async def test_confirmed_plans_use_distinct_persisted_xiaoyi_plan_ids(
+    authenticated_client,
+):
+    confirmed = []
+    for name in ["First mapped plan", "Second mapped plan"]:
+        plan = await authenticated_client.post(
+            "/api/v1/scan-plans",
+            json={"name": name, "targets": ["example.test"]},
+        )
+        response = await authenticated_client.post(
+            f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+        )
+        confirmed.append((plan.json()["id"], response.json()))
+
+    async with SessionLocal() as session:
+        mappings = {
+            str(item.plan_id): item.id
+            for item in await session.scalars(select(XiaoyiPlanMapping))
+        }
+
+    first_id = confirmed[0][1]["snapshot"]["xiaoyi_context"]["plan_id"]
+    second_id = confirmed[1][1]["snapshot"]["xiaoyi_context"]["plan_id"]
+    assert first_id == mappings[confirmed[0][0]]
+    assert second_id == mappings[confirmed[1][0]]
+    assert first_id != second_id
 
 
 async def test_task_creation_freezes_direct_target_asset_list(authenticated_client):

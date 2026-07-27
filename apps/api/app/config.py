@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     engine_mode: Literal["mock", "xiaoyi"] = "mock"
     xiaoyi_base_url: str = "http://127.0.0.1:49980"
     xiaoyi_token: str | None = None
-    xiaoyi_org_id: int | None = Field(default=None, ge=0, le=2_147_483_647)
+    xiaoyi_org_id: int | None = Field(default=None, ge=1, le=2_147_483_647)
     xiaoyi_user_id: str | None = None
     engine_timeout_seconds: float = 30
     engine_retry_limit: int = Field(default=2, ge=0, le=10)
@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     @classmethod
     def blank_xiaoyi_org_id_is_unconfigured(cls, value: object) -> object:
         return None if value == "" else value
+
+    @field_validator("xiaoyi_user_id", mode="before")
+    @classmethod
+    def normalize_xiaoyi_user_id(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        value = value.strip()
+        return value or None
 
     @property
     def allowed_origins(self) -> list[str]:

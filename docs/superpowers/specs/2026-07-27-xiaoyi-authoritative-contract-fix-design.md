@@ -31,9 +31,9 @@ No microservice, dependency, queue, or external identity table is added.
 
 Confirmation freezes these Xiaoyi context values alongside the existing internal snapshot:
 
-- `org_id`: a Java-Integer-compatible Xiaoyi organization ID. It is configurable with `XIAOYI_ORG_ID`; without an explicit mapping the platform UUID is deterministically reduced to a positive 31-bit integer.
+- `org_id`: a Java-Integer-compatible Xiaoyi organization ID configured explicitly with `XIAOYI_ORG_ID`. Xiaoyi mode fails closed when this authoritative organization mapping is absent.
 - `user_id`: `XIAOYI_USER_ID` when configured, otherwise the confirming platform username, matching the logical string form shown in the reference document.
-- `plan_id`: the confirmed platform plan UUID deterministically reduced to a positive 31-bit integer.
+- `plan_id`: a collision-free positive integer allocated from the platform database's `xiaoyi_plan_mappings` table. The mapping is created with the platform plan and remains stable for its lifetime.
 - `scan_mode`: the platform `test_type`.
 - `scan_speed`: `quick` unless a future confirmed form field explicitly supplies another documented value.
 - `download_intermediate_results`: `true`.
@@ -102,7 +102,7 @@ For the live acceptance plan, the adapter sends exactly this field set, with ide
 
 Internal fields such as `targets`, `templates`, `description`, `time_limit`, `authorization_confirmed`, `confirmed_by`, and `request_id` remain in platform storage where applicable but are not sent to Xiaoyi.
 
-Live contract evidence on 2026-07-27 confirmed that Xiaoyi rejects UUID strings for `org_id` with a Java `Integer` deserialization error, while numeric `org_id` and `plan_id` values proceed to asset validation. The numeric boundary mapping is therefore part of the authoritative adapter contract rather than a platform database-key change.
+Live contract evidence on 2026-07-27 confirmed that Xiaoyi rejects UUID strings for `org_id` with a Java `Integer` deserialization error, while numeric `org_id` and `plan_id` values proceed to asset validation. The numeric boundary mapping is therefore part of the authoritative adapter contract rather than a platform database-key change. Organization mapping must be explicit to prevent cross-tenant ambiguity; plan mapping is persisted and unique to prevent collisions.
 
 ## Lifecycle
 

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .errors import AppError
 from .engine import _contains_deprecated_fields
-from .models import AuditLog, ScanPlan, Task, TaskEvent, User
+from .models import AuditLog, ScanPlan, Task, TaskEvent, User, XiaoyiPlanMapping
 from .schemas import ScanPlanCreate
 
 
@@ -90,6 +90,8 @@ async def create_plan(
         snapshot=snapshot,
     )
     session.add(plan)
+    await session.flush()
+    session.add(XiaoyiPlanMapping(plan_id=plan.id))
     await session.flush()
     await add_audit(session, user, "plan.create", "scan_plan", plan.id)
     await session.commit()

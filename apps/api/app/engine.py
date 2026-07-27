@@ -3,7 +3,6 @@
 import asyncio
 import json
 import re
-import uuid
 from dataclasses import dataclass
 
 import httpx
@@ -167,6 +166,15 @@ def build_xiaoyi_chat_payload(snapshot: dict) -> dict:
         or not isinstance(context["plan_id"], int)
     ):
         raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易组织和计划 ID 必须为整数")
+    if not (
+        1 <= context["org_id"] <= 2_147_483_647
+        and 1 <= context["plan_id"] <= 2_147_483_647
+    ):
+        raise AppError(
+            400,
+            "INVALID_ENGINE_PAYLOAD",
+            "小易组织和计划 ID 超出正整数范围",
+        )
     if not isinstance(context["user_id"], str) or not context["user_id"].strip():
         raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易用户 ID 不能为空")
 
@@ -231,9 +239,17 @@ def build_xiaoyi_chat_payload(snapshot: dict) -> dict:
     return {key: context[key] for key in required_context} | {"asset_list": assets}
 
 
-def xiaoyi_numeric_id(value: uuid.UUID) -> int:
-    """Map a platform UUID deterministically into Xiaoyi's positive Java Integer range."""
-    return value.int % 2_147_483_647 or 1
+def resolve_xiaoyi_org_id(settings: Settings) -> int:
+    """Require an authoritative external organization mapping in Xiaoyi mode."""
+    if settings.xiaoyi_org_id is not None:
+        return settings.xiaoyi_org_id
+    if settings.engine_mode == "xiaoyi":
+        raise AppError(
+            503,
+            "ENGINE_IDENTITY_NOT_CONFIGURED",
+            "小易组织映射尚未配置",
+        )
+    return 1
 
 
 def parse_engine_task(

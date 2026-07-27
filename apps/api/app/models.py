@@ -70,6 +70,14 @@ class ScanPlan(Base, TimestampMixin):
     snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class XiaoyiPlanMapping(Base):
+    __tablename__ = "xiaoyi_plan_mappings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("scan_plans.id"), unique=True, index=True
+    )
+
+
 class Task(Base, TimestampMixin):
     __tablename__ = "tasks"
     __table_args__ = (UniqueConstraint("org_id", "request_id"),)
