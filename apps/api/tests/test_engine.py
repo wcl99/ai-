@@ -320,12 +320,12 @@ def test_classifies_engine_http_errors_without_exposing_response_body():
     assert engine_error(ValueError("invalid json"), "查询任务").code == "INVALID_ENGINE_PAYLOAD"
 
 
-def test_engine_rejection_details_are_bounded_and_redacted():
+def test_engine_rejection_preserves_only_known_safe_validation_detail():
     request = httpx.Request("POST", "https://xiaoyi.test/api/osCore/chat")
     response = httpx.Response(
         400,
         request=request,
-        json={"error": "asset_list 不能为空" + "x" * 600},
+        json={"error": "asset_list 不能为空"},
     )
 
     error = engine_error(
@@ -334,8 +334,7 @@ def test_engine_rejection_details_are_bounded_and_redacted():
     )
 
     assert error.details is not None
-    assert error.details["upstream_error"].startswith("asset_list 不能为空")
-    assert len(error.details["upstream_error"]) == 500
+    assert error.details["upstream_error"] == "asset_list 不能为空"
 
 
 @pytest.mark.parametrize(
@@ -344,6 +343,9 @@ def test_engine_rejection_details_are_bounded_and_redacted():
         "whitebox_context=admin-session-cookie-value",
         "cookie: session-value",
         "Authorization: Bearer private-value",
+        "invalid credentials: admin@example.com / p@ssw0rd!",
+        "cookies include an authenticated browser session",
+        "asset_list 不能为空 because value contained private material",
     ],
 )
 def test_sensitive_upstream_rejection_detail_is_suppressed(upstream_message):

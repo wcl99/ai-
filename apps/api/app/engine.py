@@ -133,13 +133,15 @@ def upstream_error_summary(response: httpx.Response) -> str:
     value = payload.get("error") or payload.get("message")
     if not isinstance(value, str):
         return ""
-    if re.search(
-        r"(?i)\b(?:authorization|cookie|set-cookie|password|secret|session|token|"
-        r"whitebox(?:_context)?|white_box(?:_context)?)\b",
+    value = value.strip()
+    if value == "消息不能为空" or re.fullmatch(
+        r"(?i)(?:asset_list|org_id|user_id|plan_id|scan_mode|scan_speed|"
+        r"download_intermediate_results)\s*(?:不能为空|缺失|无效|格式错误|不合法|"
+        r"required|invalid)",
         value,
     ):
-        return "上游错误详情已隐藏"
-    return redact_sensitive_text(value)[:500]
+        return value
+    return "上游错误详情已隐藏"
 
 
 def build_xiaoyi_chat_payload(snapshot: dict) -> dict:
