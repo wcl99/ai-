@@ -439,6 +439,10 @@ async def update_plan_assets(plan_id: uuid.UUID, payload: ScanPlanAssetUpdate, u
 async def confirm_plan(plan_id: uuid.UUID, user: User = Depends(require_roles("admin", "security_expert")), session: AsyncSession = Depends(get_session)):
     # Confirmation freezes the authorized scope in the snapshot consumed by the engine.
     plan = await get_plan(session, plan_id, user)
+    if plan.status == "READY":
+        return plan
+    if plan.status != "DRAFT":
+        raise AppError(409, "PLAN_NOT_DRAFT", "只有草稿计划可以确认")
     plan.status = "READY"
     plan.snapshot = {
         **plan.snapshot,

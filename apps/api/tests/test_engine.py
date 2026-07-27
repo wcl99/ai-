@@ -70,6 +70,34 @@ def test_builds_documented_xiaoyi_ip_port_payload():
     }
 
 
+@pytest.mark.parametrize(
+    "port",
+    [
+        {"port": 81, "state": "closed", "service": "http", "protocol": "tcp"},
+        {"port": 81, "state": "open", "service": "http", "protocol": "udp"},
+    ],
+)
+def test_rejects_unselected_or_non_tcp_xiaoyi_ports(port):
+    snapshot = {
+        "xiaoyi_context": {
+            "org_id": "org-1",
+            "user_id": "admin",
+            "plan_id": "plan-1",
+            "scan_mode": "standard",
+            "scan_speed": "quick",
+            "download_intermediate_results": True,
+        },
+        "asset_list": [
+            {"host": "139.198.31.136", "hostType": "ip", "ports": [port]}
+        ],
+    }
+
+    with pytest.raises(AppError) as captured:
+        build_xiaoyi_chat_payload(snapshot)
+
+    assert captured.value.code == "INVALID_ENGINE_PAYLOAD"
+
+
 async def test_xiaoyi_create_task_sends_documented_body_without_request_id(
     monkeypatch,
 ):
@@ -297,7 +325,7 @@ def test_engine_rejection_details_are_bounded_and_redacted():
     response = httpx.Response(
         400,
         request=request,
-        json={"error": "token=secret asset_list 不能为空" + "x" * 600},
+        json={"error": "asset_list 不能为空" + "x" * 600},
     )
 
     error = engine_error(
@@ -306,6 +334,29 @@ def test_engine_rejection_details_are_bounded_and_redacted():
     )
 
     assert error.details is not None
-    assert error.details["upstream_error"].startswith("token=*** asset_list 不能为空")
-    assert "secret" not in error.details["upstream_error"]
+    assert error.details["upstream_error"].startswith("asset_list 不能为空")
     assert len(error.details["upstream_error"]) == 500
+
+
+@pytest.mark.parametrize(
+    "upstream_message",
+    [
+        "whitebox_context=admin-session-cookie-value",
+        "cookie: session-value",
+        "Authorization: Bearer private-value",
+    ],
+)
+def test_sensitive_upstream_rejection_detail_is_suppressed(upstream_message):
+    request = httpx.Request("POST", "https://xiaoyi.test/api/osCore/chat")
+    response = httpx.Response(
+        400,
+        request=request,
+        json={"error": upstream_message},
+    )
+
+    error = engine_error(
+        httpx.HTTPStatusError("failed", request=request, response=response),
+        "创建任务",
+    )
+
+    assert error.details == {"upstream_error": "上游错误详情已隐藏"}

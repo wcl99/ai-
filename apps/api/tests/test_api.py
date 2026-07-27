@@ -303,6 +303,38 @@ async def test_confirmation_freezes_xiaoyi_context(authenticated_client):
     assert context["download_intermediate_results"] is True
 
 
+async def test_reconfirmation_keeps_the_original_xiaoyi_actor(authenticated_client):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={"name": "Immutable confirmation", "targets": ["example.test"]},
+    )
+    first = await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+    )
+    created = await authenticated_client.post(
+        "/api/v1/users",
+        json={
+            "username": "second-expert",
+            "name": "Second Expert",
+            "password": "second-expert-password",
+            "role": "security_expert",
+        },
+    )
+    assert created.status_code == 201
+    login = await authenticated_client.post(
+        "/api/v1/auth/login",
+        json={"username": "second-expert", "password": "second-expert-password"},
+    )
+    second = await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm",
+        headers={"Authorization": f"Bearer {login.json()['token']}"},
+    )
+
+    assert second.status_code == 200
+    assert second.json()["snapshot"] == first.json()["snapshot"]
+    assert second.json()["snapshot"]["xiaoyi_context"]["user_id"] == "admin"
+
+
 async def test_task_creation_freezes_direct_target_asset_list(authenticated_client):
     plan = await authenticated_client.post(
         "/api/v1/scan-plans",
