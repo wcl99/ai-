@@ -3,6 +3,7 @@
 import asyncio
 import json
 import re
+import uuid
 from dataclasses import dataclass
 
 import httpx
@@ -159,6 +160,15 @@ def build_xiaoyi_chat_payload(snapshot: dict) -> dict:
     }
     if not isinstance(context, dict) or not required_context.issubset(context):
         raise AppError(400, "INVALID_ENGINE_PAYLOAD", "扫描计划缺少小易任务上下文")
+    if (
+        isinstance(context["org_id"], bool)
+        or not isinstance(context["org_id"], int)
+        or isinstance(context["plan_id"], bool)
+        or not isinstance(context["plan_id"], int)
+    ):
+        raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易组织和计划 ID 必须为整数")
+    if not isinstance(context["user_id"], str) or not context["user_id"].strip():
+        raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易用户 ID 不能为空")
 
     assets = []
     for item in snapshot.get("asset_list") or []:
@@ -219,6 +229,11 @@ def build_xiaoyi_chat_payload(snapshot: dict) -> dict:
     if not assets:
         raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易任务资产不能为空")
     return {key: context[key] for key in required_context} | {"asset_list": assets}
+
+
+def xiaoyi_numeric_id(value: uuid.UUID) -> int:
+    """Map a platform UUID deterministically into Xiaoyi's positive Java Integer range."""
+    return value.int % 2_147_483_647 or 1
 
 
 def parse_engine_task(

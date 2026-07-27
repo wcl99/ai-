@@ -26,7 +26,12 @@ from .auth import (
 )
 from .config import Settings, get_settings
 from .db import SessionLocal, get_session
-from .engine import get_engine_client, redact_sensitive, redact_sensitive_text
+from .engine import (
+    get_engine_client,
+    redact_sensitive,
+    redact_sensitive_text,
+    xiaoyi_numeric_id,
+)
 from .errors import AppError
 from .models import AiLog, Asset, AuditLog, Organization, QAMessage, Report, ScanPlan, Task, TaskEvent, User, Vulnerability
 from .schemas import (
@@ -436,7 +441,12 @@ async def update_plan_assets(plan_id: uuid.UUID, payload: ScanPlanAssetUpdate, u
 
 
 @app.post("/api/v1/scan-plans/{plan_id}/confirm", response_model=ScanPlanRead)
-async def confirm_plan(plan_id: uuid.UUID, user: User = Depends(require_roles("admin", "security_expert")), session: AsyncSession = Depends(get_session)):
+async def confirm_plan(
+    plan_id: uuid.UUID,
+    user: User = Depends(require_roles("admin", "security_expert")),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
     # Confirmation freezes the authorized scope in the snapshot consumed by the engine.
     plan = await get_plan(session, plan_id, user)
     if plan.status == "READY":
@@ -449,9 +459,13 @@ async def confirm_plan(plan_id: uuid.UUID, user: User = Depends(require_roles("a
         "authorization_confirmed": True,
         "confirmed_by": str(user.id),
         "xiaoyi_context": {
-            "org_id": str(user.org_id),
-            "user_id": user.username,
-            "plan_id": str(plan.id),
+            "org_id": (
+                settings.xiaoyi_org_id
+                if settings.xiaoyi_org_id is not None
+                else xiaoyi_numeric_id(user.org_id)
+            ),
+            "user_id": settings.xiaoyi_user_id or user.username,
+            "plan_id": xiaoyi_numeric_id(plan.id),
             "scan_mode": plan.test_type,
             "scan_speed": "quick",
             "download_intermediate_results": True,

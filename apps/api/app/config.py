@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL
 
@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     engine_mode: Literal["mock", "xiaoyi"] = "mock"
     xiaoyi_base_url: str = "http://127.0.0.1:49980"
     xiaoyi_token: str | None = None
+    xiaoyi_org_id: int | None = Field(default=None, ge=0, le=2_147_483_647)
+    xiaoyi_user_id: str | None = None
     engine_timeout_seconds: float = 30
     engine_retry_limit: int = Field(default=2, ge=0, le=10)
     sync_interval_seconds: float = 1
@@ -37,6 +39,11 @@ class Settings(BaseSettings):
     static_dir: Path = Path("static")
     bootstrap_admin_username: str | None = None
     bootstrap_admin_password: str | None = None
+
+    @field_validator("xiaoyi_org_id", mode="before")
+    @classmethod
+    def blank_xiaoyi_org_id_is_unconfigured(cls, value: object) -> object:
+        return None if value == "" else value
 
     @property
     def allowed_origins(self) -> list[str]:

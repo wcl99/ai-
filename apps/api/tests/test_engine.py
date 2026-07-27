@@ -33,9 +33,9 @@ def test_rejects_deprecated_precheck_fields_at_any_depth():
 def test_builds_documented_xiaoyi_ip_port_payload():
     snapshot = {
         "xiaoyi_context": {
-            "org_id": "org-1",
+            "org_id": 2,
             "user_id": "admin",
-            "plan_id": "plan-1",
+            "plan_id": 999,
             "scan_mode": "standard",
             "scan_speed": "quick",
             "download_intermediate_results": True,
@@ -80,9 +80,9 @@ def test_builds_documented_xiaoyi_ip_port_payload():
 def test_rejects_unselected_or_non_tcp_xiaoyi_ports(port):
     snapshot = {
         "xiaoyi_context": {
-            "org_id": "org-1",
+            "org_id": 2,
             "user_id": "admin",
-            "plan_id": "plan-1",
+            "plan_id": 999,
             "scan_mode": "standard",
             "scan_speed": "quick",
             "download_intermediate_results": True,
@@ -90,6 +90,25 @@ def test_rejects_unselected_or_non_tcp_xiaoyi_ports(port):
         "asset_list": [
             {"host": "139.198.31.136", "hostType": "ip", "ports": [port]}
         ],
+    }
+
+    with pytest.raises(AppError) as captured:
+        build_xiaoyi_chat_payload(snapshot)
+
+    assert captured.value.code == "INVALID_ENGINE_PAYLOAD"
+
+
+def test_rejects_non_integer_xiaoyi_org_and_plan_ids():
+    snapshot = {
+        "xiaoyi_context": {
+            "org_id": "uuid-org",
+            "user_id": "admin",
+            "plan_id": "uuid-plan",
+            "scan_mode": "standard",
+            "scan_speed": "quick",
+            "download_intermediate_results": True,
+        },
+        "asset_list": [{"host": "example.test", "hostType": "domain"}],
     }
 
     with pytest.raises(AppError) as captured:
@@ -129,9 +148,9 @@ async def test_xiaoyi_create_task_sends_documented_body_without_request_id(
     )
     snapshot = {
         "xiaoyi_context": {
-            "org_id": "org-1",
+            "org_id": 2,
             "user_id": "admin",
-            "plan_id": "plan-1",
+            "plan_id": 999,
             "scan_mode": "standard",
             "scan_speed": "quick",
             "download_intermediate_results": True,
@@ -183,6 +202,15 @@ def test_test_suite_forces_mock_engine_without_credentials():
     assert settings.engine_mode == "mock"
     assert settings.xiaoyi_token in {None, ""}
     assert settings.xiaoyi_base_url == "http://127.0.0.1:1"
+
+
+def test_blank_xiaoyi_org_id_is_treated_as_unconfigured():
+    settings = Settings(
+        jwt_secret="test-secret-that-is-at-least-32-characters",
+        xiaoyi_org_id="",
+    )
+
+    assert settings.xiaoyi_org_id is None
 
 
 async def test_xiaoyi_precheck_receive_has_a_total_timeout(monkeypatch):
