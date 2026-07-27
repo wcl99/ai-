@@ -1,9 +1,13 @@
+"""Define Pydantic models used to validate and serialize the public API boundary."""
+
 import uuid
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
+
+# Schemas shape HTTP input/output only; unlike models.py, they never write database rows.
 class ApiEnvelope[T](BaseModel):
     success: bool = True
     message: str = "ok"
@@ -18,6 +22,7 @@ class PageData[T](BaseModel):
 
 
 class ORMModel(BaseModel):
+    # This allows response schemas to read attributes directly from SQLAlchemy objects.
     model_config = ConfigDict(from_attributes=True)
 
 

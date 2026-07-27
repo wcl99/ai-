@@ -1,3 +1,5 @@
+"""Issue JWTs and expose FastAPI authentication and role-check dependencies."""
+
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -22,6 +24,7 @@ class AuthenticationError(Exception):
 
 
 def create_token(user: User, settings: Settings) -> str:
+    # Signed claims let later requests identify the user without storing server-side sessions.
     now = datetime.now(UTC)
     payload = {
         "sub": str(user.id),
@@ -37,6 +40,7 @@ def create_token(user: User, settings: Settings) -> str:
 
 
 def decode_token(token: str, settings: Settings) -> dict:
+    # Signature, issuer, and expiration are verified before claims are trusted.
     try:
         return jwt.decode(
             token,
@@ -54,6 +58,7 @@ async def current_user(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> User:
+    # API clients usually send Bearer tokens; browsers may use the HTTP-only cookie.
     token = credentials.credentials if credentials else access_token
     if not token:
         raise AuthenticationError
@@ -68,6 +73,7 @@ async def current_user(
     return user
 
 
+# Depends(current_user) turns authentication and authorization into reusable route dependencies.
 def require_roles(*roles: str):
     async def dependency(user: User = Depends(current_user)) -> User:
         if user.role not in roles:

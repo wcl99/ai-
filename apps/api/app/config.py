@@ -1,3 +1,5 @@
+"""Load environment-backed application settings and enforce runtime security rules."""
+
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -8,6 +10,7 @@ from sqlalchemy.engine import URL
 
 
 class Settings(BaseSettings):
+    # BaseSettings maps these fields to environment variables (and an optional .env file).
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_name: str = "AI 安服平台 API"
@@ -94,4 +97,5 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    # FastAPI may resolve this dependency many times; one immutable-style instance is enough.
     return Settings()  # type: ignore[call-arg]

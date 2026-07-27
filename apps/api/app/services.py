@@ -1,3 +1,5 @@
+"""Implement business rules shared by HTTP routes and digital-human endpoints."""
+
 import json
 import uuid
 from pathlib import Path
@@ -59,6 +61,7 @@ async def get_plan(session: AsyncSession, plan_id: uuid.UUID, user: User) -> Sca
 async def create_plan(
     session: AsyncSession, payload: ScanPlanCreate, user: User
 ) -> ScanPlan:
+    # Store a snapshot beside editable columns so the later task has a complete input record.
     targets = [item.strip() for item in payload.targets if item.strip()]
     if not targets:
         raise AppError(422, "INVALID_TARGET", "至少需要一个有效目标")
@@ -97,6 +100,7 @@ async def create_plan(
 async def create_task(
     session: AsyncSession, plan: ScanPlan, user: User, request_id: str | None = None
 ) -> Task:
+    # This service owns readiness, payload, and idempotency invariants as one transaction.
     if plan.status != "READY":
         raise AppError(409, "PLAN_NOT_READY", "扫描计划尚未确认授权范围")
     if _contains_deprecated_fields(plan.snapshot):
@@ -119,6 +123,7 @@ async def create_task(
     )
     existing = await session.scalar(query)
     if existing:
+        # Retrying the same request returns the original task instead of launching twice.
         if existing.plan_id != plan.id:
             raise AppError(
                 409,

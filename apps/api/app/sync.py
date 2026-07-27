@@ -1,3 +1,5 @@
+"""Synchronize active platform tasks with Xiaoyi without blocking request handlers."""
+
 import asyncio
 import logging
 import uuid
@@ -136,12 +138,14 @@ async def sync_children(session, client, parent: Task) -> None:
 async def sync_once(settings: Settings) -> None:
     client = get_engine_client(settings)
     async with SessionLocal() as session:
+        # Terminal tasks are immutable here; only active platform tasks need engine polling.
         tasks = list(
             await session.scalars(
                 select(Task).where(Task.status.in_(["QUEUED", "RUNNING", "CANCELLING"]))
             )
         )
         for task in tasks:
+            # Isolate each task so one engine failure cannot prevent the others from syncing.
             try:
                 previous = (task.status, task.phase, task.progress)
                 if task.status == "CANCELLING":
@@ -221,10 +225,12 @@ async def sync_once(settings: Settings) -> None:
                         data_json={"code": task.error_code},
                     )
                 )
+        # Persist normalized task states, reports, child tasks, and events as one iteration.
         await session.commit()
 
 
 async def sync_forever(settings: Settings, stop: asyncio.Event) -> None:
+    # Lifespan owns this loop and supplies the stop event for graceful application shutdown.
     while not stop.is_set():
         try:
             await sync_once(settings)

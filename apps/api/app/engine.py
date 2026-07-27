@@ -1,3 +1,5 @@
+"""Adapt platform operations to either the contract Mock or the external Xiaoyi engine."""
+
 import asyncio
 import json
 import re
@@ -119,6 +121,7 @@ def parse_engine_task(
     current_progress: float = 0,
     default_status: str = "FAILED",
 ) -> EngineTask:
+    # External field names and states are normalized before the rest of the platform sees them.
     external_id = str(data.get("taskId") or data.get("task_id") or data.get("id") or fallback_id)
     return EngineTask(
         external_id,
@@ -131,6 +134,8 @@ def parse_engine_task(
 
 
 class MockEngineClient:
+    """Deterministic engine contract for tests and safe local learning."""
+
     async def create_task(self, payload: dict, request_id: str) -> EngineTask:
         return EngineTask(f"mock-{request_id}", "RUNNING", "INFO_COLLECTING", 10, {})
 
@@ -196,6 +201,8 @@ class MockEngineClient:
 
 
 class XiaoyiEngineClient:
+    """Own Xiaoyi HTTP/WebSocket payloads, authentication, and timeout handling."""
+
     def __init__(self, settings: Settings):
         self.settings = settings
 
@@ -287,25 +294,6 @@ class XiaoyiEngineClient:
             raise engine_error(exc, "停止任务") from exc
 
     async def precheck(self, message: dict) -> dict:
-        base = self.settings.xiaoyi_base_url.rstrip("/")
-        ws_url = base.replace("https://", "wss://").replace("http://", "ws://")
-        try:
-            async with websockets.connect(
-                f"{ws_url}/api/osCore/ws/asset-can",
-                additional_headers=self.headers,
-                open_timeout=self.settings.engine_timeout_seconds,
-            ) as socket:
-                async with asyncio.timeout(self.settings.engine_timeout_seconds):
-                    await socket.send(json.dumps(message, ensure_ascii=False))
-                    while True:
-                        data = httpx.Response(200, content=await socket.recv()).json()
-                        if data.get("action") in {"can_subdomain_result", "can_port_result", "can_error"}:
-                            return data
-        except Exception as exc:
-            raise AppError(502, "ENGINE_UNAVAILABLE", "小易预查连接失败") from exc
-
-
-    async def precheck(self, message: dict) -> dict:
         try:
             async with self.precheck_session() as session:
                 return await session.send(message)
@@ -314,6 +302,8 @@ class XiaoyiEngineClient:
 
 
 class XiaoyiPrecheckSession:
+    """Keep one upstream WebSocket open for a browser precheck conversation."""
+
     def __init__(self, settings: Settings, headers: dict[str, str]):
         self.settings = settings
         self.headers = headers
@@ -357,4 +347,5 @@ def _contains_deprecated_fields(value: object) -> bool:
 
 
 def get_engine_client(settings: Settings):
+    # Callers depend on one contract and do not need mode-specific branches.
     return MockEngineClient() if settings.engine_mode == "mock" else XiaoyiEngineClient(settings)

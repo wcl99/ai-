@@ -1,3 +1,5 @@
+"""Expose the FastAPI HTTP/WebSocket boundary and assemble backend dependencies."""
+
 import asyncio
 import re
 import uuid
@@ -111,6 +113,8 @@ async def bootstrap_admin(settings: Settings) -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Startup validates production settings, bootstraps the optional admin, and starts
+    # exactly one synchronizer; shutdown signals that worker and waits for it to exit.
     settings = get_settings()
     settings.validate_runtime_security()
     settings.report_dir.mkdir(parents=True, exist_ok=True)
@@ -125,7 +129,9 @@ async def lifespan(_: FastAPI):
 
 REPORT_PREVIEW_LIMIT = 1_000_000
 
+# Uvicorn imports this object from ``app.main:app`` to start the ASGI application.
 app = FastAPI(title=get_settings().app_name, version="0.1.0", lifespan=lifespan)
+# CORS controls which browser origins may call the API; authentication is still required.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().allowed_origins,
@@ -135,6 +141,7 @@ app.add_middleware(
 )
 
 
+# Exception handlers keep error JSON stable even when failures originate in dependencies.
 @app.exception_handler(AuthenticationError)
 async def authentication_error_handler(_: Request, __: AuthenticationError):
     return JSONResponse(
@@ -182,11 +189,13 @@ async def validation_error_handler(_: Request, exc: RequestValidationError):
 @app.get("/health")
 @app.get("/health/live")
 async def health_live():
+    # Liveness only proves that the API process can answer a request.
     return {"status": "ok"}
 
 
 @app.get("/health/ready")
 async def health_ready():
+    # Readiness also checks the database, so a load balancer can avoid an unusable process.
     try:
         async with SessionLocal() as session:
             await session.execute(text("SELECT 1"))
@@ -198,6 +207,8 @@ async def health_ready():
 @app.post("/api/v1/auth/login", response_model=LoginResponse)
 @app.post("/api/auth/login", response_model=LoginResponse)
 async def login(payload: LoginRequest, response: Response, session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    # Before this body runs, FastAPI validates LoginRequest and resolves both dependencies.
+    # A valid password becomes a signed JWT returned in JSON and an HTTP-only cookie.
     username = payload.username.strip().lower()
     query = select(User).where(User.username == username, User.is_active.is_(True))
     if payload.org_id:
@@ -426,6 +437,7 @@ async def update_plan_assets(plan_id: uuid.UUID, payload: ScanPlanAssetUpdate, u
 
 @app.post("/api/v1/scan-plans/{plan_id}/confirm", response_model=ScanPlanRead)
 async def confirm_plan(plan_id: uuid.UUID, user: User = Depends(require_roles("admin", "security_expert")), session: AsyncSession = Depends(get_session)):
+    # Confirmation freezes the authorized scope in the snapshot consumed by the engine.
     plan = await get_plan(session, plan_id, user)
     plan.status = "READY"
     plan.snapshot = {**plan.snapshot, "authorization_confirmed": True, "confirmed_by": str(user.id)}
@@ -483,6 +495,7 @@ async def list_tasks(
 
 @app.post("/api/v1/tasks", response_model=TaskRead, status_code=201)
 async def add_task(payload: TaskCreate, user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session)):
+    # The service creates an idempotent platform task; the background sync calls Xiaoyi.
     plan = await get_plan(session, payload.plan_id, user)
     return await create_task(session, plan, user, payload.request_id)
 
@@ -831,6 +844,7 @@ async def websocket_user(websocket: WebSocket, settings: Settings) -> User | Non
 
 @app.websocket("/api/v1/prechecks/ws")
 async def precheck_socket(websocket: WebSocket):
+    # WebSockets do not run normal HTTP dependencies, so authenticate the cookie explicitly.
     settings = get_settings()
     user = await websocket_user(websocket, settings)
     await websocket.accept()
@@ -878,6 +892,7 @@ async def precheck_socket(websocket: WebSocket):
 
     try:
         if callable(session_factory):
+            # Reuse one upstream Xiaoyi socket for every message on this browser socket.
             async with session_factory() as precheck_session:
                 await handle_messages(precheck_session)
         else:
@@ -990,6 +1005,7 @@ _RESERVED_BROWSER_PREFIXES = {
 @app.get("/{browser_path:path}", include_in_schema=False)
 async def serve_spa(browser_path: str) -> FileResponse:
     """Serve built frontend assets and fall back browser routes to index.html."""
+    # This catch-all is declared last so API, health, and documentation routes match first.
     parts = [part for part in browser_path.split("/") if part]
     if (
         (parts and parts[0] in _RESERVED_BROWSER_PREFIXES)

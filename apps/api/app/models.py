@@ -1,3 +1,5 @@
+"""Define SQLAlchemy models that persist platform business state."""
+
 import uuid
 from datetime import UTC, datetime
 
@@ -71,6 +73,7 @@ class ScanPlan(Base, TimestampMixin):
 class Task(Base, TimestampMixin):
     __tablename__ = "tasks"
     __table_args__ = (UniqueConstraint("org_id", "request_id"),)
+    # id is the platform's identity; external_task_id is the Xiaoyi engine's identity.
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
     plan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("scan_plans.id"), index=True)
