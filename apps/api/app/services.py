@@ -58,6 +58,14 @@ async def get_plan(session: AsyncSession, plan_id: uuid.UUID, user: User) -> Sca
     return plan
 
 
+def plan_for_update_query(plan_id: uuid.UUID, org_id: uuid.UUID):
+    return (
+        select(ScanPlan)
+        .where(ScanPlan.id == plan_id, ScanPlan.org_id == org_id)
+        .with_for_update()
+    )
+
+
 async def create_plan(
     session: AsyncSession, payload: ScanPlanCreate, user: User
 ) -> ScanPlan:

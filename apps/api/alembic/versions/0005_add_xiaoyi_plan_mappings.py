@@ -25,14 +25,37 @@ def upgrade() -> None:
             ["plan_id"],
             unique=True,
         )
-    plans = sa.table("scan_plans", sa.column("id", sa.Uuid()))
+    plans = sa.table(
+        "scan_plans",
+        sa.column("id", sa.Uuid()),
+        sa.column("status", sa.String()),
+        sa.column("snapshot", sa.JSON()),
+    )
     mappings = sa.table(
         "xiaoyi_plan_mappings",
         sa.column("id", sa.Integer()),
         sa.column("plan_id", sa.Uuid()),
     )
+    plan_rows = list(
+        connection.execute(
+            sa.select(plans.c.id, plans.c.status, plans.c.snapshot).order_by(plans.c.id)
+        ).mappings()
+    )
+    for row in plan_rows:
+        if row["status"] != "READY":
+            continue
+        snapshot = dict(row["snapshot"] or {})
+        snapshot["authorization_confirmed"] = False
+        snapshot.pop("confirmed_by", None)
+        snapshot.pop("xiaoyi_context", None)
+        connection.execute(
+            plans.update()
+            .where(plans.c.id == row["id"])
+            .values(status="DRAFT", snapshot=snapshot)
+        )
     existing = set(connection.execute(sa.select(mappings.c.plan_id)).scalars())
-    for plan_id in connection.execute(sa.select(plans.c.id).order_by(plans.c.id)).scalars():
+    for row in plan_rows:
+        plan_id = row["id"]
         if plan_id not in existing:
             connection.execute(mappings.insert().values(plan_id=plan_id))
 

@@ -1,9 +1,11 @@
 import asyncio
+import uuid
 from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import select
+from sqlalchemy.dialects import postgresql
 from starlette.websockets import WebSocketDisconnect
 
 import app.main as main_module
@@ -12,6 +14,7 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.models import Organization, ScanPlan, Task, User, XiaoyiPlanMapping
 from app.schemas import DomainPrecheckRequest, PortPrecheckRequest
+from app.services import plan_for_update_query
 
 from app.sync import sync_once
 
@@ -23,6 +26,13 @@ async def test_liveness_is_independent_and_keeps_compatibility_alias(client):
     assert live.status_code == 200
     assert live.json() == {"status": "ok"}
     assert compatibility.json() == live.json()
+
+
+def test_confirmation_query_locks_the_plan_row():
+    statement = plan_for_update_query(uuid.uuid4(), uuid.uuid4())
+
+    sql = str(statement.compile(dialect=postgresql.dialect()))
+    assert "FOR UPDATE" in sql
 
 
 async def test_readiness_checks_the_database(client):

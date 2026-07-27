@@ -72,7 +72,7 @@ from .schemas import (
     VulnerabilityRead,
     VulnerabilityUpdate,
 )
-from .services import add_audit, create_plan, create_task, get_plan, normalize_asset_list, safe_report_path
+from .services import add_audit, create_plan, create_task, get_plan, normalize_asset_list, plan_for_update_query, safe_report_path
 from .sync import sync_forever
 
 
@@ -428,7 +428,9 @@ async def read_plan(plan_id: uuid.UUID, user: User = Depends(current_user), sess
 
 @app.patch("/api/v1/scan-plans/{plan_id}/assets", response_model=ScanPlanRead)
 async def update_plan_assets(plan_id: uuid.UUID, payload: ScanPlanAssetUpdate, user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session)):
-    plan = await get_plan(session, plan_id, user)
+    plan = await session.scalar(plan_for_update_query(plan_id, user.org_id))
+    if plan is None:
+        raise AppError(404, "PLAN_NOT_FOUND", "扫描计划不存在")
     if plan.status != "DRAFT":
         raise AppError(409, "PLAN_NOT_DRAFT", "Scan plan assets can only be changed before confirmation")
     asset_list = normalize_asset_list(payload.asset_list)
@@ -448,7 +450,9 @@ async def confirm_plan(
     settings: Settings = Depends(get_settings),
 ):
     # Confirmation freezes the authorized scope in the snapshot consumed by the engine.
-    plan = await get_plan(session, plan_id, user)
+    plan = await session.scalar(plan_for_update_query(plan_id, user.org_id))
+    if plan is None:
+        raise AppError(404, "PLAN_NOT_FOUND", "扫描计划不存在")
     if plan.status == "READY":
         return plan
     if plan.status != "DRAFT":
