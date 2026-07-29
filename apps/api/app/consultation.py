@@ -39,6 +39,22 @@ class AgentReply(BaseModel):
     ready_to_precheck: bool = False
 
 
+class LocalTokenCounter:
+    """Conservative, dependency-free counter for CAMEL context bookkeeping."""
+
+    def count_tokens_from_messages(self, messages: list[dict]) -> int:
+        return sum(
+            len(self.encode(json.dumps(message, ensure_ascii=False))) + 4
+            for message in messages
+        )
+
+    def encode(self, text: str) -> list[int]:
+        return [ord(character) for character in text]
+
+    def decode(self, token_ids: list[int]) -> str:
+        return "".join(chr(token_id) for token_id in token_ids)
+
+
 def parse_agent_reply(content: str) -> AgentReply:
     value = content.strip()
     if value.startswith("```"):
@@ -72,6 +88,7 @@ def _run_agent(settings: Settings, messages: list[dict], state: dict) -> AgentRe
         model_type=settings.model_type,
         url=settings.openai_api_base_url,
         api_key=settings.openai_api_key.get_secret_value(),
+        token_counter=LocalTokenCounter(),
         model_config_dict={
             "max_tokens": 512,
             "extra_body": {"thinking": {"type": "disabled"}},

@@ -64,6 +64,12 @@ def test_consultation_agent_bounds_deepseek_request(monkeypatch):
 
     assert captured["timeout"] == 35
     assert captured["max_retries"] == 0
+    assert captured["token_counter"].decode(
+        captured["token_counter"].encode("咨询 Agent")
+    ) == "咨询 Agent"
+    assert captured["token_counter"].count_tokens_from_messages(
+        [{"role": "user", "content": "你好"}]
+    ) > 0
     assert captured["model_config_dict"]["max_tokens"] == 512
     assert captured["model_config_dict"]["extra_body"] == {
         "thinking": {"type": "disabled"}
