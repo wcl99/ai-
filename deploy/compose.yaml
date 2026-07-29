@@ -49,6 +49,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.deepseek.com/v1}
       MODEL_TYPE: ${MODEL_TYPE:-deepseek-v4-flash}
+      AGENT_TIMEOUT_SECONDS: ${AGENT_TIMEOUT_SECONDS:-35}
       CDNINFO_ENABLED: ${CDNINFO_ENABLED:-false}
       CDNINFO_BINARY: /opt/cdninfo/cdninfo
       CDNINFO_CONFIG: /opt/cdninfo/cdninfo.yaml

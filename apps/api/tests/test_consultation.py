@@ -1,17 +1,69 @@
 import json
+import sys
+from types import ModuleType
 from importlib.metadata import version
 
 import pytest
 
 import app.main as main_module
 from app.cdn import parse_cdninfo_result
-from app.consultation import AgentReply, RequirementPatch, parse_agent_reply
+from app.config import Settings
+from app.consultation import AgentReply, RequirementPatch, _run_agent, parse_agent_reply
 from app.errors import AppError
 from app.services import require_cdn_safe_assets
 
 
 def test_camel_uses_compatible_mcp_major_version():
     assert int(version("mcp").split(".", 1)[0]) < 2
+
+
+def test_consultation_agent_bounds_deepseek_request(monkeypatch):
+    captured = {}
+
+    class FakeModelFactory:
+        @staticmethod
+        def create(**kwargs):
+            captured.update(kwargs)
+            return object()
+
+    class FakeChatAgent:
+        def __init__(self, **_kwargs):
+            pass
+
+        def step(self, _prompt):
+            content = json.dumps(
+                {
+                    "assistant_message": "请补充目标资产。",
+                    "requirements": {},
+                    "ready_to_precheck": False,
+                }
+            )
+            return type("Response", (), {"msg": type("Message", (), {"content": content})()})()
+
+    camel_module = ModuleType("camel")
+    agents_module = ModuleType("camel.agents")
+    models_module = ModuleType("camel.models")
+    types_module = ModuleType("camel.types")
+    agents_module.ChatAgent = FakeChatAgent
+    models_module.ModelFactory = FakeModelFactory
+    types_module.ModelPlatformType = type(
+        "ModelPlatformType", (), {"OPENAI_COMPATIBLE_MODEL": "openai-compatible"}
+    )
+    monkeypatch.setitem(sys.modules, "camel", camel_module)
+    monkeypatch.setitem(sys.modules, "camel.agents", agents_module)
+    monkeypatch.setitem(sys.modules, "camel.models", models_module)
+    monkeypatch.setitem(sys.modules, "camel.types", types_module)
+
+    settings = Settings(
+        jwt_secret="x" * 32,
+        openai_api_key="test-key",
+        agent_timeout_seconds=35,
+    )
+    _run_agent(settings, [{"role": "user", "content": "你好"}], {})
+
+    assert captured["timeout"] == 35
+    assert captured["max_retries"] == 0
+    assert captured["model_config_dict"]["max_tokens"] == 512
 
 
 def test_agent_reply_parser_accepts_only_valid_structured_output():

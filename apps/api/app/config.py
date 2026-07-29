@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openai_api_base_url: str = "https://api.deepseek.com/v1"
     model_type: str = "deepseek-v4-flash"
+    agent_timeout_seconds: float = Field(default=35, ge=5, le=120)
     cdninfo_enabled: bool = False
     cdninfo_binary: Path = Path("/opt/cdninfo/cdninfo")
     cdninfo_config: Path = Path("/opt/cdninfo/cdninfo.yaml")
