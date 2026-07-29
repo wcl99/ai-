@@ -4,6 +4,7 @@ WORKDIR /web
 COPY apps/web/package.json apps/web/package-lock.json ./
 RUN npm ci
 COPY apps/web/ ./
+COPY 素材/ /素材/
 RUN npm run build
 
 FROM python:3.12-slim
