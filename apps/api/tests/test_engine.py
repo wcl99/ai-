@@ -71,6 +71,25 @@ def test_builds_documented_xiaoyi_ip_port_payload():
     }
 
 
+def test_builds_xiaoyi_payload_without_optional_org_id():
+    snapshot = {
+        "xiaoyi_context": {
+            "user_id": "admin",
+            "plan_id": 999,
+            "scan_mode": "standard",
+            "scan_speed": "quick",
+            "download_intermediate_results": True,
+        },
+        "asset_list": [{"host": "example.test", "hostType": "domain"}],
+    }
+
+    payload = build_xiaoyi_chat_payload(snapshot)
+
+    assert "org_id" not in payload
+    assert payload["user_id"] == "admin"
+    assert payload["plan_id"] == 999
+
+
 @pytest.mark.parametrize(
     "port",
     [
@@ -239,17 +258,14 @@ def test_blank_xiaoyi_org_id_is_treated_as_unconfigured():
     assert settings.xiaoyi_org_id is None
 
 
-def test_xiaoyi_mode_requires_an_explicit_org_mapping():
+def test_xiaoyi_org_mapping_is_optional():
     settings = Settings(
         jwt_secret="test-secret-that-is-at-least-32-characters",
         engine_mode="xiaoyi",
         xiaoyi_org_id=None,
     )
 
-    with pytest.raises(AppError) as captured:
-        resolve_xiaoyi_org_id(settings)
-
-    assert captured.value.code == "ENGINE_IDENTITY_NOT_CONFIGURED"
+    assert resolve_xiaoyi_org_id(settings) is None
 
 
 def test_blank_xiaoyi_user_id_is_treated_as_unconfigured():

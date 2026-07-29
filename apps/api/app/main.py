@@ -573,19 +573,22 @@ async def confirm_plan(
         mapping = XiaoyiPlanMapping(plan_id=plan.id)
         session.add(mapping)
         await session.flush()
+    org_id = resolve_xiaoyi_org_id(settings)
+    xiaoyi_context = {
+        "user_id": settings.xiaoyi_user_id or user.username,
+        "plan_id": mapping.id,
+        "scan_mode": plan.test_type,
+        "scan_speed": "quick",
+        "download_intermediate_results": True,
+    }
+    if org_id is not None:
+        xiaoyi_context["org_id"] = org_id
     plan.status = "READY"
     plan.snapshot = {
         **plan.snapshot,
         "authorization_confirmed": True,
         "confirmed_by": str(user.id),
-        "xiaoyi_context": {
-            "org_id": resolve_xiaoyi_org_id(settings),
-            "user_id": settings.xiaoyi_user_id or user.username,
-            "plan_id": mapping.id,
-            "scan_mode": plan.test_type,
-            "scan_speed": "quick",
-            "download_intermediate_results": True,
-        },
+        "xiaoyi_context": xiaoyi_context,
     }
     await add_audit(session, user, "plan.confirm", "scan_plan", plan.id)
     await session.commit()

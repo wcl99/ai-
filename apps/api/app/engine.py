@@ -150,7 +150,6 @@ def build_xiaoyi_chat_payload(snapshot: dict) -> dict:
         raise AppError(400, "INVALID_ENGINE_PAYLOAD", "任务参数包含已废弃的预查字段")
     context = snapshot.get("xiaoyi_context")
     required_context = {
-        "org_id",
         "user_id",
         "plan_id",
         "scan_mode",
@@ -159,21 +158,25 @@ def build_xiaoyi_chat_payload(snapshot: dict) -> dict:
     }
     if not isinstance(context, dict) or not required_context.issubset(context):
         raise AppError(400, "INVALID_ENGINE_PAYLOAD", "扫描计划缺少小易任务上下文")
-    if (
-        isinstance(context["org_id"], bool)
-        or not isinstance(context["org_id"], int)
-        or isinstance(context["plan_id"], bool)
-        or not isinstance(context["plan_id"], int)
+    org_id = context.get("org_id")
+    if org_id is not None:
+        if isinstance(org_id, bool) or not isinstance(org_id, int):
+            raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易组织 ID 必须为整数")
+        if not 1 <= org_id <= 2_147_483_647:
+            raise AppError(
+                400,
+                "INVALID_ENGINE_PAYLOAD",
+                "小易组织 ID 超出正整数范围",
+            )
+    if isinstance(context["plan_id"], bool) or not isinstance(
+        context["plan_id"], int
     ):
-        raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易组织和计划 ID 必须为整数")
-    if not (
-        1 <= context["org_id"] <= 2_147_483_647
-        and 1 <= context["plan_id"] <= 2_147_483_647
-    ):
+        raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易计划 ID 必须为整数")
+    if not 1 <= context["plan_id"] <= 2_147_483_647:
         raise AppError(
             400,
             "INVALID_ENGINE_PAYLOAD",
-            "小易组织和计划 ID 超出正整数范围",
+            "小易计划 ID 超出正整数范围",
         )
     if not isinstance(context["user_id"], str) or not context["user_id"].strip():
         raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易用户 ID 不能为空")
@@ -236,20 +239,17 @@ def build_xiaoyi_chat_payload(snapshot: dict) -> dict:
             )
     if not assets:
         raise AppError(400, "INVALID_ENGINE_PAYLOAD", "小易任务资产不能为空")
-    return {key: context[key] for key in required_context} | {"asset_list": assets}
+    payload = {key: context[key] for key in required_context} | {
+        "asset_list": assets
+    }
+    if org_id is not None:
+        payload["org_id"] = org_id
+    return payload
 
 
-def resolve_xiaoyi_org_id(settings: Settings) -> int:
-    """Require an authoritative external organization mapping in Xiaoyi mode."""
-    if settings.xiaoyi_org_id is not None:
-        return settings.xiaoyi_org_id
-    if settings.engine_mode == "xiaoyi":
-        raise AppError(
-            503,
-            "ENGINE_IDENTITY_NOT_CONFIGURED",
-            "小易组织映射尚未配置",
-        )
-    return 1
+def resolve_xiaoyi_org_id(settings: Settings) -> int | None:
+    """Return the configured Xiaoyi organization without inventing a fallback."""
+    return settings.xiaoyi_org_id
 
 
 def parse_engine_task(

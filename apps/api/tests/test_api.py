@@ -305,7 +305,7 @@ async def test_confirmation_freezes_xiaoyi_context(authenticated_client):
     )
 
     context = confirmed.json()["snapshot"]["xiaoyi_context"]
-    assert isinstance(context["org_id"], int)
+    assert "org_id" not in context
     assert context["user_id"] == "admin"
     assert isinstance(context["plan_id"], int)
     assert context["plan_id"] > 0
