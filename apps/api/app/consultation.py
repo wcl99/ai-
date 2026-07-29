@@ -16,11 +16,17 @@ class RequirementPatch(BaseModel):
     scan_speed: Literal["quick", "standard", "deep"] | None = None
     whitebox_available: bool | None = None
 
-    @field_validator("targets")
+    @field_validator("targets", mode="before")
     @classmethod
-    def normalize_targets(cls, values: list[str] | None) -> list[str] | None:
+    def normalize_targets(cls, values: object) -> object:
         if values is None:
             return None
+        if isinstance(values, str):
+            values = [values]
+        if not isinstance(values, list) or not all(
+            isinstance(value, str) for value in values
+        ):
+            raise ValueError("invalid targets")
         values = [value.strip() for value in values if value.strip()]
         if not values or any(len(value) > 512 or "\x00" in value for value in values):
             raise ValueError("invalid targets")
