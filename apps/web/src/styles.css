@@ -9,7 +9,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #root { min-width: 1280px; min-height: 100%; margin: 0; }
+html, body, #root { min-width: 1920px; min-height: 100%; margin: 0; }
 body { background: radial-gradient(circle at 30% 0%, #eaf0ff, #f7f9ff 45%, #f2f6ff); }
 a { color: var(--primary); cursor: pointer; }
 .app-shell { min-height: 100vh; background: transparent; }
