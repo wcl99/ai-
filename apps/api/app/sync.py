@@ -10,7 +10,13 @@ from sqlalchemy import select
 
 from .config import Settings
 from .db import SessionLocal
-from .engine import EngineTask, TERMINAL_STATUSES, get_engine_client, redact_sensitive
+from .engine import (
+    EngineTask,
+    TERMINAL_STATUSES,
+    get_engine_client,
+    redact_sensitive,
+    summarize_tool_failures,
+)
 from .errors import AppError
 from .models import Report, ScanPlan, Task, TaskEvent
 
@@ -119,8 +125,15 @@ async def sync_children(session, client, parent: Task) -> None:
         previous = (child.status, child.phase, child.progress)
         apply_engine_state(child, result)
         child.raw_external = redact_sensitive(result.raw)
-        child.error_message = result.error_message
-        child.error_code = "XIAOYI_TASK_FAILED" if result.error_message else None
+        error_message = result.error_message
+        get_tools = getattr(client, "get_tools", None)
+        if result.status == "FAILED" and not error_message and callable(get_tools):
+            try:
+                error_message = summarize_tool_failures(await get_tools(result.external_task_id))
+            except AppError:
+                pass
+        child.error_message = error_message
+        child.error_code = "XIAOYI_TASK_FAILED" if error_message else None
         await sync_report(session, child, result.raw)
         if created or previous != (child.status, child.phase, child.progress):
             session.add(

@@ -1,6 +1,7 @@
 import httpx
 
 import asyncio
+import json
 
 import pytest
 from pydantic import ValidationError
@@ -16,9 +17,37 @@ from app.engine import (
     parse_engine_task,
     redact_sensitive,
     resolve_xiaoyi_org_id,
+    summarize_tool_failures,
 )
 from app.errors import AppError
 from app.schemas import PortPrecheckRequest
+
+
+def test_tool_failure_summary_extracts_missing_browser_runtime():
+    nested = json.dumps([
+        {
+            "type": "text",
+            "text": json.dumps({
+                "status": "failed",
+                "errors": [
+                    {
+                        "tool": "WebRE工具",
+                        "error": "browserType.launch: Executable doesn't exist at /runtime/ms-playwright/chromium",
+                    },
+                    {"tool": "VulnScanner", "error": "工具 VulnScanner 不可用，跳过"},
+                ],
+            }),
+        }
+    ])
+
+    summary = summarize_tool_failures([
+        {"toolName": "scan_get_results", "success": False, "result": nested}
+    ])
+
+    assert summary == (
+        "渗透执行失败：WebRE工具浏览器运行时缺失（Playwright Chromium 未安装）；"
+        "VulnScanner：工具 VulnScanner 不可用，跳过"
+    )
 
 
 def test_maps_external_task_state():

@@ -288,6 +288,39 @@ def parse_engine_task(
     )
 
 
+def summarize_tool_failures(tools: list[dict]) -> str | None:
+    """Turn Xiaoyi's nested tool output into a short operator-facing failure reason."""
+    failed = [item for item in tools if item.get("success") is False]
+    if not failed:
+        return None
+    details: list[str] = []
+    for item in failed:
+        raw_result = item.get("result")
+        try:
+            payload = json.loads(raw_result) if isinstance(raw_result, str) else raw_result
+            if isinstance(payload, list) and payload and isinstance(payload[0], dict):
+                text = payload[0].get("text")
+                payload = json.loads(text) if isinstance(text, str) else payload[0]
+            errors = payload.get("errors", []) if isinstance(payload, dict) else []
+        except (TypeError, ValueError, json.JSONDecodeError):
+            errors = []
+        for error in errors:
+            if not isinstance(error, dict):
+                continue
+            name = str(error.get("tool") or item.get("toolName") or "工具")
+            message = str(error.get("error") or "执行失败")
+            lowered = message.lower()
+            if "playwright" in lowered and "executable doesn't exist" in lowered:
+                details.append(f"{name}浏览器运行时缺失（Playwright Chromium 未安装）")
+            else:
+                compact = " ".join(message.split())[:180]
+                details.append(f"{name}：{compact}")
+    if not details:
+        names = [str(item.get("toolName") or item.get("toolType") or "未知工具") for item in failed]
+        details.append(f"工具返回失败（{'、'.join(dict.fromkeys(names))}）")
+    return redact_sensitive_text(f"渗透执行失败：{'；'.join(dict.fromkeys(details))}")[:2000]
+
+
 class MockEngineClient:
     """Deterministic engine contract for tests and safe local learning."""
 
