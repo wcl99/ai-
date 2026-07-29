@@ -27,6 +27,35 @@ def test_maps_external_task_state():
     assert map_phase("scanning") == "SCANNING"
 
 
+def test_parses_observed_xiaoyi_child_failure_fields():
+    result = parse_engine_task(
+        {
+            "childTaskId": "task_segment_1_1",
+            "status": "FAILED",
+            "currentPhase": "FAILED",
+            "progress": 100.0,
+            "target": "139.198.31.136:81",
+            "errorMessage": "子任务扫描失败或超时",
+        },
+        "",
+    )
+
+    assert result.external_task_id == "task_segment_1_1"
+    assert result.status == "FAILED"
+    assert result.phase == "FINISHED"
+    assert result.name == "139.198.31.136:81"
+    assert result.error_message == "子任务扫描失败或超时"
+
+
+def test_redacts_sensitive_values_from_xiaoyi_task_errors():
+    result = parse_engine_task(
+        {"childTaskId": "child-1", "status": "FAILED", "errorMessage": "token=secret-value"},
+        "",
+    )
+
+    assert result.error_message == "token=***"
+
+
 def test_rejects_deprecated_precheck_fields_at_any_depth():
     assert _contains_deprecated_fields({"params": {"scan_port": True}})
 

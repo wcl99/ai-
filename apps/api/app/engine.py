@@ -32,6 +32,8 @@ PHASE_MAP = {
     "EXPLOITING": "EXPLOITING",
     "REPORT_GENERATING": "REPORT_GENERATING",
     "FINISHED": "FINISHED",
+    "FAILED": "FINISHED",
+    "TIMEOUT": "FINISHED",
 }
 
 
@@ -74,6 +76,7 @@ class EngineTask:
     progress: float
     raw: dict
     name: str = ""
+    error_message: str | None = None
 
 
 SENSITIVE_KEYS = {
@@ -259,14 +262,26 @@ def parse_engine_task(
     default_status: str = "FAILED",
 ) -> EngineTask:
     # External field names and states are normalized before the rest of the platform sees them.
-    external_id = str(data.get("taskId") or data.get("task_id") or data.get("id") or fallback_id)
+    external_id = str(
+        data.get("taskId")
+        or data.get("task_id")
+        or data.get("childTaskId")
+        or data.get("id")
+        or fallback_id
+    )
+    error_message = data.get("errorMessage") or data.get("error_message")
+    if not isinstance(error_message, str) or not error_message.strip():
+        error_message = None
+    else:
+        error_message = redact_sensitive_text(error_message.strip())[:2000]
     return EngineTask(
         external_id,
         map_status(str(data.get("status", default_status))),
-        map_phase(data.get("phase")),
+        map_phase(data.get("phase") or data.get("currentPhase")),
         float(data.get("progress", current_progress)),
         data,
-        str(data.get("name") or data.get("taskName") or ""),
+        str(data.get("name") or data.get("taskName") or data.get("target") or ""),
+        error_message,
     )
 
 

@@ -35,11 +35,12 @@ class ChildEngine:
         return [
             EngineTask(
                 "child-external",
-                "RUNNING",
-                "SCANNING",
-                40,
+                "FAILED",
+                "FINISHED",
+                100,
                 {"password": "child-secret", "result": "safe"},
                 "Port scan",
+                "子任务扫描失败或超时",
             )
         ]
 
@@ -72,6 +73,8 @@ async def test_sync_persists_child_tasks_and_redacts_engine_payload(authenticate
     children = await authenticated_client.get(f"/api/v1/tasks/{task.json()['id']}/children")
     assert children.status_code == 200
     assert children.json()["data"][0]["name"] == "Port scan"
+    assert children.json()["data"][0]["error_code"] == "XIAOYI_TASK_FAILED"
+    assert children.json()["data"][0]["error_message"] == "子任务扫描失败或超时"
     async with SessionLocal() as session:
         parent = await session.scalar(select(Task).where(Task.external_task_id == "parent-external"))
         child = await session.scalar(select(Task).where(Task.external_task_id == "child-external"))

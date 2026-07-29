@@ -119,6 +119,8 @@ async def sync_children(session, client, parent: Task) -> None:
         previous = (child.status, child.phase, child.progress)
         apply_engine_state(child, result)
         child.raw_external = redact_sensitive(result.raw)
+        child.error_message = result.error_message
+        child.error_code = "XIAOYI_TASK_FAILED" if result.error_message else None
         await sync_report(session, child, result.raw)
         if created or previous != (child.status, child.phase, child.progress):
             session.add(
