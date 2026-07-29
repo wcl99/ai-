@@ -49,10 +49,11 @@ to the platform and ultimately to Xiaoyi when a task is created.
 
 ## Scope
 
-This change modifies only the existing frontend page, WebSocket helper, and
-their tests. It reuses the current scan-plan asset update endpoint and CDN
-implementation. It introduces no service, dependency, protocol, or database
-change.
+This change modifies the existing frontend page, WebSocket helper, and the
+scan-plan asset normalization path. The existing endpoint accepts `http` as a
+plan asset type, extracts only the URL hostname for CDN/WAF assessment, and
+preserves the full URL and `http` type for Xiaoyi task creation. It introduces
+no new service, dependency, protocol, or database change.
 
 ## Verification
 

@@ -99,6 +99,13 @@ def public_report_url(value: str | None) -> str | None:
     return value
 
 
+def cdn_assessment_target(value: str) -> str:
+    parsed = urlsplit(value)
+    if parsed.scheme in {"http", "https"} and parsed.hostname:
+        return parsed.hostname
+    return value
+
+
 async def bootstrap_admin(settings: Settings) -> None:
     if not settings.bootstrap_admin_username or not settings.bootstrap_admin_password:
         return
@@ -539,8 +546,13 @@ async def update_plan_assets(plan_id: uuid.UUID, payload: ScanPlanAssetUpdate, u
     asset_list = normalize_asset_list(payload.asset_list)
     settings = get_settings()
     if settings.cdninfo_enabled:
-        checks = await assess_targets([item["host"] for item in asset_list], settings)
-        asset_list = [{**item, **check} for item, check in zip(asset_list, checks, strict=True)]
+        checks = await assess_targets(
+            [cdn_assessment_target(item["host"]) for item in asset_list], settings
+        )
+        asset_list = [
+            {**item, **check, "host": item["host"], "hostType": item["hostType"]}
+            for item, check in zip(asset_list, checks, strict=True)
+        ]
     plan.asset_list = asset_list
     plan.snapshot = {**plan.snapshot, "asset_list": asset_list}
     await add_audit(session, user, "plan.assets.update", "scan_plan", plan.id)

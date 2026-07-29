@@ -256,11 +256,53 @@ async def test_draft_asset_list_can_update_before_confirmation(authenticated_cli
         },
     )
 
-    assert updated.status_code == 200
+    assert updated.status_code == 200, updated.text
     assert updated.json()["asset_list"] == [
         {"host": "www.example.test", "hostType": "domain", "ports": [443]}
     ]
     assert updated.json()["snapshot"]["asset_list"] == updated.json()["asset_list"]
+
+
+async def test_http_asset_uses_hostname_for_cdn_check_and_preserves_url(
+    authenticated_client, monkeypatch
+):
+    target = "http://139.198.31.136:81/#/login"
+    checked_targets = []
+    settings = get_settings().model_copy(update={"cdninfo_enabled": True})
+
+    async def fake_assess_targets(targets, _settings):
+        checked_targets.extend(targets)
+        return [
+            {
+                "host": targets[0],
+                "hostType": "ip",
+                "cdn_status": "SAFE",
+                "cdn_provider": None,
+            }
+        ]
+
+    monkeypatch.setattr(main_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(main_module, "assess_targets", fake_assess_targets)
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={"name": "HTTP asset", "targets": [target]},
+    )
+
+    updated = await authenticated_client.patch(
+        f"/api/v1/scan-plans/{plan.json()['id']}/assets",
+        json={"asset_list": [{"host": target, "hostType": "http"}]},
+    )
+
+    assert updated.status_code == 200, updated.text
+    assert checked_targets == ["139.198.31.136"]
+    assert updated.json()["asset_list"] == [
+        {
+            "host": target,
+            "hostType": "http",
+            "cdn_status": "SAFE",
+            "cdn_provider": None,
+        }
+    ]
 
 
 async def test_confirmed_plan_asset_list_is_frozen(authenticated_client):

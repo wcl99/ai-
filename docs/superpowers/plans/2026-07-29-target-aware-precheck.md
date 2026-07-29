@@ -193,3 +193,26 @@ Upload the changed frontend source files to `/opt/ai-security-platform`, rebuild
 - [ ] **Step 4: Verify production**
 
 Confirm `/health` returns `{"status":"ok"}`, the API container is healthy, and the public HTML references the newly generated JavaScript asset. Inspect that deployed script for the HTTP target branch and Chinese timeout message.
+
+### Task 5: Preserve HTTP assets through the backend CDN check
+
+**Files:**
+- Modify: `apps/api/app/services.py`
+- Modify: `apps/api/app/main.py`
+- Test: `apps/api/tests/test_api.py`
+
+- [ ] **Step 1: Reproduce the deployed 422 response**
+
+Patch a draft plan with `{"host": "http://139.198.31.136:81/#/login", "hostType": "http"}` and assert the request succeeds, the CDN checker receives only `139.198.31.136`, and the saved asset retains the full URL and `http` type.
+
+- [ ] **Step 2: Accept the existing Xiaoyi HTTP asset type**
+
+Allow `http` in `normalize_asset_list` without widening WebSocket `HostType`, which remains limited to `domain` and `ip`.
+
+- [ ] **Step 3: Separate CDN lookup identity from scan identity**
+
+Use `urlsplit` to extract the hostname for CDN lookup, then merge the trusted CDN result while restoring the original `host` and `hostType` fields.
+
+- [ ] **Step 4: Verify the focused and full backend suites**
+
+Run the HTTP regression test, then all API tests. Expected: every test passes.

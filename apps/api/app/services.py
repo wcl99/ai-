@@ -30,8 +30,12 @@ def normalize_asset_list(asset_list: list[dict]) -> list[dict]:
         if not host:
             raise AppError(422, "INVALID_ASSET_LIST", "Asset host is required")
         host_type = str(item.get("hostType") or item.get("asset_type") or "domain").strip()
-        if host_type not in {"domain", "ip"}:
-            raise AppError(422, "INVALID_ASSET_LIST", "Asset hostType must be domain or ip")
+        if host_type not in {"domain", "ip", "http"}:
+            raise AppError(
+                422,
+                "INVALID_ASSET_LIST",
+                "Asset hostType must be domain, ip, or http",
+            )
         ports = item.get("ports", [])
         key = (host, host_type, json.dumps(ports, sort_keys=True, default=str))
         if key in seen:
