@@ -1,4 +1,5 @@
 import json
+from importlib.metadata import version
 
 import pytest
 
@@ -7,6 +8,10 @@ from app.cdn import parse_cdninfo_result
 from app.consultation import AgentReply, RequirementPatch, parse_agent_reply
 from app.errors import AppError
 from app.services import require_cdn_safe_assets
+
+
+def test_camel_uses_compatible_mcp_major_version():
+    assert int(version("mcp").split(".", 1)[0]) < 2
 
 
 def test_agent_reply_parser_accepts_only_valid_structured_output():
