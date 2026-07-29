@@ -72,7 +72,10 @@ def _run_agent(settings: Settings, messages: list[dict], state: dict) -> AgentRe
         model_type=settings.model_type,
         url=settings.openai_api_base_url,
         api_key=settings.openai_api_key.get_secret_value(),
-        model_config_dict={"temperature": 0.1, "max_tokens": 512},
+        model_config_dict={
+            "max_tokens": 512,
+            "extra_body": {"thinking": {"type": "disabled"}},
+        },
         timeout=settings.agent_timeout_seconds,
         max_retries=0,
     )
@@ -80,7 +83,11 @@ def _run_agent(settings: Settings, messages: list[dict], state: dict) -> AgentRe
         f"{item['role']}: {item['content']}" for item in messages[-20:]
     )
     prompt = f"当前结构化状态：{json.dumps(state, ensure_ascii=False)}\n对话：\n{transcript}"
-    response = ChatAgent(system_message=SYSTEM_PROMPT, model=model).step(prompt)
+    response = ChatAgent(
+        system_message=SYSTEM_PROMPT,
+        model=model,
+        step_timeout=settings.agent_timeout_seconds,
+    ).step(prompt)
     message = getattr(response, "msg", None)
     if message is None:
         values = getattr(response, "msgs", [])

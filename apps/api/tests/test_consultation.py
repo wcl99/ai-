@@ -19,6 +19,7 @@ def test_camel_uses_compatible_mcp_major_version():
 
 def test_consultation_agent_bounds_deepseek_request(monkeypatch):
     captured = {}
+    agent_options = {}
 
     class FakeModelFactory:
         @staticmethod
@@ -27,8 +28,8 @@ def test_consultation_agent_bounds_deepseek_request(monkeypatch):
             return object()
 
     class FakeChatAgent:
-        def __init__(self, **_kwargs):
-            pass
+        def __init__(self, **kwargs):
+            agent_options.update(kwargs)
 
         def step(self, _prompt):
             content = json.dumps(
@@ -64,6 +65,10 @@ def test_consultation_agent_bounds_deepseek_request(monkeypatch):
     assert captured["timeout"] == 35
     assert captured["max_retries"] == 0
     assert captured["model_config_dict"]["max_tokens"] == 512
+    assert captured["model_config_dict"]["extra_body"] == {
+        "thinking": {"type": "disabled"}
+    }
+    assert agent_options["step_timeout"] == 35
 
 
 def test_agent_reply_parser_accepts_only_valid_structured_output():
