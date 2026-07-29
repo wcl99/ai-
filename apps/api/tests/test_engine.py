@@ -255,6 +255,58 @@ async def test_xiaoyi_create_task_sends_documented_body_without_request_id(
     }
 
 
+async def test_xiaoyi_children_use_terminal_task_detail_for_failure_reason(monkeypatch):
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return False
+
+        async def get(self, url, headers):
+            request = httpx.Request("GET", url)
+            if url.endswith("/segment-task/segment-1/children"):
+                return httpx.Response(
+                    200,
+                    request=request,
+                    json={
+                        "children": [{
+                            "childTaskId": "child-1",
+                            "status": "FAILED",
+                            "currentPhase": "FAILED",
+                            "progress": 100,
+                            "target": "139.198.31.136:81",
+                            "errorMessage": "子任务扫描失败或超时",
+                        }],
+                    },
+                )
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "taskId": "child-1",
+                    "status": "FAILED",
+                    "currentPhase": "FAILED",
+                    "progress": 90,
+                    "target": "http://139.198.31.136:81",
+                    "currentTool": "报告生成",
+                    "errorMessage": "ZIP entry size is too large or invalid",
+                },
+            )
+
+    monkeypatch.setattr("app.engine.httpx.AsyncClient", lambda **kwargs: FakeClient())
+    settings = Settings(
+        jwt_secret="test-secret-that-is-at-least-32-characters",
+        engine_mode="xiaoyi",
+        xiaoyi_base_url="https://xiaoyi.test",
+    )
+
+    children = await XiaoyiEngineClient(settings).get_children("segment-1")
+
+    assert children[0].external_task_id == "child-1"
+    assert children[0].error_message == "报告生成失败：ZIP entry size is too large or invalid"
+
+
 def test_port_precheck_requires_host_type():
     valid = PortPrecheckRequest.model_validate(
         {

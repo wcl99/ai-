@@ -586,11 +586,16 @@ async def confirm_plan(
         session.add(mapping)
         await session.flush()
     org_id = resolve_xiaoyi_org_id(settings)
+    requirements = plan.snapshot.get("requirements", {})
+    requested_speed = requirements.get("scan_speed") if isinstance(requirements, dict) else None
+    scan_speed = requested_speed if requested_speed in {"quick", "standard", "deep"} else "quick"
+    if plan.test_type == "standard" and scan_speed == "quick":
+        scan_speed = "standard"
     xiaoyi_context = {
         "user_id": settings.xiaoyi_user_id or user.username,
         "plan_id": mapping.id,
         "scan_mode": plan.test_type,
-        "scan_speed": "quick",
+        "scan_speed": scan_speed,
         "download_intermediate_results": True,
     }
     if org_id is not None:

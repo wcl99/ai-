@@ -274,6 +274,9 @@ def parse_engine_task(
         error_message = None
     else:
         error_message = redact_sensitive_text(error_message.strip())[:2000]
+        current_tool = str(data.get("currentTool") or data.get("current_tool") or "")
+        if ("报告" in current_tool or "report" in current_tool.lower()) and not error_message.startswith("报告生成失败："):
+            error_message = f"报告生成失败：{error_message}"[:2000]
     return EngineTask(
         external_id,
         map_status(str(data.get("status", default_status))),
@@ -413,7 +416,17 @@ class XiaoyiEngineClient:
             data = data.get("children", data.get("items", []))
         if not isinstance(data, list):
             raise AppError(502, "INVALID_ENGINE_PAYLOAD", "小易子任务响应格式无效")
-        return [parse_engine_task(item, "") for item in data if isinstance(item, dict)]
+        results = [parse_engine_task(item, "") for item in data if isinstance(item, dict)]
+        for index, result in enumerate(results):
+            if result.status not in TERMINAL_STATUSES or not result.external_task_id:
+                continue
+            try:
+                detailed = await self.get_task(result.external_task_id, result.progress)
+            except AppError:
+                continue
+            detailed.progress = max(result.progress, detailed.progress)
+            results[index] = detailed
+        return results
 
     async def get_tools(self, external_task_id: str) -> list[dict]:
         try:

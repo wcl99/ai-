@@ -352,8 +352,29 @@ async def test_confirmation_freezes_xiaoyi_context(authenticated_client):
     assert isinstance(context["plan_id"], int)
     assert context["plan_id"] > 0
     assert context["scan_mode"] == "standard"
-    assert context["scan_speed"] == "quick"
+    assert context["scan_speed"] == "standard"
     assert context["download_intermediate_results"] is True
+
+
+async def test_confirmation_preserves_explicit_deep_pentest_speed(authenticated_client):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": "Deep controlled validation",
+            "test_type": "standard",
+            "targets": ["example.test"],
+        },
+    )
+    async with SessionLocal() as session:
+        stored = await session.get(ScanPlan, uuid.UUID(plan.json()["id"]))
+        stored.snapshot = {**stored.snapshot, "requirements": {"scan_speed": "deep"}}
+        await session.commit()
+
+    confirmed = await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+    )
+
+    assert confirmed.json()["snapshot"]["xiaoyi_context"]["scan_speed"] == "deep"
 
 
 async def test_reconfirmation_keeps_the_original_xiaoyi_actor(authenticated_client):
