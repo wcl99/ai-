@@ -18,7 +18,7 @@ test.beforeEach(async ({ page }) => {
   }));
 });
 
-test('keeps the pentest workspace and consultation panel visible at 1280px', async ({ page }) => {
+test('keeps the full desktop layout at 1280px', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/pentest');
   await expect(page.locator('.target-form')).toBeVisible();
@@ -35,11 +35,30 @@ test('keeps the pentest workspace and consultation panel visible at 1280px', asy
   });
 
   expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth);
-  expect(layout.siderWidth).toBeLessThanOrEqual(224);
-  expect(layout.consultationWidth).toBeGreaterThanOrEqual(280);
-  expect(layout.consultationWidth).toBeLessThanOrEqual(300);
-  expect(layout.visualDisplay).toBe('none');
+  expect(layout.siderWidth).toBe(260);
+  expect(layout.consultationWidth).toBe(352);
+  expect(layout.visualDisplay).not.toBe('none');
   await expect(page.locator('.expert-consultation')).toBeVisible();
+});
+
+test('uses horizontal scrolling instead of rearranging below 1280px', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto('/pentest');
+  await expect(page.locator('.target-form')).toBeVisible();
+
+  const layout = await page.evaluate(() => ({
+    viewportWidth: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    siderWidth: document.querySelector('.app-sider')?.getBoundingClientRect().width,
+    consultationWidth: document.querySelector('.expert-consultation')?.getBoundingClientRect().width,
+    visualDisplay: getComputedStyle(document.querySelector('.hero-visual')!).display,
+  }));
+
+  expect(layout.documentWidth).toBeGreaterThanOrEqual(1280);
+  expect(layout.documentWidth).toBeGreaterThan(layout.viewportWidth);
+  expect(layout.siderWidth).toBe(260);
+  expect(layout.consultationWidth).toBe(352);
+  expect(layout.visualDisplay).not.toBe('none');
 });
 
 test('preserves the spacious desktop layout at 1920px', async ({ page }) => {
