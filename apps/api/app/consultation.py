@@ -16,6 +16,25 @@ class RequirementPatch(BaseModel):
     scan_speed: Literal["quick", "standard", "deep"] | None = None
     whitebox_available: bool | None = None
 
+    @field_validator("test_type", mode="before")
+    @classmethod
+    def normalize_test_type(cls, value: object) -> object:
+        return {
+            "标准测试": "standard",
+            "标准渗透": "standard",
+            "资产发现": "discovery",
+            "资产扫描": "discovery",
+        }.get(value, value) if isinstance(value, str) else value
+
+    @field_validator("scan_speed", mode="before")
+    @classmethod
+    def normalize_scan_speed(cls, value: object) -> object:
+        return {
+            "快速": "quick",
+            "标准": "standard",
+            "深度": "deep",
+        }.get(value, value) if isinstance(value, str) else value
+
     @field_validator("targets", mode="before")
     @classmethod
     def normalize_targets(cls, values: object) -> object:
