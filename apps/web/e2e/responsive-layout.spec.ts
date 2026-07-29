@@ -11,14 +11,19 @@ const user = {
 };
 
 test.beforeEach(async ({ page }) => {
-  await page.route('**/api/v1/auth/me', (route) => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify(user),
-  }));
+  await page.route('**/api/v1/**', (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pathname === '/api/v1/auth/me'
+        ? user
+        : { success: true, message: 'ok', data: { items: [], total: 0, page: 1, page_size: 20 } }),
+    });
+  });
 });
 
-test('keeps the full desktop layout at 1280px', async ({ page }) => {
+test('keeps the full desktop canvas at 1280px', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/pentest');
   await expect(page.locator('.target-form')).toBeVisible();
@@ -34,14 +39,15 @@ test('keeps the full desktop layout at 1280px', async ({ page }) => {
     };
   });
 
-  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.documentWidth).toBeGreaterThanOrEqual(1920);
+  expect(layout.documentWidth).toBeGreaterThan(layout.viewportWidth);
   expect(layout.siderWidth).toBe(260);
   expect(layout.consultationWidth).toBe(352);
   expect(layout.visualDisplay).not.toBe('none');
   await expect(page.locator('.expert-consultation')).toBeVisible();
 });
 
-test('uses horizontal scrolling instead of rearranging below 1280px', async ({ page }) => {
+test('uses horizontal scrolling instead of rearranging below the desktop canvas', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.goto('/pentest');
   await expect(page.locator('.target-form')).toBeVisible();
@@ -54,7 +60,7 @@ test('uses horizontal scrolling instead of rearranging below 1280px', async ({ p
     visualDisplay: getComputedStyle(document.querySelector('.hero-visual')!).display,
   }));
 
-  expect(layout.documentWidth).toBeGreaterThanOrEqual(1280);
+  expect(layout.documentWidth).toBeGreaterThanOrEqual(1920);
   expect(layout.documentWidth).toBeGreaterThan(layout.viewportWidth);
   expect(layout.siderWidth).toBe(260);
   expect(layout.consultationWidth).toBe(352);
@@ -68,4 +74,24 @@ test('preserves the spacious desktop layout at 1920px', async ({ page }) => {
   await expect(page.locator('.hero-visual')).toBeVisible();
   await expect(page.locator('.expert-consultation')).toHaveCSS('width', '352px');
   await expect(page.locator('.app-sider')).toHaveCSS('width', '260px');
+});
+
+test('keeps overview feature cards at their desktop proportions while zoomed', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto('/overview');
+  await expect(page.locator('.feature-card').first()).toBeVisible();
+
+  const layout = await page.evaluate(() => {
+    const card = document.querySelector('.feature-card')!;
+    const copy = card.querySelector('.ant-card-body > div')!;
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      cardWidth: card.getBoundingClientRect().width,
+      copyWidth: copy.getBoundingClientRect().width,
+    };
+  });
+
+  expect(layout.documentWidth).toBeGreaterThanOrEqual(1920);
+  expect(layout.cardWidth).toBeGreaterThanOrEqual(350);
+  expect(layout.copyWidth).toBeGreaterThanOrEqual(100);
 });
