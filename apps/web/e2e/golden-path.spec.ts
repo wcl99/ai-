@@ -73,6 +73,7 @@ test('runs the authorized platform golden path without contacting the engine', a
     description: null,
     time_limit: null,
     snapshot: { authorization_confirmed: false },
+    analysis_json: {},
     created_at: '2026-07-23T08:00:00Z',
   };
   const task = () => ({
