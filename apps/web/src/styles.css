@@ -68,13 +68,13 @@ a { color: var(--primary); cursor: pointer; }
 .metric-card i { position: absolute; width: 96px; height: 96px; right: -14px; bottom: -14px; display:grid; place-items:center; font-style:normal; }
 .metric-card i img { width: 72px; max-height: 74px; object-fit: contain; }
 .tone-blue { color: #075bd8; }.tone-green { color: #087c59; }.tone-orange { color: #f08b27; }.tone-red { color: #c53138; }.tone-purple { color: #7b37e8; }.tone-gray { color: #697489; }
-.feature-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
-.feature-card .ant-card-body { min-height: 90px; display: flex; align-items: center; gap: 14px; padding: 18px 24px; }
+.feature-grid { display: grid; grid-template-columns: repeat(4, minmax(380px, 1fr)); gap: 20px; margin-bottom: 24px; }
+.feature-card .ant-card-body { min-height: 90px; display: grid; grid-template-columns: 44px minmax(140px, 1fr) max-content; align-items: center; gap: 14px; padding: 18px 24px; }
 .feature-icon { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; color: #fff; font-size: 22px; background:#075bd8; box-shadow: 0 7px 14px rgba(42,80,160,.18); }
 .feature-card.tone-red .feature-icon{background:#e34a50}.feature-card.tone-purple .feature-icon{background:#8a3cf0}.feature-card.tone-blue .feature-icon{background:#176de0}.feature-card.tone-green .feature-icon{background:#16a271}
-.feature-card div { flex: 1; color: #17243a; }
-.feature-card strong { font-size: 17px; }
-.feature-card p { margin: 4px 0 0; color: #7d8798; font-size: 12px; }
+.feature-card .ant-card-body > div { min-width: 140px; color: #17243a; }
+.feature-card strong { font-size: 17px; white-space: nowrap; }
+.feature-card p { margin: 4px 0 0; color: #7d8798; font-size: 12px; white-space: nowrap; }
 .feature-card .ant-btn { border-radius: 8px; }
 .dashboard-main-grid { display: grid; grid-template-columns: 1.05fr 1.05fr 1fr; gap: 22px; }
 .dashboard-bottom-grid { display: grid; grid-template-columns: 1fr 1.05fr 1fr; gap: 22px; margin-top: 22px; }

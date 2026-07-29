@@ -88,10 +88,14 @@ test('keeps overview feature cards at their desktop proportions while zoomed', a
       documentWidth: document.documentElement.scrollWidth,
       cardWidth: card.getBoundingClientRect().width,
       copyWidth: copy.getBoundingClientRect().width,
+      titleWhiteSpace: getComputedStyle(copy.querySelector('strong')!).whiteSpace,
+      descriptionWhiteSpace: getComputedStyle(copy.querySelector('p')!).whiteSpace,
     };
   });
 
   expect(layout.documentWidth).toBeGreaterThanOrEqual(1920);
-  expect(layout.cardWidth).toBeGreaterThanOrEqual(350);
-  expect(layout.copyWidth).toBeGreaterThanOrEqual(100);
+  expect(layout.cardWidth).toBeGreaterThanOrEqual(380);
+  expect(layout.copyWidth).toBeGreaterThanOrEqual(140);
+  expect(layout.titleWhiteSpace).toBe('nowrap');
+  expect(layout.descriptionWhiteSpace).toBe('nowrap');
 });

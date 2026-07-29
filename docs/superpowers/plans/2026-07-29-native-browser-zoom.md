@@ -29,6 +29,7 @@
 - [ ] Set `html, body, #root { min-width: 1920px; min-height: 100%; margin: 0; }`.
 - [ ] Delete the 1600px, 1440px, 1439px, and 1050px media-query blocks.
 - [ ] Keep existing `min-width: 0`, `overflow-wrap: anywhere`, and modal action wrapping rules for content safety.
+- [ ] Give overview feature cards a minimum 380px track and a three-column internal grid with a minimum 140px copy area; keep feature titles and descriptions on one line.
 - [ ] Run the focused Playwright file and confirm all fixed-layout cases pass.
 - [ ] Commit with `fix(web): preserve layout during browser zoom`.
 
