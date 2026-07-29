@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     xiaoyi_token: str | None = None
     xiaoyi_org_id: int | None = Field(default=None, ge=1, le=2_147_483_647)
     xiaoyi_user_id: str | None = None
+    openai_api_key: SecretStr | None = None
+    openai_api_base_url: str = "https://api.deepseek.com/v1"
+    model_type: str = "deepseek-v4-flash"
+    cdninfo_enabled: bool = False
+    cdninfo_binary: Path = Path("/opt/cdninfo/cdninfo")
+    cdninfo_config: Path = Path("/opt/cdninfo/cdninfo.yaml")
+    cdninfo_store: Path = Path("/opt/cdninfo/isecdb")
+    cdninfo_timeout_seconds: float = Field(default=20, ge=1, le=120)
     engine_timeout_seconds: float = 30
     engine_retry_limit: int = Field(default=2, ge=0, le=10)
     sync_interval_seconds: float = 1
@@ -108,6 +116,8 @@ class Settings(BaseSettings):
             raise ValueError(
                 "BOOTSTRAP_ADMIN_PASSWORD must not use a placeholder in production"
             )
+        if self.engine_mode == "xiaoyi" and not self.cdninfo_enabled:
+            raise ValueError("CDNINFO_ENABLED must be true when ENGINE_MODE=xiaoyi in production")
 
 
 @lru_cache

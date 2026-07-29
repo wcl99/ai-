@@ -46,6 +46,13 @@ services:
       XIAOYI_TOKEN: ${XIAOYI_TOKEN:-}
       XIAOYI_ORG_ID: ${XIAOYI_ORG_ID:-}
       XIAOYI_USER_ID: ${XIAOYI_USER_ID:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.deepseek.com/v1}
+      MODEL_TYPE: ${MODEL_TYPE:-deepseek-v4-flash}
+      CDNINFO_ENABLED: ${CDNINFO_ENABLED:-false}
+      CDNINFO_BINARY: /opt/cdninfo/cdninfo
+      CDNINFO_CONFIG: /opt/cdninfo/cdninfo.yaml
+      CDNINFO_STORE: /opt/cdninfo/isecdb
       BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?set BOOTSTRAP_ADMIN_PASSWORD in deploy/.env}
     command:
@@ -80,6 +87,7 @@ services:
     mem_limit: 1g
     volumes:
       - report_data:/app/data/reports
+      - ${CDNINFO_DIR:-../../cdninfo}:/opt/cdninfo:ro
 
 volumes:
   postgres_data:

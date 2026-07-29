@@ -25,6 +25,8 @@ from .auth import (
     require_roles,
 )
 from .config import Settings, get_settings
+from .cdn import assess_targets
+from .consultation import run_requirement_agent
 from .db import SessionLocal, get_session
 from .engine import (
     get_engine_client,
@@ -33,7 +35,7 @@ from .engine import (
     resolve_xiaoyi_org_id,
 )
 from .errors import AppError
-from .models import AiLog, Asset, AuditLog, Organization, QAMessage, Report, ScanPlan, Task, TaskEvent, User, Vulnerability, XiaoyiPlanMapping
+from .models import AiLog, Asset, AuditLog, Organization, QAMessage, Report, ScanPlan, ScanPlanMessage, Task, TaskEvent, User, Vulnerability, XiaoyiPlanMapping
 from .schemas import (
     AiAssetUpload,
     AiLogRead,
@@ -47,6 +49,8 @@ from .schemas import (
     AuditLogRead,
     AssetRead,
     AssetUpdate,
+    ConsultationMessageCreate,
+    ConsultationResponse,
     LoginRequest,
     LoginResponse,
     OrganizationRead,
@@ -61,6 +65,7 @@ from .schemas import (
     ScanPlanAssetUpdate,
     ScanPlanCreate,
     ScanPlanRead,
+    ScanPlanMessageRead,
     TaskCreate,
     TaskEventRead,
     TaskListRead,
@@ -72,7 +77,7 @@ from .schemas import (
     VulnerabilityRead,
     VulnerabilityUpdate,
 )
-from .services import add_audit, create_plan, create_task, get_plan, normalize_asset_list, plan_for_update_query, safe_report_path
+from .services import add_audit, create_plan, create_task, get_plan, normalize_asset_list, plan_for_update_query, require_cdn_safe_assets, safe_report_path
 from .sync import sync_forever
 
 
@@ -426,6 +431,104 @@ async def read_plan(plan_id: uuid.UUID, user: User = Depends(current_user), sess
     return await get_plan(session, plan_id, user)
 
 
+@app.get("/api/v1/scan-plans/{plan_id}/consultation/messages")
+async def list_plan_messages(
+    plan_id: uuid.UUID,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    await get_plan(session, plan_id, user)
+    items = list(
+        await session.scalars(
+            select(ScanPlanMessage)
+            .where(
+                ScanPlanMessage.plan_id == plan_id,
+                ScanPlanMessage.org_id == user.org_id,
+            )
+            .order_by(ScanPlanMessage.created_at, ScanPlanMessage.id)
+        )
+    )
+    return envelope([ScanPlanMessageRead.model_validate(item) for item in items])
+
+
+@app.post(
+    "/api/v1/scan-plans/{plan_id}/consultation/messages",
+    response_model=ConsultationResponse,
+    status_code=201,
+)
+async def consult_plan(
+    plan_id: uuid.UUID,
+    payload: ConsultationMessageCreate,
+    user: User = Depends(require_roles("admin", "operator", "security_expert")),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    plan = await session.scalar(plan_for_update_query(plan_id, user.org_id))
+    if plan is None:
+        raise AppError(404, "PLAN_NOT_FOUND", "扫描计划不存在")
+    if plan.status != "DRAFT":
+        raise AppError(409, "PLAN_NOT_DRAFT", "已确认的计划不能继续修改需求")
+    existing = list(
+        await session.scalars(
+            select(ScanPlanMessage)
+            .where(
+                ScanPlanMessage.plan_id == plan.id,
+                ScanPlanMessage.org_id == user.org_id,
+            )
+            .order_by(ScanPlanMessage.created_at, ScanPlanMessage.id)
+        )
+    )
+    user_message = ScanPlanMessage(
+        org_id=user.org_id,
+        plan_id=plan.id,
+        user_id=user.id,
+        role="user",
+        content=payload.content,
+    )
+    session.add(user_message)
+    await session.flush()
+    transcript = [
+        {"role": item.role, "content": item.content} for item in existing
+    ] + [{"role": "user", "content": payload.content}]
+    state = dict(plan.analysis_json or {})
+    reply = await run_requirement_agent(settings, transcript, state)
+    requirements = {
+        **state.get("requirements", {}),
+        **reply.requirements.model_dump(exclude_none=True),
+    }
+    if reply.requirements.targets:
+        plan.targets = reply.requirements.targets
+    if reply.requirements.test_type:
+        plan.test_type = reply.requirements.test_type
+    assets = plan.asset_list
+    if reply.ready_to_precheck:
+        assets = await assess_targets(plan.targets, settings)
+        plan.asset_list = assets
+    plan.analysis_json = {
+        "requirements": requirements,
+        "ready_to_precheck": reply.ready_to_precheck,
+        "assets": assets,
+    }
+    plan.snapshot = {**plan.snapshot, "requirements": requirements, "asset_list": assets}
+    session.add(
+        ScanPlanMessage(
+            org_id=user.org_id,
+            plan_id=plan.id,
+            user_id=user.id,
+            role="assistant",
+            content=reply.assistant_message,
+        )
+    )
+    await add_audit(session, user, "plan.consult", "scan_plan", plan.id)
+    await session.commit()
+    await session.refresh(plan)
+    return ConsultationResponse(
+        plan=ScanPlanRead.model_validate(plan),
+        assistant_message=reply.assistant_message,
+        ready_to_precheck=reply.ready_to_precheck,
+    )
+
+
 @app.patch("/api/v1/scan-plans/{plan_id}/assets", response_model=ScanPlanRead)
 async def update_plan_assets(plan_id: uuid.UUID, payload: ScanPlanAssetUpdate, user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session)):
     plan = await session.scalar(plan_for_update_query(plan_id, user.org_id))
@@ -434,6 +537,10 @@ async def update_plan_assets(plan_id: uuid.UUID, payload: ScanPlanAssetUpdate, u
     if plan.status != "DRAFT":
         raise AppError(409, "PLAN_NOT_DRAFT", "Scan plan assets can only be changed before confirmation")
     asset_list = normalize_asset_list(payload.asset_list)
+    settings = get_settings()
+    if settings.cdninfo_enabled:
+        checks = await assess_targets([item["host"] for item in asset_list], settings)
+        asset_list = [{**item, **check} for item, check in zip(asset_list, checks, strict=True)]
     plan.asset_list = asset_list
     plan.snapshot = {**plan.snapshot, "asset_list": asset_list}
     await add_audit(session, user, "plan.assets.update", "scan_plan", plan.id)
@@ -457,6 +564,8 @@ async def confirm_plan(
         return plan
     if plan.status != "DRAFT":
         raise AppError(409, "PLAN_NOT_DRAFT", "只有草稿计划可以确认")
+    if settings.cdninfo_enabled:
+        require_cdn_safe_assets(plan.asset_list)
     mapping = await session.scalar(
         select(XiaoyiPlanMapping).where(XiaoyiPlanMapping.plan_id == plan.id)
     )
@@ -531,10 +640,16 @@ async def list_tasks(
 
 
 @app.post("/api/v1/tasks", response_model=TaskRead, status_code=201)
-async def add_task(payload: TaskCreate, user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session)):
+async def add_task(payload: TaskCreate, user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
     # The service creates an idempotent platform task; the background sync calls Xiaoyi.
     plan = await get_plan(session, payload.plan_id, user)
-    return await create_task(session, plan, user, payload.request_id)
+    return await create_task(
+        session,
+        plan,
+        user,
+        payload.request_id,
+        enforce_cdn_guard=settings.cdninfo_enabled,
+    )
 
 
 async def scoped_task(session: AsyncSession, task_id: uuid.UUID, user: User) -> Task:
@@ -630,7 +745,9 @@ async def retry_task(task_id: uuid.UUID, user: User = Depends(require_roles("adm
     if source.status not in {"FAILED", "CANCELLED", "PARTIAL_SUCCEEDED"}:
         raise AppError(409, "TASK_NOT_RETRYABLE", "Task cannot be retried in its current state")
     plan = await get_plan(session, source.plan_id, user)
-    retried = await create_task(session, plan, user)
+    retried = await create_task(
+        session, plan, user, enforce_cdn_guard=get_settings().cdninfo_enabled
+    )
     session.add(
         TaskEvent(
             task_id=source.id,
@@ -911,6 +1028,23 @@ async def precheck_socket(websocket: WebSocket):
             except (ValidationError, ValueError):
                 await websocket.send_json({"action": "can_error", "success": False, "message": "Invalid precheck payload"})
                 continue
+            if settings.cdninfo_enabled:
+                targets = (
+                    validated.domains
+                    if isinstance(validated, DomainPrecheckRequest)
+                    else [item.host for item in validated.hosts]
+                )
+                checks = await assess_targets(targets, settings)
+                if any(item["cdn_status"] != "SAFE" for item in checks):
+                    await websocket.send_json(
+                        {
+                            "action": "can_error",
+                            "success": False,
+                            "message": "目标命中 CDN/WAF 或检测结果不明确，已停止预查",
+                            "assets": checks,
+                        }
+                    )
+                    continue
             try:
                 if precheck_session is not None:
                     result = await precheck_session.send(validated.model_dump())
@@ -961,7 +1095,9 @@ async def ai_start_plan(payload: AiPlanStart, user: User = Depends(digital_user_
     if payload.org_id and payload.org_id != user.org_id:
         raise AppError(403, "FORBIDDEN", "Organization mismatch")
     plan = await get_plan(session, payload.plan_id, user)
-    task = await create_task(session, plan, user)
+    task = await create_task(
+        session, plan, user, enforce_cdn_guard=get_settings().cdninfo_enabled
+    )
     return envelope({"task_id": str(task.id), "status": task.status})
 
 

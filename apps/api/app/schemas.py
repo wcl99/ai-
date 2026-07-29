@@ -158,7 +158,30 @@ class ScanPlanRead(ORMModel):
     description: str | None
     time_limit: int | None
     snapshot: dict
+    analysis_json: dict
     created_at: datetime
+
+
+class ConsultationMessageCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=10_000)
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def normalize_content(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
+class ScanPlanMessageRead(ORMModel):
+    id: uuid.UUID
+    role: Literal["user", "assistant"]
+    content: str
+    created_at: datetime
+
+
+class ConsultationResponse(BaseModel):
+    plan: ScanPlanRead
+    assistant_message: str
+    ready_to_precheck: bool
 
 
 class DomainPrecheckRequest(BaseModel):

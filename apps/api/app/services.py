@@ -43,6 +43,20 @@ def normalize_asset_list(asset_list: list[dict]) -> list[dict]:
     return normalized
 
 
+def require_cdn_safe_assets(asset_list: list[dict]) -> None:
+    if not asset_list:
+        raise AppError(409, "CDN_CHECK_REQUIRED", "资产尚未完成 CDN 检测，不能启动扫描")
+    blocked = [
+        item for item in asset_list if item.get("cdn_status") != "SAFE"
+    ]
+    if blocked:
+        raise AppError(
+            409,
+            "CDN_CHECK_REQUIRED",
+            "存在 CDN/WAF 或未能确认安全的资产，不能启动扫描",
+        )
+
+
 def asset_list_from_targets(targets: list[str]) -> list[dict]:
     return normalize_asset_list(
         [{"host": target, "hostType": _host_type_for_target(target)} for target in targets]
@@ -108,7 +122,11 @@ async def create_plan(
 
 
 async def create_task(
-    session: AsyncSession, plan: ScanPlan, user: User, request_id: str | None = None
+    session: AsyncSession,
+    plan: ScanPlan,
+    user: User,
+    request_id: str | None = None,
+    enforce_cdn_guard: bool = False,
 ) -> Task:
     # This service owns readiness, payload, and idempotency invariants as one transaction.
     if plan.status != "READY":
@@ -120,6 +138,8 @@ async def create_task(
             "Scan plan snapshot contains deprecated Xiaoyi fields",
         )
     asset_list = plan.snapshot.get("asset_list") or plan.asset_list
+    if enforce_cdn_guard:
+        require_cdn_safe_assets(asset_list)
     if asset_list:
         asset_list = normalize_asset_list(asset_list)
     else:

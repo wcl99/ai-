@@ -6,6 +6,7 @@ playwright-report/
 test-results/
 .vite/
 .vite-dev.*.log
+*.tsbuildinfo
 __pycache__/
 .pytest_cache/
 .venv/
