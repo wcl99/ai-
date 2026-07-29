@@ -127,6 +127,7 @@ a { color: var(--primary); cursor: pointer; }
 .setting-row{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:68px;border-bottom:1px solid #edf0f6}.setting-row:last-child{border-bottom:0}.setting-row>div{display:flex;flex-direction:column}.setting-row span{margin-top:4px;color:var(--muted);font-size:12px}
 .empty-state { min-height:500px; display:grid; place-content:center; text-align:center; color:#7b8699; }.empty-state > span{font-size:48px;color:#a9b8d2}
 .pentest-consultation-layout{display:grid;grid-template-columns:minmax(0,1fr) 352px;min-height:calc(100vh - 66px);background:#f3f5f8}.pentest-welcome { min-height:calc(100vh - 66px); position:relative; overflow:hidden; display:flex; align-items:center; padding:0 6%; background:radial-gradient(circle at 78% 55%, #dfebff 0, #f3f6ff 27%, transparent 56%); }
+.pentest-consultation-layout--planning{display:block}.pentest-consultation-layout--planning .pentest-welcome{width:100%}
 .pentest-welcome,.hero-copy,.target-form,.analysis-result,.candidate-card{min-width:0}
 .hero-copy { width:68%; max-width:1080px; position:relative; z-index:3; margin-top:-50px; }.hero-copy h1{font-size:36px;margin:0 0 20px}.hero-copy h1 span{color:#2c50cc}.hero-copy > p{font-size:18px;color:#596276;margin-bottom:45px}
 .target-form { background:rgba(255,255,255,.95); border:1px solid #6897ff; border-radius:28px; min-height:220px; padding:28px 24px 16px; box-shadow:0 16px 40px rgba(37,78,170,.12); }
