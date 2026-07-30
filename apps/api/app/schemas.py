@@ -139,6 +139,7 @@ class AssetRead(ORMModel):
 class ScanPlanCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     test_type: Literal["discovery", "standard"] = "standard"
+    scan_speed: Literal["quick", "standard", "deep"] = "standard"
     targets: list[str] = Field(min_length=1, max_length=64)
     asset_list: list[dict] = Field(default_factory=list, max_length=128)
     templates: list[str] = Field(default_factory=list, max_length=32)

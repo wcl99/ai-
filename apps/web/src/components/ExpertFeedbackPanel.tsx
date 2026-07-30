@@ -38,7 +38,15 @@ export function ExpertFeedbackPanel({
             <i>{message.role === 'user' ? <UserOutlined /> : <RobotOutlined />}</i>
             <div>
               <strong>{message.speaker}</strong>
-              <p>{message.content}</p>
+              {message.role !== 'user' && message.content.length > 220 ? (
+                <>
+                  <p className="consultation-message-summary">{message.content.slice(0, 180).trim()}…</p>
+                  <details className="consultation-message-details">
+                    <summary>查看完整回复</summary>
+                    <p>{message.content}</p>
+                  </details>
+                </>
+              ) : <p>{message.content}</p>}
             </div>
           </article>
         ))}

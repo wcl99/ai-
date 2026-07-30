@@ -362,13 +362,10 @@ async def test_confirmation_preserves_explicit_deep_pentest_speed(authenticated_
         json={
             "name": "Deep controlled validation",
             "test_type": "standard",
+            "scan_speed": "deep",
             "targets": ["example.test"],
         },
     )
-    async with SessionLocal() as session:
-        stored = await session.get(ScanPlan, uuid.UUID(plan.json()["id"]))
-        stored.snapshot = {**stored.snapshot, "requirements": {"scan_speed": "deep"}}
-        await session.commit()
 
     confirmed = await authenticated_client.post(
         f"/api/v1/scan-plans/{plan.json()['id']}/confirm"

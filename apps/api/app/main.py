@@ -588,7 +588,9 @@ async def confirm_plan(
         await session.flush()
     org_id = resolve_xiaoyi_org_id(settings)
     requirements = plan.snapshot.get("requirements", {})
-    requested_speed = requirements.get("scan_speed") if isinstance(requirements, dict) else None
+    requested_speed = plan.snapshot.get("scan_speed")
+    if requested_speed not in {"quick", "standard", "deep"} and isinstance(requirements, dict):
+        requested_speed = requirements.get("scan_speed")
     scan_speed = requested_speed if requested_speed in {"quick", "standard", "deep"} else "quick"
     if plan.test_type == "standard" and scan_speed == "quick":
         scan_speed = "standard"
