@@ -2,6 +2,8 @@
 
 本仓库包含 React 前端、FastAPI 后端、PostgreSQL 部署配置，以及小易渗透引擎和数字人对接适配。当前目标是验证端到端黄金路径；真实渗透计算由外部小易引擎执行，平台负责授权、任务状态、资产、漏洞、报告和审计。
 
+小易向平台持续回传资产、漏洞、关键日志和报告时，请使用[小易任务结果回传接口](docs/integrations/xiaoyi-result-callback-api.md)。
+
 ## 在另一台电脑继续
 
 ```powershell

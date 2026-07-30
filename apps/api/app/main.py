@@ -79,7 +79,12 @@ from .schemas import (
     VulnerabilityUpdate,
 )
 from .services import add_audit, create_plan, create_task, get_plan, normalize_asset_list, plan_for_update_query, require_cdn_safe_assets, safe_report_path
-from .result_ingest import resolve_result_context
+from .result_ingest import (
+    callback_payload_hash,
+    existing_callback_resource,
+    record_callback_resource,
+    resolve_result_context,
+)
 from .sync import sync_forever
 
 
@@ -683,15 +688,6 @@ async def scoped_task(session: AsyncSession, task_id: uuid.UUID, user: User) -> 
     return task
 
 
-async def result_task(session: AsyncSession, task_id: uuid.UUID | None, plan_id: uuid.UUID, user: User) -> Task | None:
-    if task_id is None:
-        return None
-    task = await scoped_task(session, task_id, user)
-    if task.plan_id != plan_id:
-        raise AppError(422, "TASK_PLAN_MISMATCH", "Task does not belong to the specified plan")
-    return task
-
-
 @app.get("/api/v1/tasks/{task_id}", response_model=TaskRead)
 async def read_task(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
     return await scoped_task(session, task_id, user)
@@ -1162,6 +1158,14 @@ def digital_user_dependency():
     return dependency
 
 
+def ai_result_response_data(payload, user: User, **resource_ids) -> dict:
+    return {
+        **resource_ids,
+        "plan_id": payload.plan_id,
+        "org_id": payload.org_id if payload.org_id is not None else user.org_id,
+    }
+
+
 @app.post("/api/ai/create-test-plan")
 async def ai_create_plan(payload: AiPlanCreate, user: User = Depends(digital_user_dependency()), session: AsyncSession = Depends(get_session)):
     if payload.org_id and payload.org_id != user.org_id:
@@ -1185,34 +1189,89 @@ async def ai_start_plan(payload: AiPlanStart, user: User = Depends(digital_user_
 
 @app.post("/api/ai/upload-asset")
 async def ai_upload_asset(payload: AiAssetUpload, user: User = Depends(digital_user_dependency()), session: AsyncSession = Depends(get_session)):
-    await get_plan(session, payload.plan_id, user)
-    address = str(payload.asset.get("address") or payload.asset.get("host") or payload.asset.get("domain") or "").strip()
+    payload_hash = callback_payload_hash(payload)
+    existing_id = await existing_callback_resource(
+        session, user, "asset", payload_hash
+    )
+    if existing_id:
+        return envelope(
+            ai_result_response_data(payload, user, asset_id=existing_id),
+            message="资产已接收",
+        )
+    context = await resolve_result_context(
+        session, user, payload.plan_id, payload.task_id, payload.org_id
+    )
+    address = str(
+        payload.asset.get("address")
+        or payload.asset.get("host")
+        or payload.asset.get("hostname")
+        or payload.asset.get("domain")
+        or payload.asset.get("ip")
+        or ""
+    ).strip()
     if not address:
         raise AppError(422, "INVALID_ASSET", "Asset address is required")
-    key = str(payload.asset.get("asset_key") or address).lower()
-    asset = await session.scalar(select(Asset).where(Asset.org_id == user.org_id, Asset.asset_key == key))
+    port = payload.asset.get("port")
+    default_key = f"{address}:{port}" if port is not None else address
+    key = str(payload.asset.get("asset_key") or default_key).lower()
+    asset = await session.scalar(
+        select(Asset).where(
+            Asset.org_id == user.org_id,
+            Asset.plan_id == context.plan.id,
+            Asset.asset_key == key,
+        )
+    )
     if asset is None:
-        asset = Asset(org_id=user.org_id, plan_id=payload.plan_id, asset_key=key, asset_type=str(payload.asset.get("asset_type") or "domain"), address=address, authorized=False, data_json=payload.asset)
+        asset = Asset(org_id=user.org_id, plan_id=context.plan.id, asset_key=key, asset_type=str(payload.asset.get("asset_type") or "domain"), address=address, service=payload.asset.get("service"), authorized=False, data_json=payload.asset)
         session.add(asset)
     else:
         asset.data_json = {**asset.data_json, **payload.asset}
+        asset.service = payload.asset.get("service") or asset.service
+    await session.flush()
+    record_callback_resource(
+        session, user, "asset", payload_hash, "asset", asset.id
+    )
     await session.commit()
     await session.refresh(asset)
-    return envelope({"asset_id": str(asset.id)})
+    return envelope(
+        ai_result_response_data(payload, user, asset_id=str(asset.id)),
+        message="资产已接收",
+    )
 
 
 @app.post("/api/ai/upload-vulnerability")
 async def ai_upload_vulnerability(payload: AiVulnerabilityUpload, user: User = Depends(digital_user_dependency()), session: AsyncSession = Depends(get_session)):
+    payload_hash = callback_payload_hash(payload)
+    existing_id = await existing_callback_resource(
+        session, user, "vulnerability", payload_hash
+    )
+    if existing_id:
+        return envelope(
+            ai_result_response_data(payload, user, vulnerability_id=existing_id),
+            message="漏洞已接收",
+        )
     context = await resolve_result_context(
-        session, user, payload.plan_id, payload.task_id
+        session, user, payload.plan_id, payload.task_id, payload.org_id
     )
     task = context.task
     data = redact_sensitive(payload.data)
     item = Vulnerability(org_id=user.org_id, plan_id=context.plan.id, task_id=task.id if task else None, asset_key=payload.asset_key, title=payload.title or str(data.get("title") or data.get("name") or "Untitled vulnerability"), severity=payload.severity or str(data.get("severity") or "unknown").lower(), description=data.get("description"), data_json=data)
     session.add(item)
+    await session.flush()
+    record_callback_resource(
+        session,
+        user,
+        "vulnerability",
+        payload_hash,
+        "vulnerability",
+        item.id,
+    )
     await session.commit()
     await session.refresh(item)
-    return envelope({"vulnerability_id": str(item.id)})
+    return envelope(
+        ai_result_response_data(payload, user, vulnerability_id=str(item.id)),
+        message="漏洞已接收",
+    )
 
 
 @app.post("/api/ai/upload-report")
@@ -1221,33 +1280,101 @@ async def ai_upload_report(payload: AiReportUpload, user: User = Depends(digital
         payload.external_url.username or payload.external_url.password
     ):
         raise AppError(422, "INVALID_REPORT_URL", "Report URL cannot contain credentials")
-    await get_plan(session, payload.plan_id, user)
-    task = await result_task(session, payload.task_id, payload.plan_id, user)
-    if payload.content is None and payload.external_url is None:
-        raise AppError(422, "INVALID_REPORT", "Report content or external URL is required")
+    payload_hash = callback_payload_hash(payload)
+    existing_id = await existing_callback_resource(
+        session, user, "report", payload_hash
+    )
+    if existing_id:
+        return envelope(
+            ai_result_response_data(payload, user, report_id=existing_id),
+            message="报告已接收",
+        )
+    context = await resolve_result_context(
+        session, user, payload.plan_id, payload.task_id, payload.org_id
+    )
+    task = context.task
     filename = payload.filename or f"{payload.plan_id}.{payload.format}"
+    report_url = str(payload.external_url) if payload.external_url else None
+    filename_url = urlsplit(filename)
+    if filename_url.scheme in {"http", "https"} and filename_url.hostname:
+        if filename_url.username or filename_url.password:
+            raise AppError(
+                422,
+                "INVALID_REPORT_URL",
+                "Report URL cannot contain credentials",
+            )
+        report_url = filename
+        filename = Path(filename_url.path).name or f"{payload.plan_id}.{payload.format}"
+    if payload.content is None and report_url is None:
+        raise AppError(422, "INVALID_REPORT", "Report content or external URL is required")
     local_path = None
     if payload.content is not None:
         path = safe_report_path(settings.report_dir / str(user.org_id), filename)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(payload.content, encoding="utf-8")
         local_path = str(path)
-    report = Report(org_id=user.org_id, plan_id=payload.plan_id, task_id=task.id if task else None, filename=Path(filename).name, format=payload.format, report_level=payload.report_level, local_path=local_path, external_url=str(payload.external_url) if payload.external_url else None)
+    report = Report(org_id=user.org_id, plan_id=context.plan.id, task_id=task.id if task else None, filename=Path(filename).name, format=payload.format, report_level=payload.report_level, local_path=local_path, external_url=report_url)
     session.add(report)
+    await session.flush()
+    record_callback_resource(
+        session, user, "report", payload_hash, "report", report.id
+    )
     await session.commit()
     await session.refresh(report)
-    return envelope({"report_id": str(report.id)})
+    return envelope(
+        ai_result_response_data(payload, user, report_id=str(report.id)),
+        message="报告已接收",
+    )
 
 
 @app.post("/api/ai/upload-log")
 async def ai_upload_log(payload: AiLogUpload, user: User = Depends(digital_user_dependency()), session: AsyncSession = Depends(get_session)):
-    await get_plan(session, payload.plan_id, user)
-    item = AiLog(org_id=user.org_id, plan_id=payload.plan_id, user_id=user.id, level=payload.level, log_type=payload.type, agent_type=payload.agent_type, action=payload.action, content=redact_sensitive_text(payload.content), details_json=redact_sensitive(payload.details))
+    payload_hash = callback_payload_hash(payload)
+    existing_id = await existing_callback_resource(session, user, "log", payload_hash)
+    if existing_id:
+        return envelope(
+            ai_result_response_data(payload, user, log_id=existing_id),
+            message="日志已接收",
+        )
+    context = await resolve_result_context(
+        session, user, payload.plan_id, payload.task_id, payload.org_id
+    )
+    item = AiLog(org_id=user.org_id, plan_id=context.plan.id, user_id=user.id, level=payload.level, log_type=payload.type, agent_type=payload.agent_type, action=payload.action, content=redact_sensitive_text(payload.content), details_json=redact_sensitive(payload.details))
     if payload.timestamp:
         item.created_at = payload.timestamp
     session.add(item)
+    await session.flush()
+    event_type = None
+    if context.task is not None:
+        if payload.level == "error":
+            event_type = "xiaoyi_error"
+        elif payload.level == "warning":
+            event_type = "xiaoyi_warning"
+        elif payload.action and any(
+            marker in payload.action.lower()
+            for marker in ("complete", "finished", "report_generated")
+        ):
+            event_type = "xiaoyi_milestone"
+    if event_type:
+        session.add(
+            TaskEvent(
+                task_id=context.task.id,
+                event_type=event_type,
+                message=item.content,
+                data_json={
+                    "level": payload.level,
+                    "type": payload.type,
+                    "agent_type": payload.agent_type,
+                    "action": payload.action,
+                },
+            )
+        )
+    record_callback_resource(session, user, "log", payload_hash, "log", item.id)
     await session.commit()
-    return envelope({"log_id": str(item.id)})
+    return envelope(
+        ai_result_response_data(payload, user, log_id=str(item.id)),
+        message="日志已接收",
+    )
 
 
 _RESERVED_BROWSER_PREFIXES = {

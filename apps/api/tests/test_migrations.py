@@ -22,6 +22,9 @@ def test_xiaoyi_mapping_migration_invalidates_stale_ready_snapshots(
     get_settings.cache_clear()
     config = Config("alembic.ini")
     command.upgrade(config, "0004_scope_task_request_ids")
+    with sqlite3.connect(database) as connection:
+        connection.execute("DROP TABLE IF EXISTS ai_callback_receipts")
+        connection.commit()
 
     org_id = uuid.uuid4().hex
     user_id = uuid.uuid4().hex
@@ -81,10 +84,25 @@ def test_xiaoyi_mapping_migration_invalidates_stale_ready_snapshots(
         mapping = connection.execute(
             "SELECT id FROM xiaoyi_plan_mappings WHERE plan_id = ?", (plan_id,)
         ).fetchone()
+        receipt_columns = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA table_info(ai_callback_receipts)"
+            ).fetchall()
+        }
     stored_snapshot = json.loads(stored_snapshot)
     assert status == "DRAFT"
     assert stored_snapshot["authorization_confirmed"] is False
     assert "confirmed_by" not in stored_snapshot
     assert "xiaoyi_context" not in stored_snapshot
     assert mapping and mapping[0] > 0
+    assert receipt_columns == {
+        "id",
+        "org_id",
+        "result_type",
+        "payload_hash",
+        "resource_type",
+        "resource_id",
+        "created_at",
+    }
     get_settings.cache_clear()
