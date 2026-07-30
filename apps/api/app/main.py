@@ -79,6 +79,7 @@ from .schemas import (
     VulnerabilityUpdate,
 )
 from .services import add_audit, create_plan, create_task, get_plan, normalize_asset_list, plan_for_update_query, require_cdn_safe_assets, safe_report_path
+from .result_ingest import resolve_result_context
 from .sync import sync_forever
 
 
@@ -1202,10 +1203,12 @@ async def ai_upload_asset(payload: AiAssetUpload, user: User = Depends(digital_u
 
 @app.post("/api/ai/upload-vulnerability")
 async def ai_upload_vulnerability(payload: AiVulnerabilityUpload, user: User = Depends(digital_user_dependency()), session: AsyncSession = Depends(get_session)):
-    await get_plan(session, payload.plan_id, user)
-    task = await result_task(session, payload.task_id, payload.plan_id, user)
+    context = await resolve_result_context(
+        session, user, payload.plan_id, payload.task_id
+    )
+    task = context.task
     data = redact_sensitive(payload.data)
-    item = Vulnerability(org_id=user.org_id, plan_id=payload.plan_id, task_id=task.id if task else None, asset_key=payload.asset_key, title=payload.title or str(data.get("title") or data.get("name") or "Untitled vulnerability"), severity=payload.severity or str(data.get("severity") or "unknown").lower(), description=data.get("description"), data_json=data)
+    item = Vulnerability(org_id=user.org_id, plan_id=context.plan.id, task_id=task.id if task else None, asset_key=payload.asset_key, title=payload.title or str(data.get("title") or data.get("name") or "Untitled vulnerability"), severity=payload.severity or str(data.get("severity") or "unknown").lower(), description=data.get("description"), data_json=data)
     session.add(item)
     await session.commit()
     await session.refresh(item)

@@ -1,10 +1,20 @@
 import uuid
 
+from sqlalchemy import select
+
 from app.config import get_settings
 from app.auth import password_hash
 from app.db import SessionLocal
 from app.main import app
-from app.models import Organization, Report, ScanPlan, Task, User, Vulnerability
+from app.models import (
+    Organization,
+    Report,
+    ScanPlan,
+    Task,
+    User,
+    Vulnerability,
+    XiaoyiPlanMapping,
+)
 
 
 async def create_task(client, name: str, request_id: str) -> tuple[str, str]:
@@ -25,6 +35,38 @@ async def create_task(client, name: str, request_id: str) -> tuple[str, str]:
         json={"plan_id": plan.json()["id"], "request_id": request_id},
     )
     return plan.json()["id"], task.json()["id"]
+
+
+async def test_xiaoyi_result_ids_map_to_platform_plan_and_task(authenticated_client):
+    plan_id, task_id = await create_task(
+        authenticated_client, "Xiaoyi callback mapping", "xiaoyi-callback-mapping"
+    )
+    async with SessionLocal() as session:
+        mapping = await session.scalar(
+            select(XiaoyiPlanMapping).where(
+                XiaoyiPlanMapping.plan_id == uuid.UUID(plan_id)
+            )
+        )
+        task = await session.get(Task, uuid.UUID(task_id))
+        task.external_task_id = "xiaoyi-result-task-1"
+        await session.commit()
+
+    uploaded = await authenticated_client.post(
+        "/api/ai/upload-vulnerability",
+        json={
+            "plan_id": mapping.id,
+            "task_id": "xiaoyi-result-task-1",
+            "severity": "high",
+            "data": {"title": "Mapped Xiaoyi finding"},
+        },
+    )
+
+    assert uploaded.status_code == 200
+    vulnerability = await authenticated_client.get(
+        f"/api/v1/vulnerabilities/{uploaded.json()['data']['vulnerability_id']}"
+    )
+    assert vulnerability.json()["plan_id"] == plan_id
+    assert vulnerability.json()["task_id"] == task_id
 
 
 async def test_digital_results_must_match_task_plan(authenticated_client):

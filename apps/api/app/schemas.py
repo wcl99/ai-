@@ -389,15 +389,16 @@ class AiPlanStart(BaseModel):
 
 
 class AiAssetUpload(BaseModel):
-    plan_id: uuid.UUID
-    org_id: uuid.UUID | None = None
+    plan_id: uuid.UUID | int
+    task_id: uuid.UUID | str | None = None
+    org_id: uuid.UUID | int | None = None
     asset: dict
 
 
 class AiVulnerabilityUpload(BaseModel):
-    plan_id: uuid.UUID
-    task_id: uuid.UUID | None = None
-    org_id: uuid.UUID | None = None
+    plan_id: uuid.UUID | int
+    task_id: uuid.UUID | str | None = None
+    org_id: uuid.UUID | int | None = None
     asset_key: str | None = Field(default=None, max_length=512)
     severity: Literal["critical", "high", "medium", "low", "unknown"] | None = None
     title: str | None = Field(default=None, max_length=300)
@@ -405,9 +406,9 @@ class AiVulnerabilityUpload(BaseModel):
 
 
 class AiReportUpload(BaseModel):
-    plan_id: uuid.UUID
-    task_id: uuid.UUID | None = None
-    org_id: uuid.UUID | None = None
+    plan_id: uuid.UUID | int
+    task_id: uuid.UUID | str | None = None
+    org_id: uuid.UUID | int | None = None
     format: Literal["md", "html", "txt"] = "md"
     report_level: str | None = Field(default=None, max_length=32)
     filename: str | None = Field(default=None, max_length=255)
@@ -416,8 +417,9 @@ class AiReportUpload(BaseModel):
 
 
 class AiLogUpload(BaseModel):
-    plan_id: uuid.UUID
-    org_id: uuid.UUID | None = None
+    plan_id: uuid.UUID | int
+    task_id: uuid.UUID | str | None = None
+    org_id: uuid.UUID | int | None = None
     timestamp: datetime | None = None
     level: Literal["debug", "info", "warning", "error"] = "info"
     type: str = Field(default="external", max_length=64)
