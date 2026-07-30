@@ -182,3 +182,49 @@ async def test_plan_consultation_persists_both_sides_and_updates_requirements(
     assert response.json()["assistant_message"] == "信息已补全，可以开始资产预查。"
     assert response.json()["plan"]["snapshot"]["requirements"]["scan_speed"] == "standard"
     assert [item["role"] for item in history.json()["data"]] == ["user", "assistant"]
+
+
+async def test_task_question_persists_user_and_grounded_assistant_messages(
+    authenticated_client, monkeypatch
+):
+    captured = {}
+
+    async def fake_task_expert(_settings, question, context):
+        captured["question"] = question
+        captured["context"] = context
+        return "小易回传显示任务处于信息收集阶段，当前尚未产生漏洞结果。"
+
+    monkeypatch.setattr(
+        main_module, "run_task_expert_agent", fake_task_expert, raising=False
+    )
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": "任务问答测试",
+            "targets": ["example.test"],
+            "authorization_confirmed": True,
+        },
+    )
+    confirmed = await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    task = await authenticated_client.post(
+        "/api/v1/tasks", json={"plan_id": plan.json()["id"]}
+    )
+    assert task.status_code == 201, task.text
+
+    response = await authenticated_client.post(
+        f"/api/v1/tasks/{task.json()['id']}/qa/messages",
+        json={"content": "现在进行到哪里了？"},
+    )
+    history = await authenticated_client.get(
+        f"/api/v1/tasks/{task.json()['id']}/qa/messages"
+    )
+
+    assert response.status_code == 201
+    assert response.json()["assistant_message"]["role"] == "assistant"
+    assert "信息收集阶段" in response.json()["assistant_message"]["content"]
+    assert [item["role"] for item in history.json()["data"]] == ["user", "assistant"]
+    assert captured["question"] == "现在进行到哪里了？"
+    assert captured["context"]["task"]["status"] == "QUEUED"

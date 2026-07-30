@@ -321,6 +321,11 @@ class VulnerabilityListRead(ORMModel):
     tags: list[str]
 
 
+class TaskQAResponse(BaseModel):
+    user_message: QAMessageRead
+    assistant_message: QAMessageRead
+
+
 class ReportRead(ORMModel):
     id: uuid.UUID
     plan_id: uuid.UUID

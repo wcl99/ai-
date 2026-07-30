@@ -26,7 +26,7 @@ from .auth import (
 )
 from .config import Settings, get_settings
 from .cdn import assess_targets
-from .consultation import run_requirement_agent
+from .consultation import run_requirement_agent, run_task_expert_agent
 from .db import SessionLocal, get_session
 from .engine import (
     get_engine_client,
@@ -60,6 +60,7 @@ from .schemas import (
     PortPrecheckRequest,
     QAMessageCreate,
     QAMessageRead,
+    TaskQAResponse,
     ReportListRead,
     ReportRead,
     ScanPlanAssetUpdate,
@@ -729,9 +730,57 @@ async def task_qa_messages(task_id: uuid.UUID, user: User = Depends(current_user
     return envelope([QAMessageRead.model_validate(item) for item in items])
 
 
-@app.post("/api/v1/tasks/{task_id}/qa/messages", response_model=QAMessageRead, status_code=201)
-async def add_task_qa_message(task_id: uuid.UUID, payload: QAMessageCreate, user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session)):
-    await scoped_task(session, task_id, user)
+@app.post("/api/v1/tasks/{task_id}/qa/messages", response_model=TaskQAResponse, status_code=201)
+async def add_task_qa_message(
+    task_id: uuid.UUID,
+    payload: QAMessageCreate,
+    user: User = Depends(require_roles("admin", "operator", "security_expert")),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    task = await scoped_task(session, task_id, user)
+    plan = await session.get(ScanPlan, task.plan_id)
+    events = list(
+        await session.scalars(
+            select(TaskEvent)
+            .where(TaskEvent.task_id == task.id)
+            .order_by(TaskEvent.created_at.desc())
+            .limit(30)
+        )
+    )
+    tools = []
+    if task.external_task_id:
+        try:
+            tools = await get_engine_client(settings).get_tools(task.external_task_id)
+        except AppError:
+            tools = []
+    context = redact_sensitive(
+        {
+            "task": TaskRead.model_validate(task).model_dump(mode="json"),
+            "plan": {
+                "name": plan.name if plan else task.name,
+                "targets": plan.targets if plan else [],
+                "test_type": plan.test_type if plan else None,
+            },
+            "xiaoyi": task.raw_external,
+            "events": [
+                {"type": item.event_type, "message": item.message, "data": item.data_json}
+                for item in reversed(events)
+            ],
+            "tools": [
+                {
+                    "name": item.get("toolName") or item.get("toolType"),
+                    "phase": item.get("phase"),
+                    "success": item.get("success"),
+                    "error": item.get("errorMessage"),
+                    "result": str(item.get("result") or "")[:1200],
+                }
+                for item in tools[-12:]
+                if isinstance(item, dict)
+            ],
+        }
+    )
+    answer = await run_task_expert_agent(settings, payload.content, context)
     item = QAMessage(
         org_id=user.org_id,
         task_id=task_id,
@@ -741,10 +790,20 @@ async def add_task_qa_message(task_id: uuid.UUID, payload: QAMessageCreate, user
     )
     session.add(item)
     await session.flush()
+    assistant = QAMessage(
+        org_id=user.org_id,
+        task_id=task_id,
+        user_id=user.id,
+        role="assistant",
+        content=answer,
+    )
+    session.add(assistant)
+    await session.flush()
     await add_audit(session, user, "task.qa_message.create", "task", task_id)
     await session.commit()
     await session.refresh(item)
-    return item
+    await session.refresh(assistant)
+    return TaskQAResponse(user_message=item, assistant_message=assistant)
 
 
 @app.post("/api/v1/tasks/{task_id}/stop", response_model=TaskRead)

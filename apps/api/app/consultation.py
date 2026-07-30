@@ -58,6 +58,10 @@ class AgentReply(BaseModel):
     ready_to_precheck: bool = False
 
 
+class TaskExpertReply(BaseModel):
+    assistant_message: str = Field(min_length=1, max_length=4000)
+
+
 class LocalTokenCounter:
     """Conservative, dependency-free counter for CAMEL context bookkeeping."""
 
@@ -136,3 +140,56 @@ async def run_requirement_agent(
     settings: Settings, messages: list[dict], state: dict
 ) -> AgentReply:
     return await asyncio.to_thread(_run_agent, settings, messages, state)
+
+
+TASK_EXPERT_PROMPT = """你是 AI 安服平台的只读任务解读智能体。只能依据平台提供的小易任务状态、事件和工具结果回答，不能声称已调用、修改或控制小易及其后端渗透智能体。不得扩大授权范围，不得复述令牌、Cookie、认证头或密钥。若证据不足，明确说明当前尚未收到相关回传。只输出 JSON：{"assistant_message":"中文回答"}。"""
+
+
+def _run_task_expert(settings: Settings, question: str, context: dict) -> str:
+    if settings.openai_api_key is None or not settings.openai_api_key.get_secret_value():
+        raise AppError(503, "AGENT_NOT_CONFIGURED", "任务解读智能体尚未配置")
+    try:
+        from camel.agents import ChatAgent
+        from camel.models import ModelFactory
+        from camel.types import ModelPlatformType
+    except ImportError as exc:
+        raise AppError(503, "AGENT_NOT_INSTALLED", "任务解读智能体依赖尚未安装") from exc
+    model = ModelFactory.create(
+        model_platform=ModelPlatformType.OPENAI_COMPATIBLE_MODEL,
+        model_type=settings.model_type,
+        url=settings.openai_api_base_url,
+        api_key=settings.openai_api_key.get_secret_value(),
+        token_counter=LocalTokenCounter(),
+        model_config_dict={
+            "max_tokens": 700,
+            "extra_body": {"thinking": {"type": "disabled"}},
+        },
+        timeout=settings.agent_timeout_seconds,
+        max_retries=0,
+    )
+    prompt = (
+        f"任务证据：{json.dumps(context, ensure_ascii=False, default=str)}\n"
+        f"用户问题：{question}"
+    )
+    response = ChatAgent(
+        system_message=TASK_EXPERT_PROMPT,
+        model=model,
+        step_timeout=settings.agent_timeout_seconds,
+    ).step(prompt)
+    message = getattr(response, "msg", None)
+    if message is None:
+        values = getattr(response, "msgs", [])
+        message = values[0] if values else None
+    content = getattr(message, "content", "").strip()
+    if content.startswith("```"):
+        content = "\n".join(content.splitlines()[1:-1]).strip()
+    try:
+        return TaskExpertReply.model_validate(json.loads(content)).assistant_message
+    except (json.JSONDecodeError, ValidationError) as exc:
+        raise AppError(502, "INVALID_AGENT_RESPONSE", "任务解读智能体返回格式无效") from exc
+
+
+async def run_task_expert_agent(
+    settings: Settings, question: str, context: dict
+) -> str:
+    return await asyncio.to_thread(_run_task_expert, settings, question, context)
