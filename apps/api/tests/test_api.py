@@ -691,7 +691,11 @@ async def test_task_list_contract_includes_plan_and_creator_summaries(
     assert item["created_by_name"] == "Test Admin"
 
 
-async def test_task_qa_messages_are_scoped_and_persisted(authenticated_client):
+async def test_task_qa_messages_are_scoped_and_persisted(authenticated_client, monkeypatch):
+    async def fake_task_expert(*_args, **_kwargs):
+        return "The task has not returned findings yet."
+
+    monkeypatch.setattr(main_module, "run_task_expert_agent", fake_task_expert)
     plan = await authenticated_client.post(
         "/api/v1/scan-plans",
         json={
@@ -715,12 +719,16 @@ async def test_task_qa_messages_are_scoped_and_persisted(authenticated_client):
         json={"content": "  What was discovered?  "},
     )
     assert created.status_code == 201
-    assert created.json()["role"] == "user"
-    assert created.json()["content"] == "What was discovered?"
+    assert created.json()["user_message"]["role"] == "user"
+    assert created.json()["user_message"]["content"] == "What was discovered?"
+    assert created.json()["assistant_message"]["role"] == "assistant"
 
     listed = await authenticated_client.get(f"/api/v1/tasks/{task_id}/qa/messages")
     assert listed.status_code == 200
-    assert [item["content"] for item in listed.json()["data"]] == ["What was discovered?"]
+    assert [item["content"] for item in listed.json()["data"]] == [
+        "What was discovered?",
+        "The task has not returned findings yet.",
+    ]
 
     invalid = await authenticated_client.post(
         f"/api/v1/tasks/{task_id}/qa/messages", json={"content": "   "}
