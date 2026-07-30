@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import expertAvatar from '../../../../素材/工作 (7) 3.png';
 import { useAuth } from '../auth/AuthContext';
+import { forgetPentestSession, readPentestSession } from '../pentestSessionRoute';
 
 const { Header, Sider, Content } = Layout;
 
@@ -38,14 +39,16 @@ function HeaderIcon({ name, label }: { name: string; label: string }) {
   );
 }
 
-const menuItems: MenuProps['items'] = [
+function menuItems(currentTaskRoute: string | null): MenuProps['items'] {
+  return [
   { key: '/overview', icon: <NavIcon name="overview" />, label: '总览' },
   {
     key: 'workbench',
     icon: <NavIcon name="workbench" />,
     label: '工作台',
     children: [
-      { key: '/pentest', label: '渗透测试' },
+      { key: '/pentest', label: '新建渗透测试' },
+      ...(currentTaskRoute ? [{ key: currentTaskRoute, label: '当前任务' }] : []),
       { key: 'incident', label: '应急响应', disabled: true },
       { key: 'audit', label: '代码审计', disabled: true },
       { key: 'analysis', label: '数据分析', disabled: true },
@@ -83,7 +86,8 @@ const menuItems: MenuProps['items'] = [
     ],
   },
   { key: '/settings', icon: <NavIcon name="settings" />, label: '平台设置' },
-];
+  ];
+}
 
 const pageTitles: Record<string, string> = {
   '/overview': '平台总览',
@@ -113,7 +117,13 @@ export function AppShell({ children }: AppShellProps) {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const currentSessionPath = location.pathname.startsWith('/pentest/session/')
+    ? location.pathname
+    : readPentestSession(user?.id ?? '');
   const basePath = location.pathname.startsWith('/pentest/session') ? '/pentest' : location.pathname;
+  const selectedPath = location.pathname.startsWith('/pentest/session')
+    ? location.pathname
+    : basePath;
   const title = pageTitles[basePath] ?? 'AI 安服平台';
   const openSection = basePath === '/pentest'
     ? 'workbench'
@@ -131,6 +141,7 @@ export function AppShell({ children }: AppShellProps) {
       setLogoutError(null);
       try {
         await logout();
+        forgetPentestSession(user?.id ?? '');
         navigate('/login', { replace: true });
       } catch (error) {
         setLogoutError(error instanceof Error ? error.message : '退出登录失败，请稍后重试');
@@ -150,9 +161,9 @@ export function AppShell({ children }: AppShellProps) {
         </div>
         <Menu
           mode="inline"
-          selectedKeys={[basePath]}
+          selectedKeys={[selectedPath]}
           defaultOpenKeys={openSection ? [openSection] : []}
-          items={menuItems}
+          items={menuItems(currentSessionPath)}
           onClick={({ key }) => key.startsWith('/') && navigate(key)}
         />
       </Sider>
