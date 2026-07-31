@@ -96,7 +96,8 @@ async def test_admin_creates_digital_human_and_it_can_use_ai_api(authenticated_c
         headers=headers,
     )
     assert plan.status_code == 200
-    assert plan.json()["data"]["status"] == "DRAFT"
+    assert isinstance(plan.json()["plan_id"], int)
+    assert plan.json()["plan"]["status"] == "pending"
 
 
 async def test_runtime_settings_hide_secrets_and_admin_cannot_lock_itself_out(authenticated_client):
