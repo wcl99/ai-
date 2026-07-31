@@ -79,7 +79,7 @@ from .schemas import (
     VulnerabilityRead,
     VulnerabilityUpdate,
 )
-from .services import add_audit, create_plan, create_task, get_plan, normalize_asset_list, plan_for_update_query, require_cdn_safe_assets, safe_report_path
+from .services import add_audit, asset_list_from_targets, create_plan, create_task, get_plan, normalize_asset_list, plan_for_update_query, require_cdn_safe_assets, safe_report_path
 from .result_ingest import (
     callback_payload_hash,
     existing_callback_resource,
@@ -621,6 +621,15 @@ async def confirm_plan(
         raise AppError(409, "PLAN_NOT_DRAFT", "只有草稿计划可以确认")
     if settings.cdninfo_enabled:
         require_cdn_safe_assets(plan.asset_list)
+    return await freeze_confirmed_plan(plan, user, session, settings)
+
+
+async def freeze_confirmed_plan(
+    plan: ScanPlan,
+    user: User,
+    session: AsyncSession,
+    settings: Settings,
+) -> ScanPlan:
     mapping = await session.scalar(
         select(XiaoyiPlanMapping).where(XiaoyiPlanMapping.plan_id == plan.id)
     )
@@ -1209,13 +1218,27 @@ async def ai_create_plan(payload: AiPlanCreate, user: User = Depends(digital_use
     if isinstance(payload.org_id, uuid.UUID) and payload.org_id != user.org_id:
         raise AppError(403, "FORBIDDEN", "Organization mismatch")
     targets = payload.targets or [item.strip() for item in re.split(r"[\r\n;,]+", payload.target or "") if item.strip()]
-    plan_payload = ScanPlanCreate(name=payload.plan_name or "AI penetration test", test_type=payload.test_type, targets=targets, templates=payload.templates, description=payload.description, time_limit=payload.time_limit, authorization_confirmed=True)
+    plan_payload = ScanPlanCreate(name=payload.plan_name or "AI penetration test", test_type=payload.test_type, targets=targets, templates=payload.templates, description=payload.description, time_limit=payload.time_limit, authorization_confirmed=False)
     plan = await create_plan(session, plan_payload, user)
     mapping = await session.scalar(
         select(XiaoyiPlanMapping).where(XiaoyiPlanMapping.plan_id == plan.id)
     )
     if mapping is None:
         raise AppError(500, "PLAN_MAPPING_MISSING", "测试计划映射创建失败")
+    settings = get_settings()
+    asset_list = asset_list_from_targets(plan.targets)
+    if settings.cdninfo_enabled:
+        checks = await assess_targets(
+            [cdn_assessment_target(item["host"]) for item in asset_list], settings
+        )
+        asset_list = [
+            {**item, **check, "host": item["host"], "hostType": item["hostType"]}
+            for item, check in zip(asset_list, checks, strict=True)
+        ]
+        require_cdn_safe_assets(asset_list)
+    plan.asset_list = asset_list
+    plan.snapshot = {**plan.snapshot, "asset_list": asset_list}
+    plan = await freeze_confirmed_plan(plan, user, session, settings)
     task_count = len(targets) * max(len(payload.templates), 1)
     return {
         "success": True,

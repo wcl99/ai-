@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy import select
 
+import app.main as main_module
 from app.config import get_settings
 from app.auth import password_hash
 from app.db import SessionLocal
@@ -335,6 +336,45 @@ async def test_document_start_plan_accepts_numeric_plan_id(authenticated_client)
     assert body["plan_id"] == created.json()["plan_id"]
     assert body["test_type"] == "discovery"
     assert body["target_count"] == 1
+
+
+async def test_document_plan_can_start_after_platform_cdn_preparation(
+    authenticated_client, monkeypatch
+):
+    target = "http://139.198.31.136:81"
+    checked_targets = []
+    settings = get_settings().model_copy(update={"cdninfo_enabled": True})
+
+    async def fake_assess_targets(targets, _settings):
+        checked_targets.extend(targets)
+        return [
+            {
+                "host": targets[0],
+                "hostType": "ip",
+                "cdn_status": "SAFE",
+                "cdn_provider": None,
+            }
+        ]
+
+    monkeypatch.setattr(main_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(main_module, "assess_targets", fake_assess_targets)
+    created = await authenticated_client.post(
+        "/api/ai/create-test-plan",
+        json={
+            "plan_name": "数字人 CDN 准备计划",
+            "org_id": 1,
+            "test_type": "standard",
+            "targets": [target],
+        },
+    )
+
+    started = await authenticated_client.post(
+        "/api/ai/start-test-plan",
+        json={"plan_id": created.json()["plan_id"], "org_id": 1},
+    )
+
+    assert checked_targets == ["139.198.31.136"]
+    assert started.status_code == 200, started.text
 
 
 async def test_xiaoyi_asset_callback_accepts_documented_ip_and_port(
