@@ -29,7 +29,7 @@ class ORMModel(BaseModel):
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=80)
     password: str = Field(min_length=8, max_length=256)
-    org_id: uuid.UUID | None = None
+    org_id: uuid.UUID | int | None = None
 
 
 class UserRead(ORMModel):
@@ -92,6 +92,9 @@ class LoginResponse(BaseModel):
     token_type: str = "Bearer"
     expires_in: int
     user: UserRead
+    org: dict
+    role: str
+    is_sys_admin: bool
 
 
 AssetType = Literal["domain", "ip", "http", "network_range", "ip_port"]
@@ -370,7 +373,7 @@ class AiLogRead(ORMModel):
 
 class AiPlanCreate(BaseModel):
     plan_name: str | None = Field(default=None, max_length=200)
-    org_id: uuid.UUID | None = None
+    org_id: uuid.UUID | int | None = None
     test_type: Literal["discovery", "standard"] = "discovery"
     targets: list[str] | None = Field(default=None, max_length=64)
     target: str | None = Field(default=None, max_length=8000)
@@ -382,21 +385,21 @@ class AiPlanCreate(BaseModel):
 
 
 class AiPlanStart(BaseModel):
-    plan_id: uuid.UUID
-    org_id: uuid.UUID | None = None
+    plan_id: uuid.UUID | int
+    org_id: uuid.UUID | int | None = None
     time_limit: int | None = Field(default=None, ge=1, le=1440)
     description: str | None = Field(default=None, max_length=4000)
 
 
 class AiAssetUpload(BaseModel):
-    plan_id: uuid.UUID | int
+    plan_id: uuid.UUID | int | None = None
     task_id: uuid.UUID | str | None = None
     org_id: uuid.UUID | int | None = None
     asset: dict
 
 
 class AiVulnerabilityUpload(BaseModel):
-    plan_id: uuid.UUID | int
+    plan_id: uuid.UUID | int | None = None
     task_id: uuid.UUID | str | None = None
     org_id: uuid.UUID | int | None = None
     asset_key: str | None = Field(default=None, max_length=512)
@@ -406,20 +409,21 @@ class AiVulnerabilityUpload(BaseModel):
 
 
 class AiReportUpload(BaseModel):
-    plan_id: uuid.UUID | int
+    plan_id: uuid.UUID | int | None = None
     task_id: uuid.UUID | str | None = None
     org_id: uuid.UUID | int | None = None
-    format: Literal["md", "html", "txt"] = "md"
+    format: str = Field(default="md", min_length=1, max_length=16, pattern=r"^[A-Za-z0-9]+$")
     report_level: str | None = Field(default=None, max_length=32)
-    filename: str | None = Field(default=None, max_length=255)
+    filename: str | None = Field(default=None, max_length=2000)
     external_url: HttpUrl | None = None
     content: str | None = Field(default=None, max_length=5_000_000)
 
 
 class AiLogUpload(BaseModel):
-    plan_id: uuid.UUID | int
+    plan_id: uuid.UUID | int | None = None
     task_id: uuid.UUID | str | None = None
     org_id: uuid.UUID | int | None = None
+    user_id: uuid.UUID | int | None = None
     timestamp: datetime | None = None
     level: Literal["debug", "info", "warning", "error"] = "info"
     type: str = Field(default="external", max_length=64)

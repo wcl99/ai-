@@ -42,6 +42,26 @@ async def test_readiness_checks_the_database(client):
     assert response.json() == {"status": "ready"}
 
 
+async def test_digital_human_login_accepts_numeric_org_and_returns_document_fields(
+    client,
+):
+    response = await client.post(
+        "/api/auth/login",
+        json={
+            "username": "admin",
+            "password": "correct-horse-battery-staple",
+            "org_id": 1,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["user"]["username"] == "admin"
+    assert body["org"] == {"id": 1, "name": "Test Organization"}
+    assert body["role"] == "admin"
+    assert body["is_sys_admin"] is True
+
+
 async def test_readiness_reports_database_failure_without_details(client, monkeypatch):
     class BrokenSession:
         async def __aenter__(self):

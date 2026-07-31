@@ -90,6 +90,16 @@ def test_xiaoyi_mapping_migration_invalidates_stale_ready_snapshots(
                 "PRAGMA table_info(ai_callback_receipts)"
             ).fetchall()
         }
+        asset_unique_indexes = [
+            {
+                row[2]
+                for row in connection.execute(
+                    f"PRAGMA index_info('{index[1]}')"
+                ).fetchall()
+            }
+            for index in connection.execute("PRAGMA index_list('assets')").fetchall()
+            if index[2]
+        ]
     stored_snapshot = json.loads(stored_snapshot)
     assert status == "DRAFT"
     assert stored_snapshot["authorization_confirmed"] is False
@@ -105,4 +115,5 @@ def test_xiaoyi_mapping_migration_invalidates_stale_ready_snapshots(
         "resource_id",
         "created_at",
     }
+    assert {"org_id", "plan_id", "asset_key"} in asset_unique_indexes
     get_settings.cache_clear()

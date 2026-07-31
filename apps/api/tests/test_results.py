@@ -62,10 +62,10 @@ async def test_xiaoyi_result_ids_map_to_platform_plan_and_task(authenticated_cli
     )
 
     assert uploaded.status_code == 200
-    assert uploaded.json()["data"]["plan_id"] == mapping.id
-    assert uploaded.json()["data"]["org_id"]
+    assert uploaded.json()["plan_id"] == mapping.id
+    assert uploaded.json()["org_id"]
     vulnerability = await authenticated_client.get(
-        f"/api/v1/vulnerabilities/{uploaded.json()['data']['vulnerability_id']}"
+        f"/api/v1/vulnerabilities/{uploaded.json()['vulnerability_id']}"
     )
     assert vulnerability.json()["plan_id"] == plan_id
     assert vulnerability.json()["task_id"] == task_id
@@ -93,9 +93,7 @@ async def test_duplicate_xiaoyi_callback_returns_the_original_result(
     )
 
     assert first.status_code == second.status_code == 200
-    assert first.json()["data"]["vulnerability_id"] == second.json()["data"][
-        "vulnerability_id"
-    ]
+    assert first.json()["vulnerability_id"] == second.json()["vulnerability_id"]
     listed = await authenticated_client.get(
         f"/api/v1/vulnerabilities?task_id={task_id}"
     )
@@ -114,6 +112,229 @@ async def xiaoyi_result_identity(plan_id: str, task_id: str) -> tuple[int, str]:
         task.external_task_id = external_task_id
         await session.commit()
         return mapping.id, external_task_id
+
+
+async def documented_task_identity(
+    client,
+    *,
+    request_id: str,
+) -> tuple[int, str, str]:
+    plan_id, task_id = await create_task(
+        client, "Digital human document contract", request_id
+    )
+    external_plan_id, _ = await xiaoyi_result_identity(plan_id, task_id)
+    return external_plan_id, plan_id, task_id
+
+
+async def test_document_callback_plan_id_finds_current_task(authenticated_client):
+    external_plan_id, _, task_id = await documented_task_identity(
+        authenticated_client,
+        request_id="document-plan-only",
+    )
+
+    response = await authenticated_client.post(
+        "/api/ai/upload-log",
+        json={
+            "plan_id": external_plan_id,
+            "action": "document_complete",
+            "content": "文档格式回传",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["plan_id"] == external_plan_id
+    events = await authenticated_client.get(f"/api/v1/tasks/{task_id}/events")
+    assert any(
+        item["message"] == "文档格式回传" for item in events.json()["data"]
+    )
+
+
+async def test_document_callback_without_plan_uses_only_active_task(
+    authenticated_client,
+):
+    _, task_id = await create_task(
+        authenticated_client,
+        "Only active callback task",
+        "document-only-active",
+    )
+
+    response = await authenticated_client.post(
+        "/api/ai/upload-log",
+        json={
+            "action": "document_complete",
+            "content": "唯一运行任务回传",
+        },
+    )
+
+    assert response.status_code == 200
+    events = await authenticated_client.get(f"/api/v1/tasks/{task_id}/events")
+    assert response.json()["plan_id"] is None
+    assert any(
+        item["message"] == "唯一运行任务回传" for item in events.json()["data"]
+    )
+
+
+async def test_document_callback_without_plan_rejects_ambiguous_tasks(
+    authenticated_client,
+):
+    await create_task(
+        authenticated_client,
+        "First active callback task",
+        "document-first-active",
+    )
+    await create_task(
+        authenticated_client,
+        "Second active callback task",
+        "document-second-active",
+    )
+
+    response = await authenticated_client.post(
+        "/api/ai/upload-log",
+        json={"content": "无法确定任务"},
+    )
+
+    assert response.status_code == 409
+    assert "无法确定" in response.json()["error"]
+
+
+async def test_document_ai_validation_error_uses_error_field(authenticated_client):
+    response = await authenticated_client.post("/api/ai/upload-log", json={})
+
+    assert response.status_code == 422
+    assert response.json()["success"] is False
+    assert isinstance(response.json()["error"], str)
+
+
+async def test_document_vulnerability_defaults_and_aliases(authenticated_client):
+    external_plan_id, _, task_id = await documented_task_identity(
+        authenticated_client,
+        request_id="document-vulnerability",
+    )
+
+    response = await authenticated_client.post(
+        "/api/ai/upload-vulnerability",
+        json={
+            "plan_id": external_plan_id,
+            "data": {
+                "ip": "192.0.2.5",
+                "port": 443,
+                "name": "Alias finding",
+                "level": "high",
+                "target_url": "https://example.test/login",
+                "verb": "POST",
+                "attack_payload": "payload",
+                "request_raw": "request",
+                "response_raw": "response",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["plan_id"] == external_plan_id
+    listed = await authenticated_client.get(
+        f"/api/v1/vulnerabilities?task_id={task_id}"
+    )
+    item = listed.json()["data"]["items"][0]
+    detail = await authenticated_client.get(
+        f"/api/v1/vulnerabilities/{item['id']}"
+    )
+    assert item["asset_key"] == "192.0.2.5:443"
+    assert item["severity"] == "high"
+    assert detail.json()["data_json"]["http_url"] == "https://example.test/login"
+    assert detail.json()["data_json"]["http_method"] == "POST"
+    assert detail.json()["data_json"]["payload"] == "payload"
+    assert detail.json()["data_json"]["http_request"] == "request"
+    assert detail.json()["data_json"]["http_response"] == "response"
+
+
+async def test_document_report_returns_top_level_report_path(authenticated_client):
+    external_plan_id, _, task_id = await documented_task_identity(
+        authenticated_client,
+        request_id="document-report-path",
+    )
+    report_url = "https://bucket.example.test/reports/final-report.docx"
+
+    response = await authenticated_client.post(
+        "/api/ai/upload-report",
+        json={
+            "plan_id": external_plan_id,
+            "format": "docx",
+            "filename": report_url,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["report_path"] == report_url
+    assert response.json()["plan_id"] == external_plan_id
+    reports = await authenticated_client.get(f"/api/v1/reports?task_id={task_id}")
+    assert reports.json()["data"]["total"] == 1
+
+
+async def test_document_log_accepts_numeric_user_id(authenticated_client):
+    external_plan_id, _, _ = await documented_task_identity(
+        authenticated_client,
+        request_id="document-log-user",
+    )
+
+    response = await authenticated_client.post(
+        "/api/ai/upload-log",
+        json={
+            "plan_id": external_plan_id,
+            "user_id": 5,
+            "content": "数字人日志",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "日志已接收"
+    assert response.json()["plan_id"] == external_plan_id
+
+
+async def test_document_create_plan_returns_numeric_contract(authenticated_client):
+    response = await authenticated_client.post(
+        "/api/ai/create-test-plan",
+        json={
+            "plan_name": "数字人计划",
+            "org_id": 1,
+            "test_type": "standard",
+            "targets": ["https://example.test"],
+            "templates": ["web-basic", "cms-check"],
+            "time_limit": 60,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert isinstance(body["plan_id"], int)
+    assert body["plan"]["id"] == body["plan_id"]
+    assert body["plan"]["status"] == "pending"
+    assert body["task_count"] == 2
+    assert body["org_id"] == 1
+    assert body["time_limit"] == 60
+
+
+async def test_document_start_plan_accepts_numeric_plan_id(authenticated_client):
+    created = await authenticated_client.post(
+        "/api/ai/create-test-plan",
+        json={
+            "plan_name": "待启动数字人计划",
+            "org_id": 1,
+            "test_type": "discovery",
+            "targets": ["https://example.test"],
+        },
+    )
+
+    response = await authenticated_client.post(
+        "/api/ai/start-test-plan",
+        json={"plan_id": created.json()["plan_id"], "org_id": 1, "time_limit": 60},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["message"] == "测试已启动"
+    assert body["plan_id"] == created.json()["plan_id"]
+    assert body["test_type"] == "discovery"
+    assert body["target_count"] == 1
 
 
 async def test_xiaoyi_asset_callback_accepts_documented_ip_and_port(
@@ -141,10 +362,34 @@ async def test_xiaoyi_asset_callback_accepts_documented_ip_and_port(
     )
 
     assert response.status_code == 200
-    assert response.json()["data"]["plan_id"] == external_plan_id
-    assert response.json()["data"]["org_id"]
+    assert response.json()["plan_id"] == external_plan_id
+    assert response.json()["org_id"]
     assets = await authenticated_client.get("/api/v1/assets")
     assert assets.json()["data"]["items"][0]["asset_key"] == "192.0.2.10:443"
+
+
+async def test_document_asset_is_scoped_per_plan(authenticated_client):
+    first_plan, _, _ = await documented_task_identity(
+        authenticated_client,
+        request_id="document-asset-first-plan",
+    )
+    second_plan, _, _ = await documented_task_identity(
+        authenticated_client,
+        request_id="document-asset-second-plan",
+    )
+    asset = {"ip": "192.0.2.20", "port": 443, "service": "https"}
+
+    first = await authenticated_client.post(
+        "/api/ai/upload-asset",
+        json={"plan_id": first_plan, "asset": asset},
+    )
+    second = await authenticated_client.post(
+        "/api/ai/upload-asset",
+        json={"plan_id": second_plan, "asset": asset},
+    )
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["asset_id"] != second.json()["asset_id"]
 
 
 async def test_xiaoyi_report_callback_maps_external_task_and_is_idempotent(
@@ -167,9 +412,9 @@ async def test_xiaoyi_report_callback_maps_external_task_and_is_idempotent(
     second = await authenticated_client.post("/api/ai/upload-report", json=payload)
 
     assert first.status_code == second.status_code == 200
-    assert first.json()["data"]["plan_id"] == external_plan_id
-    assert first.json()["data"]["org_id"]
-    assert first.json()["data"]["report_id"] == second.json()["data"]["report_id"]
+    assert first.json()["plan_id"] == external_plan_id
+    assert first.json()["org_id"]
+    assert first.json()["report_id"] == second.json()["report_id"]
     reports = await authenticated_client.get(f"/api/v1/reports?task_id={task_id}")
     assert reports.json()["data"]["total"] == 1
 
@@ -196,7 +441,7 @@ async def test_report_callback_accepts_documented_url_in_filename(
 
     assert uploaded.status_code == 200
     report = await authenticated_client.get(
-        f"/api/v1/reports/{uploaded.json()['data']['report_id']}"
+        f"/api/v1/reports/{uploaded.json()['report_id']}"
     )
     assert report.json()["external_url"] == report_url
     assert report.json()["filename"] == "final-report.docx"
@@ -223,7 +468,7 @@ async def test_xiaoyi_callback_rejects_mismatched_platform_org(
     )
 
     assert response.status_code == 403
-    assert response.json()["code"] == "FORBIDDEN"
+    assert "Organization mismatch" in response.json()["error"]
 
 
 async def test_xiaoyi_log_callback_maps_external_task_and_is_idempotent(
@@ -249,9 +494,9 @@ async def test_xiaoyi_log_callback_maps_external_task_and_is_idempotent(
     second = await authenticated_client.post("/api/ai/upload-log", json=payload)
 
     assert first.status_code == second.status_code == 200
-    assert first.json()["data"]["plan_id"] == external_plan_id
-    assert first.json()["data"]["org_id"]
-    assert first.json()["data"]["log_id"] == second.json()["data"]["log_id"]
+    assert first.json()["plan_id"] == external_plan_id
+    assert first.json()["org_id"]
+    assert first.json()["log_id"] == second.json()["log_id"]
     logs = await authenticated_client.get(f"/api/v1/ai-logs?plan_id={plan_id}")
     assert logs.json()["data"]["total"] == 1
 
@@ -310,7 +555,7 @@ async def test_digital_results_must_match_task_plan(authenticated_client):
         },
     )
     assert mismatch.status_code == 422
-    assert mismatch.json()["code"] == "TASK_PLAN_MISMATCH"
+    assert "specified plan" in mismatch.json()["error"]
 
     uploaded = await authenticated_client.post(
         "/api/ai/upload-vulnerability",
@@ -322,7 +567,7 @@ async def test_digital_results_must_match_task_plan(authenticated_client):
         },
     )
     vulnerability = await authenticated_client.get(
-        f"/api/v1/vulnerabilities/{uploaded.json()['data']['vulnerability_id']}"
+        f"/api/v1/vulnerabilities/{uploaded.json()['vulnerability_id']}"
     )
     assert vulnerability.json()["task_id"] == first_task
 
@@ -417,7 +662,7 @@ async def test_vulnerability_upload_redacts_nested_credentials(authenticated_cli
     )
 
     response = await authenticated_client.get(
-        f"/api/v1/vulnerabilities/{uploaded.json()['data']['vulnerability_id']}"
+        f"/api/v1/vulnerabilities/{uploaded.json()['vulnerability_id']}"
     )
 
     assert response.json()["data_json"]["password"] == "***"
@@ -439,7 +684,7 @@ async def test_report_upload_rejects_credentialed_external_url(authenticated_cli
     )
 
     assert response.status_code == 422
-    assert response.json()["code"] == "INVALID_REPORT_URL"
+    assert "credentials" in response.json()["error"]
 
 
 async def test_report_list_hides_credentialed_historical_url(authenticated_client):
@@ -582,7 +827,7 @@ async def test_uploaded_report_is_task_scoped_downloadable_and_audited(
                 "content": "# Validation report",
             },
         )
-        report_id = uploaded.json()["data"]["report_id"]
+        report_id = uploaded.json()["report_id"]
         report = await authenticated_client.get(f"/api/v1/reports/{report_id}")
         assert report.json()["task_id"] == task_id
 

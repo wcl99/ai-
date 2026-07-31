@@ -41,7 +41,14 @@ class User(Base, TimestampMixin):
 
 class Asset(Base, TimestampMixin):
     __tablename__ = "assets"
-    __table_args__ = (UniqueConstraint("org_id", "asset_key"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "org_id",
+            "plan_id",
+            "asset_key",
+            name="uq_assets_org_plan_asset_key",
+        ),
+    )
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
     plan_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("scan_plans.id"), index=True)
