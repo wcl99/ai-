@@ -19,6 +19,12 @@ from .engine import (
 )
 from .errors import AppError
 from .models import Report, ScanPlan, Task, TaskEvent
+from .result_aggregation import (
+    ensure_local_report,
+    has_execution_evidence,
+    persist_vulnerabilities,
+    summarize_tools,
+)
 
 logger = logging.getLogger(__name__)
 RETRYABLE_ENGINE_CODES = {"ENGINE_UNAVAILABLE"}
@@ -93,12 +99,14 @@ async def sync_report(session, task: Task, raw: dict) -> None:
     )
 
 
-async def sync_children(session, client, parent: Task) -> None:
+async def sync_children(session, client, parent: Task) -> tuple[list[dict], list[str]]:
+    all_tools: list[dict] = []
+    child_errors: list[str] = []
     try:
         results = await client.get_children(parent.external_task_id)
     except AppError as exc:
         logger.warning("child task sync skipped", extra={"task_id": str(parent.id), "code": exc.code})
-        return
+        return all_tools, child_errors
     existing = {
         item.external_task_id: item
         for item in await session.scalars(select(Task).where(Task.parent_id == parent.id))
@@ -126,14 +134,23 @@ async def sync_children(session, client, parent: Task) -> None:
         apply_engine_state(child, result)
         child.raw_external = redact_sensitive(result.raw)
         error_message = result.error_message
+        tools: list[dict] = []
         get_tools = getattr(client, "get_tools", None)
-        if result.status == "FAILED" and not error_message and callable(get_tools):
+        if result.status in TERMINAL_STATUSES and callable(get_tools):
             try:
-                error_message = summarize_tool_failures(await get_tools(result.external_task_id))
+                tools = await get_tools(result.external_task_id)
             except AppError:
                 pass
+        if tools:
+            all_tools.extend(tools)
+            child.raw_external["platform_tool_summary"] = summarize_tools(tools)
+            await persist_vulnerabilities(session, parent, tools)
+        if result.status == "FAILED" and not error_message and tools:
+            error_message = summarize_tool_failures(tools)
         child.error_message = error_message
         child.error_code = "XIAOYI_TASK_FAILED" if error_message else None
+        if error_message:
+            child_errors.append(error_message)
         await sync_report(session, child, result.raw)
         if created or previous != (child.status, child.phase, child.progress):
             session.add(
@@ -148,6 +165,7 @@ async def sync_children(session, client, parent: Task) -> None:
                     },
                 )
             )
+    return all_tools, list(dict.fromkeys(child_errors))
 
 
 async def sync_once(settings: Settings) -> None:
@@ -180,16 +198,37 @@ async def sync_once(settings: Settings) -> None:
                         apply_engine_state(task, result)
                         task.raw_external = redact_sensitive(result.raw)
                         task.sync_failures = 0
-                        task.error_code = task.error_message = None
+                        task.error_message = result.error_message
+                        task.error_code = (
+                            "XIAOYI_TASK_FAILED" if result.error_message else None
+                        )
                         await sync_report(session, task, result.raw)
                 else:
                     result = await client.get_task(task.external_task_id, task.progress)
                     apply_engine_state(task, result)
                     task.raw_external = redact_sensitive(result.raw)
                     task.sync_failures = 0
-                    task.error_code = task.error_message = None
+                    task.error_message = result.error_message
+                    task.error_code = (
+                        "XIAOYI_TASK_FAILED" if result.error_message else None
+                    )
                     await sync_report(session, task, result.raw)
-                    await sync_children(session, client, task)
+                    tools, child_errors = await sync_children(session, client, task)
+                    if not task.error_message and child_errors:
+                        task.error_message = "；".join(child_errors)[:2000]
+                        task.error_code = "XIAOYI_TASK_FAILED"
+                    if task.status == "FAILED" and has_execution_evidence(tools):
+                        task.status = "PARTIAL_SUCCEEDED"
+                        task.error_code = "XIAOYI_PARTIAL_RESULT"
+                    if task.status in TERMINAL_STATUSES and not engine_report_url(result.raw):
+                        children = list(
+                            await session.scalars(
+                                select(Task).where(Task.parent_id == task.id)
+                            )
+                        )
+                        await ensure_local_report(
+                            session, settings, task, children, tools
+                        )
                 current = (task.status, task.phase, task.progress)
                 if current != previous:
                     session.add(

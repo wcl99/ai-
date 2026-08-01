@@ -288,6 +288,63 @@ def parse_engine_task(
     )
 
 
+def decode_tool_payload(value):
+    """Decode Xiaoyi's JSON-in-text tool envelopes without assuming one fixed shape."""
+    payload = value
+    for _ in range(5):
+        if isinstance(payload, str):
+            stripped = payload.strip()
+            if not stripped:
+                return None
+            try:
+                payload = json.loads(stripped)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                return stripped
+            continue
+        if isinstance(payload, list) and payload and isinstance(payload[0], dict):
+            text = payload[0].get("text")
+            if isinstance(text, str):
+                payload = text
+                continue
+        break
+    return payload
+
+
+def tool_error_messages(payload, fallback_name: str) -> list[tuple[str, str]]:
+    """Collect bounded human-readable errors from a decoded tool payload."""
+    messages: list[tuple[str, str]] = []
+
+    def walk(value, depth: int = 0) -> None:
+        if depth > 6 or len(messages) >= 3:
+            return
+        if isinstance(value, dict):
+            name = str(value.get("tool") or value.get("name") or fallback_name)
+            for key in ("error", "errorMessage", "error_message"):
+                message = value.get(key)
+                if isinstance(message, str) and message.strip():
+                    decoded = decode_tool_payload(message)
+                    if decoded != message:
+                        walk(decoded, depth + 1)
+                    else:
+                        messages.append((name, message.strip()))
+            if str(value.get("status", "")).lower() in {"failed", "error"}:
+                message = value.get("message")
+                if isinstance(message, str) and message.strip():
+                    messages.append((name, message.strip()))
+            for child in value.values():
+                if isinstance(child, (dict, list)):
+                    walk(child, depth + 1)
+        elif isinstance(value, list):
+            for child in value[:20]:
+                walk(child, depth + 1)
+
+    if isinstance(payload, str) and payload.strip():
+        messages.append((fallback_name, payload.strip()))
+    else:
+        walk(payload)
+    return list(dict.fromkeys(messages))
+
+
 def summarize_tool_failures(tools: list[dict]) -> str | None:
     """Turn Xiaoyi's nested tool output into a short operator-facing failure reason."""
     failed = [item for item in tools if item.get("success") is False]
@@ -295,6 +352,15 @@ def summarize_tool_failures(tools: list[dict]) -> str | None:
         return None
     details: list[str] = []
     for item in failed:
+        top_level_messages = tool_error_messages(
+            decode_tool_payload(item.get("errorMessage")),
+            str(item.get("toolName") or item.get("toolType") or "tool"),
+        )
+        if top_level_messages:
+            for name, message in top_level_messages:
+                compact = " ".join(message.split())[:180]
+                details.append(f"{name}: {compact}")
+            continue
         raw_result = item.get("result")
         try:
             payload = json.loads(raw_result) if isinstance(raw_result, str) else raw_result

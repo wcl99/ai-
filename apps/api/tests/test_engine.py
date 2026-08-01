@@ -50,6 +50,35 @@ def test_tool_failure_summary_extracts_missing_browser_runtime():
     )
 
 
+def test_tool_failure_summary_reads_top_level_error_message():
+    nested = json.dumps(
+        [
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {
+                        "status": "failed",
+                        "message": "ZIP entry size is too large or invalid",
+                    }
+                ),
+            }
+        ]
+    )
+
+    summary = summarize_tool_failures(
+        [
+            {
+                "toolName": "report_generator",
+                "success": False,
+                "errorMessage": nested,
+                "result": None,
+            }
+        ]
+    )
+
+    assert "ZIP entry size is too large or invalid" in summary
+
+
 def test_maps_external_task_state():
     assert map_status("in_progress") == "RUNNING"
     assert map_status("completed") == "SUCCEEDED"

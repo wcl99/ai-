@@ -1,5 +1,7 @@
 import asyncio
+import json
 import uuid
+from pathlib import Path
 
 from sqlalchemy import select
 
@@ -9,7 +11,7 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.engine import EngineTask
 from app.errors import AppError
-from app.models import Report, Task
+from app.models import Report, Task, Vulnerability
 
 
 class ChildEngine:
@@ -91,6 +93,109 @@ async def test_sync_persists_child_tasks_and_redacts_engine_payload(authenticate
         f"/api/v1/reports/{listed.json()['data']['items'][0]['id']}/download"
     )
     assert unavailable.status_code == 404
+
+
+async def test_terminal_tool_evidence_creates_partial_result_and_local_report(
+    authenticated_client, monkeypatch, tmp_path
+):
+    class EvidenceEngine:
+        async def create_task(self, payload: dict, request_id: str) -> EngineTask:
+            return EngineTask("evidence-parent", "RUNNING", "SCANNING", 50, {})
+
+        async def get_task(
+            self, external_task_id: str, current_progress: float = 0
+        ) -> EngineTask:
+            return EngineTask(external_task_id, "FAILED", "FINISHED", 100, {})
+
+        async def get_children(self, external_task_id: str) -> list[EngineTask]:
+            return [
+                EngineTask(
+                    "evidence-child",
+                    "FAILED",
+                    "FINISHED",
+                    100,
+                    {},
+                    "example.test",
+                )
+            ]
+
+        async def get_tools(self, external_task_id: str) -> list[dict]:
+            vulnerability = {
+                "status": "success",
+                "detail": {
+                    "status": "valid",
+                    "vuln_info": {
+                        "vuln_name": "Source Map exposure",
+                        "vuln_description": "Production source map is publicly readable.",
+                        "vuln_level": "低危",
+                        "vuln_suggestions": "Disable production source maps.",
+                        "http_url": "https://example.test/app.js.map",
+                    },
+                },
+            }
+            return [
+                {
+                    "toolName": "scan_smart_retest_result_detail",
+                    "phase": "EXPLOIT_COMPLETED",
+                    "success": True,
+                    "result": json.dumps(
+                        [{"type": "text", "text": json.dumps(vulnerability)}]
+                    ),
+                },
+                {
+                    "toolName": "report_generator",
+                    "phase": "REPORT_GENERATING",
+                    "success": False,
+                    "errorMessage": json.dumps(
+                        [
+                            {
+                                "type": "text",
+                                "text": json.dumps(
+                                    {
+                                        "status": "failed",
+                                        "message": "ZIP entry size is too large or invalid",
+                                    }
+                                ),
+                            }
+                        ]
+                    ),
+                },
+            ]
+
+        async def stop_task(self, external_task_id: str) -> None:
+            return None
+
+    task_id = await create_queued_task(
+        authenticated_client, "Evidence aggregation", "evidence-aggregation"
+    )
+    monkeypatch.setattr(sync, "get_engine_client", lambda settings: EvidenceEngine())
+    settings = get_settings().model_copy(update={"report_dir": tmp_path})
+
+    await sync.sync_once(settings)
+    await sync.sync_once(settings)
+
+    task = await authenticated_client.get(f"/api/v1/tasks/{task_id}")
+    assert task.json()["status"] == "PARTIAL_SUCCEEDED"
+    assert "ZIP entry size is too large or invalid" in task.json()["error_message"]
+    async with SessionLocal() as session:
+        vulnerability = await session.scalar(
+            select(Vulnerability).where(Vulnerability.task_id == uuid.UUID(task_id))
+        )
+        report = await session.scalar(
+            select(Report).where(Report.task_id == uuid.UUID(task_id))
+        )
+    assert vulnerability.title == "Source Map exposure"
+    assert vulnerability.severity == "low"
+    assert report.local_path is not None
+    report_id = str(report.id)
+    content = Path(report.local_path).read_text(encoding="utf-8")
+    assert "Source Map exposure" in content
+    assert "ZIP entry size is too large or invalid" in content
+    preview = await authenticated_client.get(
+        f"/api/v1/reports/{report_id}/content"
+    )
+    assert preview.status_code == 200
+    assert "Source Map exposure" in preview.text
 
 
 async def test_task_tools_are_normalized(authenticated_client, monkeypatch):
