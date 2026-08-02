@@ -95,6 +95,91 @@ async def test_sync_persists_child_tasks_and_redacts_engine_payload(authenticate
     assert unavailable.status_code == 404
 
 
+async def test_active_child_tools_persist_findings_without_duplicates(
+    authenticated_client, monkeypatch
+):
+    class ActiveFindingEngine:
+        async def create_task(self, payload: dict, request_id: str) -> EngineTask:
+            return EngineTask("active-parent", "RUNNING", "SCANNING", 25, {})
+
+        async def get_task(
+            self, external_task_id: str, current_progress: float = 0
+        ) -> EngineTask:
+            return EngineTask(external_task_id, "RUNNING", "SCANNING", 50, {})
+
+        async def get_children(self, external_task_id: str) -> list[EngineTask]:
+            if external_task_id != "active-parent":
+                return []
+            return [
+                EngineTask(
+                    "active-child",
+                    "RUNNING",
+                    "SCANNING",
+                    40,
+                    {},
+                    "example.test",
+                )
+            ]
+
+        async def get_tools(self, external_task_id: str) -> list[dict]:
+            assert external_task_id == "active-child"
+            return [
+                {
+                    "toolName": "live-validator",
+                    "phase": "SCANNING",
+                    "success": True,
+                    "result": json.dumps(
+                        [
+                            {
+                                "type": "text",
+                                "text": json.dumps(
+                                    {
+                                        "vuln_info": {
+                                            "vuln_name": "Live confirmed finding",
+                                            "vuln_level": "high",
+                                            "http_url": "https://example.test/live",
+                                        }
+                                    }
+                                ),
+                            }
+                        ]
+                    ),
+                }
+            ]
+
+        async def stop_task(self, external_task_id: str) -> None:
+            return None
+
+    task_id = await create_queued_task(
+        authenticated_client, "Live findings", "live-findings-request"
+    )
+    monkeypatch.setattr(sync, "get_engine_client", lambda settings: ActiveFindingEngine())
+
+    await sync.sync_once(get_settings())
+    await sync.sync_once(get_settings())
+
+    async with SessionLocal() as session:
+        findings = list(
+            await session.scalars(
+                select(Vulnerability).where(
+                    Vulnerability.task_id == uuid.UUID(task_id)
+                )
+            )
+        )
+    assert [finding.title for finding in findings] == ["Live confirmed finding"]
+
+    await sync.sync_once(get_settings())
+    async with SessionLocal() as session:
+        findings = list(
+            await session.scalars(
+                select(Vulnerability).where(
+                    Vulnerability.task_id == uuid.UUID(task_id)
+                )
+            )
+        )
+    assert len(findings) == 1
+
+
 async def test_terminal_tool_evidence_creates_partial_result_and_local_report(
     authenticated_client, monkeypatch, tmp_path
 ):

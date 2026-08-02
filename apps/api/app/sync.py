@@ -136,7 +136,7 @@ async def sync_children(session, client, parent: Task) -> tuple[list[dict], list
         error_message = result.error_message
         tools: list[dict] = []
         get_tools = getattr(client, "get_tools", None)
-        if result.status in TERMINAL_STATUSES and callable(get_tools):
+        if callable(get_tools):
             try:
                 tools = await get_tools(result.external_task_id)
             except AppError:
