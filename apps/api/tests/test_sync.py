@@ -3,6 +3,7 @@ import json
 import uuid
 from pathlib import Path
 
+import pytest
 from sqlalchemy import select
 
 import app.main as main_module
@@ -180,8 +181,15 @@ async def test_active_child_tools_persist_findings_without_duplicates(
     assert len(findings) == 1
 
 
-async def test_terminal_tool_evidence_creates_partial_result_and_local_report(
-    authenticated_client, monkeypatch, tmp_path
+@pytest.mark.parametrize(
+    ("tool_error", "expected_status"),
+    [
+        ("ZIP entry size is too large or invalid", "SUCCEEDED"),
+        ("Target refused connection during validation", "PARTIAL_SUCCEEDED"),
+    ],
+)
+async def test_terminal_tool_evidence_creates_local_report_without_hiding_failures(
+    authenticated_client, monkeypatch, tmp_path, tool_error, expected_status
 ):
     class EvidenceEngine:
         async def create_task(self, payload: dict, request_id: str) -> EngineTask:
@@ -238,7 +246,7 @@ async def test_terminal_tool_evidence_creates_partial_result_and_local_report(
                                 "text": json.dumps(
                                     {
                                         "status": "failed",
-                                        "message": "ZIP entry size is too large or invalid",
+                                        "message": tool_error,
                                     }
                                 ),
                             }
@@ -260,8 +268,12 @@ async def test_terminal_tool_evidence_creates_partial_result_and_local_report(
     await sync.sync_once(settings)
 
     task = await authenticated_client.get(f"/api/v1/tasks/{task_id}")
-    assert task.json()["status"] == "PARTIAL_SUCCEEDED"
-    assert "ZIP entry size is too large or invalid" in task.json()["error_message"]
+    assert task.json()["status"] == expected_status
+    if expected_status == "SUCCEEDED":
+        assert task.json()["error_code"] is None
+        assert task.json()["error_message"] is None
+    else:
+        assert tool_error in task.json()["error_message"]
     async with SessionLocal() as session:
         vulnerability = await session.scalar(
             select(Vulnerability).where(Vulnerability.task_id == uuid.UUID(task_id))
@@ -275,12 +287,19 @@ async def test_terminal_tool_evidence_creates_partial_result_and_local_report(
     report_id = str(report.id)
     content = Path(report.local_path).read_text(encoding="utf-8")
     assert "Source Map exposure" in content
-    assert "ZIP entry size is too large or invalid" in content
+    assert tool_error in content
     preview = await authenticated_client.get(
         f"/api/v1/reports/{report_id}/content"
     )
     assert preview.status_code == 200
     assert "Source Map exposure" in preview.text
+    events = await authenticated_client.get(f"/api/v1/tasks/{task_id}/events")
+    fallback_events = [
+        event
+        for event in events.json()["data"]
+        if event["event_type"] == "report_fallback_used"
+    ]
+    assert len(fallback_events) == (1 if expected_status == "SUCCEEDED" else 0)
 
 
 async def test_task_tools_are_normalized(authenticated_client, monkeypatch):

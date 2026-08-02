@@ -67,6 +67,13 @@ def engine_report_url(raw: dict) -> str | None:
     return None
 
 
+def is_report_packaging_error(message: str | None) -> bool:
+    """Recognize the one Xiaoyi report failure the platform can safely recover."""
+    if not message:
+        return False
+    return "zip entry size is too large or invalid" in message.casefold()
+
+
 async def sync_report(session, task: Task, raw: dict) -> None:
     url = engine_report_url(raw)
     if not url:
@@ -220,14 +227,44 @@ async def sync_once(settings: Settings) -> None:
                     if task.status == "FAILED" and has_execution_evidence(tools):
                         task.status = "PARTIAL_SUCCEEDED"
                         task.error_code = "XIAOYI_PARTIAL_RESULT"
+                    local_report = None
                     if task.status in TERMINAL_STATUSES and not engine_report_url(result.raw):
                         children = list(
                             await session.scalars(
                                 select(Task).where(Task.parent_id == task.id)
                             )
                         )
-                        await ensure_local_report(
+                        local_report = await ensure_local_report(
                             session, settings, task, children, tools
+                        )
+                    task_errors = list(
+                        dict.fromkeys(
+                            message
+                            for message in [task.error_message, *child_errors]
+                            if message
+                        )
+                    )
+                    if (
+                        local_report is not None
+                        and task.status == "PARTIAL_SUCCEEDED"
+                        and has_execution_evidence(tools)
+                        and task_errors
+                        and all(is_report_packaging_error(message) for message in task_errors)
+                    ):
+                        original_reason = "；".join(task_errors)[:500]
+                        task.status = "SUCCEEDED"
+                        task.error_code = None
+                        task.error_message = None
+                        session.add(
+                            TaskEvent(
+                                task_id=task.id,
+                                event_type="report_fallback_used",
+                                message="小易报告打包失败，平台已生成本地报告",
+                                data_json={
+                                    "source": "platform",
+                                    "upstream_error": original_reason,
+                                },
+                            )
                         )
                 current = (task.status, task.phase, task.progress)
                 if current != previous:
