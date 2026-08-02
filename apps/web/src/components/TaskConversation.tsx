@@ -1,9 +1,28 @@
-import { SendOutlined } from '@ant-design/icons';
-import { Alert, Button, Input, Progress } from 'antd';
+import {
+  ApiOutlined,
+  ClockCircleOutlined,
+  MessageOutlined,
+  SendOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
+import { Alert, Button, Input, Progress, Tag } from 'antd';
+import { useMemo } from 'react';
 import type { TaskQAMessage } from '../api/pentest';
+import type { PentestToolEvent } from '../pages/pentestToolFeed';
+import {
+  buildTaskTimeline,
+  formatActivityRange,
+  formatActivityTime,
+  groupTaskTools,
+  type TaskPhaseGroup,
+  type TaskToolSummary,
+} from '../pages/taskActivityTimeline';
 
 type TaskConversationProps = {
   messages: TaskQAMessage[];
+  tools: PentestToolEvent[];
+  status: string;
+  updatedAt?: string;
   phase: string | null;
   progress: number;
   input: string;
@@ -13,8 +32,134 @@ type TaskConversationProps = {
   onSend: () => void;
 };
 
+const stateLabels = {
+  success: '完成',
+  failed: '失败',
+  running: '处理中',
+} as const;
+
+const stateColors = {
+  success: 'green',
+  failed: 'red',
+  running: 'blue',
+} as const;
+
+function ToolActivity({ tool }: { tool: TaskToolSummary }) {
+  return (
+    <details className={`task-tool-entry task-tool-entry--${tool.state}`}>
+      <summary>
+        <span className="task-tool-icon"><ApiOutlined /></span>
+        <span className="task-tool-name">
+          <strong>{tool.name}</strong>
+          <small>{formatActivityTime(tool.latestAt)}</small>
+        </span>
+        <span className="task-tool-count">调用 × {tool.callCount}</span>
+        <Tag color={stateColors[tool.state]}>{stateLabels[tool.state]}</Tag>
+        <span className="task-disclosure-label">查看调用</span>
+      </summary>
+      <div className="task-tool-calls">
+        {tool.calls.map((call, index) => (
+          <article className="task-tool-call" key={call.id}>
+            <header>
+              <strong>第 {index + 1} 次调用</strong>
+              <time>{formatActivityTime(call.startedAt)}</time>
+              <Tag color={stateColors[call.state]}>{stateLabels[call.state]}</Tag>
+            </header>
+            <div className="task-tool-call-phase">阶段：{call.phase}</div>
+            {call.steps.length ? (
+              <div className="orchestrator-steps">
+                {call.steps.map((step, stepIndex) => (
+                  <Tag key={`${step.label}:${stepIndex}`}>{step.label} · {step.status}</Tag>
+                ))}
+              </div>
+            ) : null}
+            {call.narratives.length ? (
+              <div className="orchestrator-narratives" aria-label="客户可读的执行说明">
+                {call.narratives.map((narrative, narrativeIndex) => (
+                  <section
+                    className={`orchestrator-narrative orchestrator-narrative--${narrative.state}`}
+                    key={`${narrative.actor}:${narrative.message}:${narrative.timestamp ?? narrativeIndex}`}
+                  >
+                    <header>
+                      <strong>{narrative.actor}</strong>
+                      <span>{narrative.state === 'waiting' ? '等待前置结果' : narrative.state === 'running' ? '正在执行' : narrative.state === 'completed' ? '已完成' : narrative.state === 'failed' ? '执行异常' : '状态更新'}</span>
+                    </header>
+                    <p className="orchestrator-narrative-message">{narrative.message}</p>
+                    <p className="orchestrator-narrative-explanation"><b>这一步在做什么：</b>{narrative.explanation}</p>
+                    {narrative.repeatCount > 1 ? <small>已合并 {narrative.repeatCount} 条过程更新</small> : null}
+                    {narrative.timestamp ? <time>{formatActivityTime(narrative.timestamp)}</time> : null}
+                  </section>
+                ))}
+              </div>
+            ) : null}
+            {call.error ? <div className="task-tool-call-error">{call.error}</div> : null}
+            {call.arguments ? (
+              <div className="orchestrator-payload">
+                <span>调用参数</span>
+                <pre>{JSON.stringify(call.arguments, null, 2)}</pre>
+              </div>
+            ) : null}
+            {call.resultPreview ? (
+              <div className="orchestrator-payload">
+                <span>接口原始返回</span>
+                <pre>{call.resultPreview}</pre>
+              </div>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function PhaseActivity({ group }: { group: TaskPhaseGroup }) {
+  const state = group.failedCalls > 0 ? 'failed' : group.runningCalls > 0 ? 'running' : 'success';
+  return (
+    <details className={`task-activity-entry task-phase-entry task-phase-entry--${state}`}>
+      <summary>
+        <span className="task-timeline-marker"><ApiOutlined /></span>
+        <span className="task-phase-title">
+          <strong>{group.label}</strong>
+          <time>{formatActivityRange(group.startedAt, group.updatedAt)}</time>
+        </span>
+        <span className="task-phase-metrics">
+          <span>{group.totalCalls} 次调用</span>
+          <span>{group.uniqueTools} 个工具</span>
+          {group.failedCalls ? <span className="task-phase-failed">{group.failedCalls} 次失败</span> : null}
+        </span>
+        <span className="task-phase-progress">
+          <strong>{group.progress}%</strong>
+          <Progress percent={group.progress} showInfo={false} size="small" />
+        </span>
+      </summary>
+      <div className="task-phase-tools">
+        {group.tools.map((tool) => <ToolActivity tool={tool} key={tool.key} />)}
+      </div>
+    </details>
+  );
+}
+
+function ConversationActivity({ message }: { message: TaskQAMessage }) {
+  const isUser = message.role === 'user';
+  return (
+    <article className={`task-activity-entry task-message-entry task-message-entry--${isUser ? 'user' : 'assistant'}`}>
+      <span className="task-timeline-marker">{isUser ? <UserOutlined /> : <MessageOutlined />}</span>
+      <div>
+        <header>
+          <strong>{isUser ? '您' : '小易任务助手'}</strong>
+          <time>{formatActivityTime(message.created_at)}</time>
+        </header>
+        <p>{message.content}</p>
+      </div>
+    </article>
+  );
+}
+
 export function TaskConversation({
   messages,
+  tools,
+  status,
+  updatedAt,
   phase,
   progress,
   input,
@@ -24,38 +169,45 @@ export function TaskConversation({
   onSend,
 }: TaskConversationProps) {
   const safeProgress = Math.min(100, Math.max(0, Math.round(progress)));
+  const entries = useMemo(
+    () => buildTaskTimeline(groupTaskTools(tools), messages),
+    [messages, tools],
+  );
 
   return (
     <>
-      <section className="task-conversation" role="log" aria-label="任务对话" aria-live="polite">
-        <header>
+      <section
+        className="task-activity-timeline"
+        role="log"
+        aria-label="任务编排时间线"
+        aria-live="polite"
+      >
+        <header className="task-activity-header">
           <div>
-            <span>持续会话</span>
-            <h3>任务对话</h3>
+            <span>任务实时编排</span>
+            <h3>执行时间线</h3>
+            <p>工具调用、阶段进度和任务对话按时间统一展示</p>
           </div>
-          <small>小易回传与客户追问</small>
+          <div className="task-activity-status">
+            <Tag color={status === 'FAILED' ? 'red' : status === 'SUCCEEDED' ? 'green' : 'blue'}>{status}</Tag>
+            <strong>{safeProgress}%</strong>
+            <time><ClockCircleOutlined /> {formatActivityTime(updatedAt)}</time>
+          </div>
         </header>
-        <div className="task-conversation-messages">
-          {messages.length === 0 ? (
-            <div className="task-conversation-empty">
-              <strong>还没有任务对话</strong>
-              <p>任务执行期间可在下方追问进度、失败原因或结果含义。</p>
+        <div className="task-activity-stream">
+          {entries.length === 0 ? (
+            <div className="task-activity-empty">
+              <span className="task-timeline-marker"><ClockCircleOutlined /></span>
+              <div>
+                <strong>正在等待小易返回任务编排信息</strong>
+                <p>收到阶段、工具或对话更新后会自动显示在这里。</p>
+              </div>
             </div>
-          ) : messages.map((message) => {
-            const isUser = message.role === 'user';
-            return (
-              <article
-                className={`task-conversation-message ${isUser ? 'task-conversation-message--user' : 'task-conversation-message--assistant'}`}
-                key={message.id}
-              >
-                <div>
-                  <strong>{isUser ? '您' : '任务助手'}</strong>
-                  <time>{new Date(message.created_at).toLocaleString()}</time>
-                </div>
-                <p>{message.content}</p>
-              </article>
-            );
-          })}
+          ) : entries.map((entry) => (
+            entry.kind === 'phase'
+              ? <PhaseActivity group={entry.group} key={entry.id} />
+              : <ConversationActivity message={entry.message} key={entry.id} />
+          ))}
         </div>
       </section>
 

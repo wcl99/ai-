@@ -1,14 +1,16 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import type { TaskQAMessage } from '../api/pentest';
+import type { PentestToolEvent } from '../pages/pentestToolFeed';
 import { TaskConversation } from './TaskConversation';
 
-const messages = [
+const messages: TaskQAMessage[] = [
   {
     id: '11111111-1111-4111-8111-111111111111',
     task_id: '22222222-2222-4222-8222-222222222222',
     user_id: '33333333-3333-4333-8333-333333333333',
     role: 'user',
     content: '为什么失败？',
-    created_at: '2026-08-03T02:14:10Z',
+    created_at: '2026-08-03T10:03:00',
   },
   {
     id: '44444444-4444-4444-8444-444444444444',
@@ -16,17 +18,53 @@ const messages = [
     user_id: '33333333-3333-4333-8333-333333333333',
     role: 'assistant',
     content: '归档文件异常，正在保留现场并等待重试。',
-    created_at: '2026-08-03T02:14:11Z',
+    created_at: '2026-08-03T10:05:00',
+  },
+];
+
+const tools: PentestToolEvent[] = [
+  {
+    id: 'subfinder:1',
+    name: 'run_subfinder',
+    phase: 'INFORMATION_GATHERING',
+    state: 'success',
+    arguments: { domain: 'example.test' },
+    resultPreview: '{"subdomains":["www.example.test"]}',
+    steps: [],
+    narratives: [],
+    startedAt: '2026-08-03T10:00:00',
+  },
+  {
+    id: 'subfinder:2',
+    name: 'run_subfinder',
+    phase: 'RECON',
+    state: 'failed',
+    steps: [],
+    narratives: [],
+    error: 'temporary failure',
+    startedAt: '2026-08-03T10:02:00',
+  },
+  {
+    id: 'emails:1',
+    name: 'get_emails',
+    phase: 'INFORMATION_GATHERING',
+    state: 'running',
+    steps: [],
+    narratives: [],
+    startedAt: '2026-08-03T10:04:00',
   },
 ];
 
 describe('TaskConversation', () => {
-  it('shows the task conversation and keeps its composer floating', () => {
+  it('renders grouped tools and QA messages in one timestamped timeline', () => {
     const onInputChange = vi.fn();
     const onSend = vi.fn();
     const view = render(
       <TaskConversation
         messages={messages}
+        tools={tools}
+        status="RUNNING"
+        updatedAt="2026-08-03T10:06:00"
         phase="SCANNING"
         progress={36}
         input="继续检查"
@@ -36,14 +74,28 @@ describe('TaskConversation', () => {
       />,
     );
 
-    expect(screen.getByRole('log', { name: '任务对话' })).toBeInTheDocument();
-    expect(screen.getByText('为什么失败？')).toBeInTheDocument();
-    expect(screen.getByText('归档文件异常，正在保留现场并等待重试。')).toBeInTheDocument();
-    expect(screen.getByText('SCANNING')).toBeInTheDocument();
-    expect(screen.getByText('36%')).toBeInTheDocument();
+    const timeline = screen.getByRole('log', { name: '任务编排时间线' });
+    expect(view.container.querySelectorAll('.task-activity-timeline')).toHaveLength(1);
+    expect(view.container.querySelector('.task-conversation')).not.toBeInTheDocument();
+    expect(within(timeline).getByText('信息收集')).toBeInTheDocument();
+    expect(within(timeline).getByText('3 次调用')).toBeInTheDocument();
+    expect(within(timeline).getByText('2 个工具')).toBeInTheDocument();
+    expect(within(timeline).getByText('调用 × 2')).toBeInTheDocument();
+    expect(within(timeline).getByText('2026-08-03 10:00:00 — 2026-08-03 10:04:00'))
+      .toBeInTheDocument();
+    expect(within(timeline).getByText('为什么失败？')).toBeInTheDocument();
+    expect(within(timeline).getByText('小易任务助手')).toBeInTheDocument();
+    expect(within(timeline).getByText('2026-08-03 10:05:00')).toBeInTheDocument();
+
+    const phaseDetails = within(timeline).getByText('信息收集').closest('details');
+    expect(phaseDetails).not.toHaveAttribute('open');
+    const toolDetails = within(timeline).getByText('run_subfinder').closest('details');
+    expect(toolDetails).not.toHaveAttribute('open');
+    expect(toolDetails).toContainElement(within(timeline).getByText('temporary failure'));
+    expect(toolDetails).toContainElement(within(timeline).getByText(/www\.example\.test/));
+
     expect(view.container.querySelector('.task-conversation-composer--floating'))
       .toBeInTheDocument();
-
     fireEvent.change(screen.getByLabelText('向任务提问'), {
       target: { value: '解释失败原因' },
     });
@@ -52,10 +104,13 @@ describe('TaskConversation', () => {
     expect(onSend).toHaveBeenCalledOnce();
   });
 
-  it('shows send errors and disables empty questions', () => {
+  it('shows one inline empty state and disables empty questions', () => {
     render(
       <TaskConversation
         messages={[]}
+        tools={[]}
+        status="QUEUED"
+        updatedAt={undefined}
         phase={null}
         progress={0}
         input=""
@@ -66,7 +121,7 @@ describe('TaskConversation', () => {
       />,
     );
 
-    expect(screen.getByText('还没有任务对话')).toBeInTheDocument();
+    expect(screen.getByText('正在等待小易返回任务编排信息')).toBeInTheDocument();
     expect(screen.getByText('问题发送失败')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '发送任务问题' })).toBeDisabled();
   });
