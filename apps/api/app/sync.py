@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import uuid
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
 from sqlalchemy import select
@@ -18,7 +18,7 @@ from .engine import (
     summarize_tool_failures,
 )
 from .errors import AppError
-from .models import Report, ScanPlan, Task, TaskEvent
+from .models import Report, ScanPlan, Task, TaskEvent, Vulnerability
 from .result_aggregation import (
     ensure_local_report,
     has_execution_evidence,
@@ -71,7 +71,54 @@ def is_report_packaging_error(message: str | None) -> bool:
     """Recognize the one Xiaoyi report failure the platform can safely recover."""
     if not message:
         return False
-    return "zip entry size is too large or invalid" in message.casefold()
+    marker = "zip entry size is too large or invalid"
+    normalized = " ".join(message.casefold().split())
+    prefix, found, suffix = normalized.partition(marker)
+    return bool(found) and not suffix.strip() and ";" not in prefix and "；" not in prefix
+
+
+async def recover_ready_report_fallbacks(session) -> None:
+    """Recover ZIP-only report failures after a persisted platform report exists."""
+    candidates = list(
+        await session.scalars(
+            select(Task).where(
+                Task.status == "PARTIAL_SUCCEEDED",
+                Task.error_message.is_not(None),
+            )
+        )
+    )
+    for task in candidates:
+        if not is_report_packaging_error(task.error_message):
+            continue
+        report = await session.scalar(
+            select(Report).where(
+                Report.task_id == task.id,
+                Report.status == "READY",
+                Report.local_path.is_not(None),
+            )
+        )
+        if report is None or not report.local_path or not Path(report.local_path).is_file():
+            continue
+        finding_id = await session.scalar(
+            select(Vulnerability.id).where(Vulnerability.task_id == task.id).limit(1)
+        )
+        if finding_id is None:
+            continue
+        original_reason = task.error_message[:500]
+        task.status = "SUCCEEDED"
+        task.error_code = None
+        task.error_message = None
+        session.add(
+            TaskEvent(
+                task_id=task.id,
+                event_type="report_fallback_used",
+                message="小易报告打包失败，平台已生成本地报告",
+                data_json={
+                    "source": "platform",
+                    "upstream_error": original_reason,
+                },
+            )
+        )
 
 
 async def sync_report(session, task: Task, raw: dict) -> None:
@@ -227,44 +274,14 @@ async def sync_once(settings: Settings) -> None:
                     if task.status == "FAILED" and has_execution_evidence(tools):
                         task.status = "PARTIAL_SUCCEEDED"
                         task.error_code = "XIAOYI_PARTIAL_RESULT"
-                    local_report = None
                     if task.status in TERMINAL_STATUSES and not engine_report_url(result.raw):
                         children = list(
                             await session.scalars(
                                 select(Task).where(Task.parent_id == task.id)
                             )
                         )
-                        local_report = await ensure_local_report(
+                        await ensure_local_report(
                             session, settings, task, children, tools
-                        )
-                    task_errors = list(
-                        dict.fromkeys(
-                            message
-                            for message in [task.error_message, *child_errors]
-                            if message
-                        )
-                    )
-                    if (
-                        local_report is not None
-                        and task.status == "PARTIAL_SUCCEEDED"
-                        and has_execution_evidence(tools)
-                        and task_errors
-                        and all(is_report_packaging_error(message) for message in task_errors)
-                    ):
-                        original_reason = "；".join(task_errors)[:500]
-                        task.status = "SUCCEEDED"
-                        task.error_code = None
-                        task.error_message = None
-                        session.add(
-                            TaskEvent(
-                                task_id=task.id,
-                                event_type="report_fallback_used",
-                                message="小易报告打包失败，平台已生成本地报告",
-                                data_json={
-                                    "source": "platform",
-                                    "upstream_error": original_reason,
-                                },
-                            )
                         )
                 current = (task.status, task.phase, task.progress)
                 if current != previous:
@@ -317,6 +334,7 @@ async def sync_once(settings: Settings) -> None:
                         data_json={"code": task.error_code},
                     )
                 )
+        await recover_ready_report_fallbacks(session)
         # Persist normalized task states, reports, child tasks, and events as one iteration.
         await session.commit()
 

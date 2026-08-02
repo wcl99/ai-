@@ -302,6 +302,60 @@ async def test_terminal_tool_evidence_creates_local_report_without_hiding_failur
     assert len(fallback_events) == (1 if expected_status == "SUCCEEDED" else 0)
 
 
+async def test_existing_zip_partial_result_recovers_when_local_report_is_ready(
+    authenticated_client, monkeypatch, tmp_path
+):
+    task_id = await create_queued_task(
+        authenticated_client, "Existing ZIP fallback", "existing-zip-fallback"
+    )
+    report_path = tmp_path / f"{task_id}.md"
+    report_path.write_text("# Existing fallback report", encoding="utf-8")
+    async with SessionLocal() as session:
+        task = await session.get(Task, uuid.UUID(task_id))
+        task.status = "PARTIAL_SUCCEEDED"
+        task.phase = "FINISHED"
+        task.progress = 100
+        task.error_code = "XIAOYI_PARTIAL_RESULT"
+        task.error_message = "报告生成失败：ZIP entry size is too large or invalid"
+        session.add(
+            Vulnerability(
+                org_id=task.org_id,
+                plan_id=task.plan_id,
+                task_id=task.id,
+                asset_key="https://example.test/existing",
+                title="Existing confirmed finding",
+                severity="high",
+                description="Confirmed before report packaging failed.",
+                data_json={},
+            )
+        )
+        session.add(
+            Report(
+                org_id=task.org_id,
+                plan_id=task.plan_id,
+                task_id=task.id,
+                filename=report_path.name,
+                format="md",
+                local_path=str(report_path),
+                status="READY",
+            )
+        )
+        await session.commit()
+
+    monkeypatch.setattr(sync, "get_engine_client", lambda settings: RestartEngine(
+        EngineTask("unused", "RUNNING", "INIT", 0, {})
+    ))
+
+    await sync.sync_once(get_settings())
+
+    recovered = await authenticated_client.get(f"/api/v1/tasks/{task_id}")
+    assert recovered.json()["status"] == "SUCCEEDED"
+    assert recovered.json()["error_code"] is None
+    assert recovered.json()["error_message"] is None
+    events = await authenticated_client.get(f"/api/v1/tasks/{task_id}/events")
+    assert events.json()["data"][-1]["event_type"] == "report_fallback_used"
+
+
 async def test_task_tools_are_normalized(authenticated_client, monkeypatch):
     class ToolEngine:
         async def get_tools(self, external_task_id: str):
@@ -340,6 +394,16 @@ def test_engine_report_url_rejects_unsupported_or_credentialed_urls():
     assert sync.engine_report_url(
         {"data": {"report": {"url": "https://engine.local/report.pdf"}}}
     ) == "https://engine.local/report.pdf"
+
+
+def test_report_packaging_error_classifier_does_not_hide_other_failures():
+    assert sync.is_report_packaging_error(
+        "报告生成失败：ZIP entry size is too large or invalid"
+    )
+    assert not sync.is_report_packaging_error(
+        "ZIP entry size is too large or invalid；Target refused connection"
+    )
+    assert not sync.is_report_packaging_error("Target refused connection")
 
 class FlakyEngine:
     def __init__(self, failures: int, code: str = "ENGINE_UNAVAILABLE"):
