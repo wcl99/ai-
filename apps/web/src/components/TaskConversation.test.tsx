@@ -122,6 +122,8 @@ describe('TaskConversation', () => {
     );
 
     expect(screen.getByText('正在等待小易返回任务编排信息')).toBeInTheDocument();
+    expect(screen.getByText('任务已开始，您可以补充测试信息')).toBeInTheDocument();
+    expect(screen.getByText(/白盒账号、特殊入口、测试限制或业务窗口/)).toBeInTheDocument();
     expect(screen.getByText('问题发送失败')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '发送任务问题' })).toBeDisabled();
   });

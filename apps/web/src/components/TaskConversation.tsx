@@ -195,6 +195,16 @@ export function TaskConversation({
           </div>
         </header>
         <div className="task-activity-stream">
+          {messages.length === 0 ? (
+            <article className="task-activity-entry task-message-entry task-message-entry--assistant task-intake-prompt">
+              <span className="task-timeline-marker"><MessageOutlined /></span>
+              <div>
+                <header><strong>小易任务助手</strong></header>
+                <p><b>任务已开始，您可以补充测试信息</b></p>
+                <p>如有白盒账号、特殊入口、测试限制或业务窗口，请在下方对话框发送；不回复不会影响任务继续执行。</p>
+              </div>
+            </article>
+          ) : null}
           {entries.length === 0 ? (
             <div className="task-activity-empty">
               <span className="task-timeline-marker"><ClockCircleOutlined /></span>
