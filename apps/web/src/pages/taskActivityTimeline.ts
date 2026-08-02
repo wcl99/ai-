@@ -141,7 +141,10 @@ export function groupTaskTools(tools: PentestToolEvent[]): TaskPhaseGroup[] {
     if (leftTime !== undefined) return -1;
     if (rightTime !== undefined) return 1;
     return left.order - right.order;
-  }).map(({ order: _order, ...group }) => group);
+  }).map(({ order, ...group }) => {
+    void order;
+    return group;
+  });
 }
 
 export function buildTaskTimeline(
@@ -171,7 +174,10 @@ export function buildTaskTimeline(
     if (leftTime !== undefined) return -1;
     if (rightTime !== undefined) return 1;
     return left.order - right.order;
-  }).map(({ order: _order, ...entry }) => entry);
+  }).map(({ order, ...entry }) => {
+    void order;
+    return entry;
+  });
 }
 
 export function formatActivityTime(value?: string) {
