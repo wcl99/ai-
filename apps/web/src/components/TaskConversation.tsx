@@ -54,8 +54,11 @@ function ToolActivity({ tool }: { tool: TaskToolSummary }) {
           <small>{formatActivityTime(tool.latestAt)}</small>
         </span>
         <span className="task-tool-count">调用 × {tool.callCount}</span>
-        <Tag color={stateColors[tool.state]}>{stateLabels[tool.state]}</Tag>
-        <span className="task-disclosure-label">查看调用</span>
+        <span className="task-tool-actions">
+          <Tag color={stateColors[tool.state]}>{stateLabels[tool.state]}</Tag>
+          <span className="task-disclosure-label task-disclosure-label--closed">查看调用</span>
+          <span className="task-disclosure-label task-disclosure-label--open">收起调用</span>
+        </span>
       </summary>
       <div className="task-tool-calls">
         {tool.calls.map((call, index) => (
@@ -130,6 +133,10 @@ function PhaseActivity({ group }: { group: TaskPhaseGroup }) {
         <span className="task-phase-progress">
           <strong>{group.progress}%</strong>
           <Progress percent={group.progress} showInfo={false} size="small" />
+        </span>
+        <span className="task-phase-disclosure">
+          <span className="task-phase-disclosure--closed">展开详情</span>
+          <span className="task-phase-disclosure--open">收起详情</span>
         </span>
       </summary>
       <div className="task-phase-tools">

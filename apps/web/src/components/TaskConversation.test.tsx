@@ -89,8 +89,10 @@ describe('TaskConversation', () => {
 
     const phaseDetails = within(timeline).getByText('信息收集').closest('details');
     expect(phaseDetails).not.toHaveAttribute('open');
+    expect(phaseDetails?.querySelector('.task-phase-disclosure')).toHaveTextContent('展开详情');
     const toolDetails = within(timeline).getByText('run_subfinder').closest('details');
     expect(toolDetails).not.toHaveAttribute('open');
+    expect(toolDetails?.querySelector('.task-tool-actions')).toHaveTextContent('查看调用');
     expect(toolDetails).toContainElement(within(timeline).getByText('temporary failure'));
     expect(toolDetails).toContainElement(within(timeline).getByText(/www\.example\.test/));
 
