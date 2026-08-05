@@ -10,7 +10,9 @@ lang: zh-CN
 报告状态：$task_status  
 生成说明：本报告仅依据平台已接收并确认的任务数据生成。
 
-\newpage
+```{=openxml}
+<w:p><w:r><w:br w:type="page"/></w:r></w:p>
+```
 
 # 服务结果
 

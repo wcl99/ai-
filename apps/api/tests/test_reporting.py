@@ -54,6 +54,8 @@ def test_render_report_uses_reference_structure_and_redacts_secrets():
     assert "top-secret" not in report
     assert "abc.def" not in report
     assert "***" in report
+    assert "\\newpage" not in report
+    assert '<w:br w:type="page"/>' in report
 
 
 def test_render_report_marks_missing_finding_fields_without_inference():

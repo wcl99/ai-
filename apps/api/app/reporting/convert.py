@@ -56,7 +56,7 @@ class ReportConverter:
                     "pandoc",
                     str(markdown),
                     "--from",
-                    "gfm",
+                    "markdown+pipe_tables+raw_attribute",
                     "--to",
                     "docx",
                     "--reference-doc",
