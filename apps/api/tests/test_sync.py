@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 
 import app.main as main_module
-from app import sync
+from app import result_aggregation, sync
 from app.config import get_settings
 from app.db import SessionLocal
 from app.engine import EngineTask
@@ -262,6 +262,15 @@ async def test_terminal_tool_evidence_creates_local_report_without_hiding_failur
         authenticated_client, "Evidence aggregation", "evidence-aggregation"
     )
     monkeypatch.setattr(sync, "get_engine_client", lambda settings: EvidenceEngine())
+    def fake_convert(self, markdown, output_dir, basename):
+        outputs = {}
+        for report_format in ("docx", "pdf"):
+            path = output_dir / f"{basename}.{report_format}"
+            path.write_bytes(report_format.encode())
+            outputs[report_format] = path
+        return outputs
+
+    monkeypatch.setattr(result_aggregation.ReportConverter, "convert", fake_convert)
     settings = get_settings().model_copy(update={"report_dir": tmp_path})
 
     await sync.sync_once(settings)
@@ -278,11 +287,13 @@ async def test_terminal_tool_evidence_creates_local_report_without_hiding_failur
         vulnerability = await session.scalar(
             select(Vulnerability).where(Vulnerability.task_id == uuid.UUID(task_id))
         )
-        report = await session.scalar(
+        reports = list(await session.scalars(
             select(Report).where(Report.task_id == uuid.UUID(task_id))
-        )
+        ))
     assert vulnerability.title == "Source Map exposure"
     assert vulnerability.severity == "low"
+    assert {report.format for report in reports} == {"md", "docx", "pdf"}
+    report = next(report for report in reports if report.format == "md")
     assert report.local_path is not None
     report_id = str(report.id)
     content = Path(report.local_path).read_text(encoding="utf-8")

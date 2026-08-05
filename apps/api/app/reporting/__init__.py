@@ -1,0 +1,5 @@
+"""Offline penetration-test report rendering and conversion."""
+
+from .render import render_report
+
+__all__ = ["render_report"]

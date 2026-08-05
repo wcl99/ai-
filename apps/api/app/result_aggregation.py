@@ -1,5 +1,7 @@
 """Persist useful Xiaoyi evidence and build the platform's fallback report."""
 
+import asyncio
+from importlib.resources import files
 from pathlib import Path
 
 from sqlalchemy import select
@@ -7,6 +9,8 @@ from sqlalchemy import select
 from .config import Settings
 from .engine import decode_tool_payload, redact_sensitive, summarize_tool_failures
 from .models import Report, Task, TaskEvent, Vulnerability
+from .reporting.convert import ReportConversionError, ReportConverter
+from .reporting.render import render_report
 from .services import safe_report_path
 
 SEVERITY_MAP = {
@@ -208,11 +212,18 @@ async def ensure_local_report(
 ) -> Report | None:
     if not tools:
         return None
-    existing = await session.scalar(
-        select(Report).where(Report.task_id == task.id, Report.local_path.is_not(None))
+    existing_reports = list(
+        await session.scalars(
+            select(Report).where(
+                Report.task_id == task.id,
+                Report.local_path.is_not(None),
+                Report.format.in_(("md", "docx", "pdf")),
+            )
+        )
     )
-    if existing:
-        return existing
+    existing_by_format = {report.format: report for report in existing_reports}
+    if all(item in existing_by_format for item in ("md", "docx", "pdf")):
+        return existing_by_format["md"]
     vulnerabilities = list(
         await session.scalars(
             select(Vulnerability)
@@ -223,9 +234,14 @@ async def ensure_local_report(
     filename = f"{task.id}.md"
     path = safe_report_path(Path(settings.report_dir) / str(task.org_id), filename)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        _render_report(task, children, vulnerabilities, tools), encoding="utf-8"
-    )
+    report = existing_by_format.get("md")
+    if report is not None:
+        return await _ensure_binary_reports(
+            session, task, report, path, existing_by_format
+        )
+    temporary = path.with_suffix(".md.tmp")
+    temporary.write_text(render_report(task, children, vulnerabilities, tools), encoding="utf-8")
+    temporary.replace(path)
     report = Report(
         org_id=task.org_id,
         plan_id=task.plan_id,
@@ -246,4 +262,88 @@ async def ensure_local_report(
         )
     )
     await session.flush()
-    return report
+    return await _ensure_binary_reports(session, task, report, path, existing_by_format)
+
+
+async def _ensure_binary_reports(
+    session,
+    task: Task,
+    markdown_report: Report,
+    markdown_path: Path,
+    existing_by_format: dict[str, Report],
+) -> Report:
+    missing = [item for item in ("docx", "pdf") if item not in existing_by_format]
+    if not missing:
+        return markdown_report
+    reference_doc = Path(files("app.reporting").joinpath("reference.docx"))
+    converter = ReportConverter(reference_doc=reference_doc)
+    try:
+        outputs = await asyncio.to_thread(
+            converter.convert,
+            markdown_path,
+            markdown_path.parent,
+            str(task.id),
+        )
+    except ReportConversionError as exc:
+        docx_output = markdown_path.with_suffix(".docx")
+        if "docx" in missing and docx_output.is_file():
+            session.add(
+                Report(
+                    org_id=task.org_id,
+                    plan_id=task.plan_id,
+                    task_id=task.id,
+                    filename=docx_output.name,
+                    format="docx",
+                    report_level=(
+                        "partial" if task.status == "PARTIAL_SUCCEEDED" else "standard"
+                    ),
+                    local_path=str(docx_output),
+                    status="READY",
+                )
+            )
+            session.add(
+                TaskEvent(
+                    task_id=task.id,
+                    event_type="report_available",
+                    message="平台 DOCX 报告已生成",
+                    data_json={"format": "docx", "source": "platform"},
+                )
+            )
+        session.add(
+            TaskEvent(
+                task_id=task.id,
+                event_type="report_generation_failed",
+                message=str(exc)[:1000],
+                data_json={"formats": missing, "source": "platform"},
+            )
+        )
+        await session.flush()
+        return markdown_report
+
+    level = "partial" if task.status == "PARTIAL_SUCCEEDED" else "standard"
+    for report_format in missing:
+        output = outputs.get(report_format)
+        if output is None:
+            continue
+        session.add(
+            Report(
+                org_id=task.org_id,
+                plan_id=task.plan_id,
+                task_id=task.id,
+                filename=output.name,
+                format=report_format,
+                report_level=level,
+                local_path=str(output),
+                status="READY",
+            )
+        )
+        session.add(
+            TaskEvent(
+                task_id=task.id,
+                event_type="report_available",
+                message=f"平台 {report_format.upper()} 报告已生成",
+                data_json={"format": report_format, "source": "platform"},
+            )
+        )
+    await session.flush()
+    return markdown_report
