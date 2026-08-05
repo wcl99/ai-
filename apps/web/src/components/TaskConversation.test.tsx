@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { TaskQAMessage } from '../api/pentest';
 import type { PentestToolEvent } from '../pages/pentestToolFeed';
 import { TaskConversation } from './TaskConversation';
+import taskStyles from '../styles.css?raw';
 
 const messages: TaskQAMessage[] = [
   {
@@ -56,6 +57,11 @@ const tools: PentestToolEvent[] = [
 ];
 
 describe('TaskConversation', () => {
+  it('positions phase markers against the timeline row instead of the summary content', () => {
+    expect(taskStyles).toContain('.task-phase-entry>summary{display:grid;');
+    expect(taskStyles).not.toContain('.task-phase-entry>summary{position:relative;');
+  });
+
   it('renders grouped tools and QA messages in one timestamped timeline', () => {
     const onInputChange = vi.fn();
     const onSend = vi.fn();
