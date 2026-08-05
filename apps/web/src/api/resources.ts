@@ -205,6 +205,7 @@ function mapVulnerability(
 function mapReport(item: z.infer<typeof reportSchema>): ReportRecord {
   return {
     id: item.id,
+    taskId: item.task_id,
     name: item.filename,
     format: item.format,
     plan: item.plan_name,

@@ -201,22 +201,35 @@ export function ReportsPage() {
   });
   const preview = useMutation({ mutationFn: previewReport });
   const rows = query.data?.items ?? [];
-  const metrics: Metric[] = [{ label: '报告总数', value: query.data && !query.isError ? String(query.data.total) : '—', tone: 'gray' }];
-  const columns: ColumnsType<ReportRecord> = [
-    { title: '报告名称', dataIndex: 'name', width: 280, render: (name, row) => <div className="primary-cell"><strong>{name}</strong><span>{row.id}</span></div> },
-    { title: '格式', dataIndex: 'format', width: 100, render: (value) => <Tag color="blue">{String(value).toUpperCase()}</Tag> },
+  const bundles = Array.from(rows.reduce((groups, report) => {
+    const key = report.taskId ?? report.id;
+    const existing = groups.get(key);
+    if (existing) existing.formats.set(report.format.toLowerCase(), report);
+    else groups.set(key, { key, task: report.task, plan: report.plan, createdAt: report.createdAt, formats: new Map([[report.format.toLowerCase(), report]]) });
+    return groups;
+  }, new Map<string, { key: string; task: string; plan: string; createdAt: string; formats: Map<string, ReportRecord> }>()).values());
+  const metrics: Metric[] = [{ label: '报告任务数', value: query.data && !query.isError ? String(bundles.length) : '—', tone: 'gray' }];
+  const columns: ColumnsType<(typeof bundles)[number]> = [
+    { title: '所属任务', dataIndex: 'task', width: 260, render: (task, row) => <div className="primary-cell"><strong>{task}</strong><span>{row.key}</span></div> },
     { title: '所属计划', dataIndex: 'plan', width: 190 },
-    { title: '所属任务', dataIndex: 'task', width: 190 },
     { title: '创建时间', dataIndex: 'createdAt', width: 170, render: dateTime },
-    { title: '状态', dataIndex: 'status', width: 110, render: (value) => <StatusTag status={value} /> },
-    { title: '操作', width: 160, render: (_, row) => <Space><Button type="link" disabled={!row.previewSupported} onClick={() => { setSelected(row); preview.mutate(row.id); }}>预览</Button><a href={reportDownloadUrl(row.id)} download>下载</a></Space> },
+    { title: '报告格式', width: 360, render: (_, row) => <Space wrap>{(['md', 'docx', 'pdf'] as const).map((format) => {
+      const report = row.formats.get(format);
+      return report
+        ? <a key={format} aria-label={`下载 ${format.toUpperCase()}`} href={reportDownloadUrl(report.id)} download><Tag color="blue">{format.toUpperCase()}</Tag></a>
+        : <Tag key={format}>{format.toUpperCase()} 未生成</Tag>;
+    })}</Space> },
+    { title: '预览', width: 100, render: (_, row) => {
+      const report = row.formats.get('md');
+      return <Button type="link" disabled={!report?.previewSupported} onClick={() => { if (report) { setSelected(report); preview.mutate(report.id); } }}>预览</Button>;
+    } },
   ];
 
   return (
     <ListPage metrics={metrics}>
       <div className="filter-bar"><div className="filter-spacer" /><Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button></div>
       {query.isError ? <ErrorState error={query.error} retry={() => query.refetch()} /> : (
-        <Table rowKey="id" columns={columns} dataSource={rows} loading={query.isPending} locale={{ emptyText: '暂无报告数据' }} pagination={pagination(page, query.data?.total ?? 0, setPage)} scroll={{ x: 1200 }} />
+        <Table rowKey="key" columns={columns} dataSource={bundles} loading={query.isPending} locale={{ emptyText: '暂无报告数据' }} pagination={pagination(page, query.data?.total ?? 0, setPage)} scroll={{ x: 1100 }} />
       )}
       <Drawer open={Boolean(selected)} width={680} title={selected?.name ?? '报告预览'} onClose={() => { setSelected(undefined); preview.reset(); }}>
         {preview.isPending && <p>正在加载报告...</p>}

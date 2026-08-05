@@ -109,12 +109,29 @@ describe('resource list pages', () => {
     vi.stubGlobal('fetch', fetchMock);
     const interaction = userEvent.setup();
     renderPage(<ReportsPage />);
-    await screen.findByText('API 真实报告.md');
-
-    expect(screen.getByRole('link', { name: '下载' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: '下载 MD' })).toHaveAttribute(
       'href', '/api/v1/reports/44444444-4444-4444-8444-444444444444/download',
     );
     await interaction.click(screen.getByRole('button', { name: '预览' }));
     expect(await screen.findByText(/# 安全报告/)).toBeInTheDocument();
+  });
+
+  it('groups three generated formats under one task row', async () => {
+    const taskId = '66666666-6666-4666-8666-666666666666';
+    const reports = [
+      { ...report, task_id: taskId, task_name: '三格式任务', filename: 'bundle.md', format: 'md' },
+      { ...report, id: '77777777-7777-4777-8777-777777777777', task_id: taskId, task_name: '三格式任务', filename: 'bundle.docx', format: 'docx' },
+      { ...report, id: '88888888-8888-4888-8888-888888888888', task_id: taskId, task_name: '三格式任务', filename: 'bundle.pdf', format: 'pdf' },
+    ];
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json(envelope(reports))));
+
+    renderPage(<ReportsPage />);
+
+    expect(await screen.findAllByText('三格式任务')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: '下载 MD' })).toHaveAttribute(
+      'href', '/api/v1/reports/44444444-4444-4444-8444-444444444444/download',
+    );
+    expect(screen.getByRole('link', { name: '下载 DOCX' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '下载 PDF' })).toBeInTheDocument();
   });
 });

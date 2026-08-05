@@ -56,6 +56,7 @@ export interface AssetRecord {
 
 export interface ReportRecord {
   id: string;
+  taskId: string | null;
   name: string;
   format: string;
   plan: string;
