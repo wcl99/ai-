@@ -10,6 +10,13 @@ RUN npm run build
 FROM python:3.12-slim
 
 WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        fonts-noto-cjk \
+        libreoffice-writer \
+        pandoc \
+        poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
 COPY apps/api/pyproject.toml ./
 COPY apps/api/app ./app
 COPY apps/api/alembic ./alembic
