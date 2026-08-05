@@ -208,7 +208,7 @@ export function ReportsPage() {
     else groups.set(key, { key, task: report.task, plan: report.plan, createdAt: report.createdAt, formats: new Map([[report.format.toLowerCase(), report]]) });
     return groups;
   }, new Map<string, { key: string; task: string; plan: string; createdAt: string; formats: Map<string, ReportRecord> }>()).values());
-  const metrics: Metric[] = [{ label: '报告任务数', value: query.data && !query.isError ? String(bundles.length) : '—', tone: 'gray' }];
+  const metrics: Metric[] = [{ label: '报告任务数', value: query.data && !query.isError ? String(bundles.length) : '—', tone: 'gray', icon: 'metric-report-total' }];
   const columns: ColumnsType<(typeof bundles)[number]> = [
     { title: '所属任务', dataIndex: 'task', width: 260, render: (task, row) => <div className="primary-cell"><strong>{task}</strong><span>{row.key}</span></div> },
     { title: '所属计划', dataIndex: 'plan', width: 190 },
