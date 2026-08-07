@@ -1,3 +1,4 @@
+import hashlib
 from types import SimpleNamespace
 from pathlib import Path
 
@@ -5,6 +6,34 @@ import pytest
 
 from app.reporting.convert import ReportConversionError, ReportConverter
 from app.reporting.render import render_report
+
+
+FIXED_SERVICE_OVERVIEW_SHA256 = "0953fdb9f1c949188e6a5ff858083b0c4533c3dba99cbd1d7c7137263d23adcd"
+
+
+def test_render_report_uses_fixed_reference_service_overview():
+    task = SimpleNamespace(
+        id="task-fixed-overview",
+        name="Fixed overview",
+        external_task_id="xiaoyi-fixed-overview",
+        status="SUCCEEDED",
+        progress=100,
+        error_message=None,
+    )
+    child = SimpleNamespace(name="DYNAMIC_CHILD_MUST_NOT_APPEAR", status="SUCCEEDED", progress=100)
+
+    report = render_report(
+        task,
+        [child],
+        [],
+        [{"toolName": "DYNAMIC_TOOL_MUST_NOT_APPEAR", "success": True}],
+    )
+    service_overview = report.split("# 服务概述", 1)[1].split("# 漏洞描述", 1)[0]
+    service_overview = f"# 服务概述{service_overview}".strip()
+
+    assert hashlib.sha256(service_overview.encode()).hexdigest() == FIXED_SERVICE_OVERVIEW_SHA256
+    assert "DYNAMIC_CHILD_MUST_NOT_APPEAR" not in service_overview
+    assert "DYNAMIC_TOOL_MUST_NOT_APPEAR" not in service_overview
 
 
 def test_render_report_uses_reference_structure_and_redacts_secrets():

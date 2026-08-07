@@ -79,14 +79,6 @@ def render_report(task: Any, children: Iterable[Any], vulnerabilities: Iterable[
         suggestion = data.get("vuln_suggestions") if isinstance(data, dict) else None
         if suggestion:
             recommendations.append(f"- **{_text(getattr(item, 'title', None))}**：{_text(suggestion)}")
-    child_summary = "\n".join(
-        f"- {_text(getattr(item, 'name', None))}：{_text(getattr(item, 'status', None))}，进度 {float(getattr(item, 'progress', 0)):.0f}%"
-        for item in children
-    ) or "- 未提供子任务记录"
-    tool_summary = "\n".join(
-        f"- {_text(item.get('toolName') or item.get('name') or 'tool')}：{'成功' if item.get('success') is True else '失败' if item.get('success') is False else '状态未提供'}"
-        for item in tools[:200]
-    ) or "- 未提供工具执行记录"
     finding_sections = "\n\n".join(
         _finding_section(index, finding) for index, finding in enumerate(vulnerabilities, 1)
     ) or "未收到可确认的结构化漏洞。"
@@ -104,8 +96,6 @@ def render_report(task: Any, children: Iterable[Any], vulnerabilities: Iterable[
         "error_summary": error_summary,
         "severity_summary": severity_summary,
         "recommendation_summary": "\n".join(recommendations) or "- 暂无已回传的专项修复建议。",
-        "child_summary": child_summary,
-        "tool_summary": tool_summary,
         "finding_sections": finding_sections,
     }
     template = Template(files("app.reporting").joinpath("template.md").read_text(encoding="utf-8"))
