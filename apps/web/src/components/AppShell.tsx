@@ -47,8 +47,7 @@ function menuItems(currentTaskRoute: string | null): MenuProps['items'] {
     icon: <NavIcon name="workbench" />,
     label: '工作台',
     children: [
-      { key: '/pentest', label: '新建渗透测试' },
-      ...(currentTaskRoute ? [{ key: currentTaskRoute, label: '当前任务' }] : []),
+      { key: '/pentest', label: '渗透测试' },
       { key: 'incident', label: '应急响应', disabled: true },
       { key: 'audit', label: '代码审计', disabled: true },
       { key: 'analysis', label: '数据分析', disabled: true },
@@ -60,6 +59,7 @@ function menuItems(currentTaskRoute: string | null): MenuProps['items'] {
     label: '任务中心',
     children: [
       { key: '/tasks', label: '全部任务' },
+      ...(currentTaskRoute ? [{ key: currentTaskRoute, label: '当前任务' }] : []),
       { key: 'task-running', label: '进行中', disabled: true },
       { key: 'task-queued', label: '排队中', disabled: true },
       { key: 'task-completed', label: '已完成', disabled: true },
@@ -128,15 +128,18 @@ export function AppShell({ children }: AppShellProps) {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [logoutError, setLogoutError] = useState<string | null>(null);
-  const currentSessionPath = location.pathname.startsWith('/pentest/session/')
+  const isPentestSession = location.pathname.startsWith('/pentest/session/');
+  const currentSessionPath = isPentestSession
     ? location.pathname
     : readPentestSession(user?.id ?? '');
-  const basePath = location.pathname.startsWith('/pentest/session') ? '/pentest' : location.pathname;
-  const selectedPath = location.pathname.startsWith('/pentest/session')
+  const basePath = isPentestSession ? '/pentest' : location.pathname;
+  const selectedPath = isPentestSession
     ? location.pathname
     : basePath;
   const title = pageTitles[basePath] ?? 'AI 安服平台';
-  const openSection = basePath === '/pentest'
+  const openSection = isPentestSession
+    ? 'tasks'
+    : basePath === '/pentest'
     ? 'workbench'
     : basePath === '/tasks'
       ? 'tasks'

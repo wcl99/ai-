@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { App } from './App';
 import { AuthProvider } from './auth/AuthProvider';
+import { rememberPentestSession } from './pentestSessionRoute';
 
 const user = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -73,7 +75,27 @@ describe('App', () => {
     );
   }
 
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  it('places penetration testing under the workbench and the active session under task center', async () => {
+    const interaction = userEvent.setup();
+    rememberPentestSession(user.id, task.id);
+    renderRoute(`/pentest/session/${task.id}`);
+
+    await screen.findByText('Test Admin');
+    const workbench = screen.getByText('工作台').closest('li');
+    const taskCenter = screen.getByText('任务中心').closest('li');
+    expect(workbench).not.toBeNull();
+    expect(taskCenter).not.toBeNull();
+    await interaction.click(screen.getByText('工作台'));
+    expect(within(workbench!).getByText('渗透测试')).toBeInTheDocument();
+    expect(within(workbench!).queryByText('当前任务')).not.toBeInTheDocument();
+    expect(within(taskCenter!).getByText('当前任务')).toBeInTheDocument();
+    expect(taskCenter).toHaveClass('ant-menu-submenu-open');
+  });
 
   it('renders the platform overview', async () => {
     const { container } = renderRoute('/overview');
