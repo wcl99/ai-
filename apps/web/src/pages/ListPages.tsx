@@ -10,6 +10,7 @@ import { Alert, Button, Card, Drawer, Dropdown, Select, Space, Table, Tag } from
 import type { MenuProps } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   listReports,
   listTasks,
@@ -77,7 +78,11 @@ function pageMetrics(
 
 export function TasksPage() {
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState<TaskStatusCode>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedStatus = searchParams.get('status');
+  const status = requestedStatus && ['QUEUED', 'RUNNING', 'CANCELLING', 'SUCCEEDED', 'PARTIAL_SUCCEEDED', 'FAILED', 'CANCELLED'].includes(requestedStatus)
+    ? requestedStatus as TaskStatusCode
+    : undefined;
   const query = useQuery({
     queryKey: ['tasks', { page, pageSize: PAGE_SIZE, status }],
     queryFn: () => listTasks({ page, pageSize: PAGE_SIZE, status }),
@@ -111,7 +116,10 @@ export function TasksPage() {
           options={[
             ['QUEUED', '排队中'], ['RUNNING', '进行中'], ['SUCCEEDED', '已完成'], ['FAILED', '异常'], ['CANCELLED', '已停止'],
           ].map(([value, label]) => ({ value, label }))}
-          onChange={(value) => { setStatus(value as TaskStatusCode | undefined); setPage(1); }}
+          onChange={(value) => {
+            setSearchParams(value ? { status: String(value) } : {}, { replace: true });
+            setPage(1);
+          }}
         />
         <div className="filter-spacer" />
         <Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button>

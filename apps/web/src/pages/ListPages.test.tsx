@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { ReportsPage, TasksPage, VulnerabilitiesPage } from './ListPages';
 
 function json(body: unknown, status = 200) {
@@ -31,9 +32,13 @@ const report = {
   created_at: '2026-07-23T08:00:00Z', plan_name: '授权计划', task_name: null,
 };
 
-function renderPage(page: React.ReactNode) {
+function renderPage(page: React.ReactNode, path = '/') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={queryClient}>{page}</QueryClientProvider>);
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[path]}>{page}</MemoryRouter>
+    </QueryClientProvider>,
+  );
 }
 
 describe('resource list pages', () => {
@@ -54,6 +59,15 @@ describe('resource list pages', () => {
     await interaction.click(screen.getByTitle('2'));
     expect(await screen.findByText('第二页任务')).toBeInTheDocument();
     expect(fetchMock.mock.calls[1][0]).toContain('page=2');
+  });
+
+  it('loads the completed task collection from the navigation filter', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(envelope([{ ...task, status: 'SUCCEEDED' }])));
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage(<TasksPage />, '/tasks?status=SUCCEEDED');
+
+    await screen.findByText('API 真实任务');
+    expect(fetchMock.mock.calls[0][0]).toContain('status=SUCCEEDED');
   });
 
   it('shows a real empty state and a retryable API error', async () => {

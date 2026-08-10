@@ -65,7 +65,7 @@ function menuItems(currentTaskRoute: string | null): MenuProps['items'] {
       ...(currentTaskRoute ? [{ key: currentTaskRoute, label: '当前任务' }] : []),
       { key: 'task-running', label: '进行中', disabled: true },
       { key: 'task-queued', label: '排队中', disabled: true },
-      { key: 'task-completed', label: '已完成', disabled: true },
+      { key: '/tasks?status=SUCCEEDED', label: '已完成' },
     ],
   },
   { key: '/assets', icon: <NavIcon name="assets" />, label: '资产中心' },
@@ -155,7 +155,9 @@ export function AppShell({ children }: AppShellProps) {
   const basePath = isPentestSession ? '/pentest' : location.pathname;
   const selectedPath = isPentestSession
     ? location.pathname
-    : basePath;
+    : basePath === '/tasks' && location.search === '?status=SUCCEEDED'
+      ? '/tasks?status=SUCCEEDED'
+      : basePath;
   const title = pageTitles[basePath] ?? 'AI 安服平台';
   const openSection = isPentestSession
     ? 'tasks'

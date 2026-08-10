@@ -111,6 +111,9 @@ describe('App', () => {
     await screen.findByText('Test Admin');
     await waitFor(() => expect(screen.queryByText('当前任务')).not.toBeInTheDocument());
     expect(localStorage.getItem(`aisec:pentest-session:${user.id}`)).toBeNull();
+    const taskCenter = screen.getByText('任务中心').closest('li');
+    expect(within(taskCenter!).getByText('已完成').closest('li'))
+      .not.toHaveClass('ant-menu-item-disabled');
   });
 
   it('renders the platform overview', async () => {
