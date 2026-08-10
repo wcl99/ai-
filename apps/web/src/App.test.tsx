@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { App } from './App';
@@ -95,6 +95,22 @@ describe('App', () => {
     expect(within(workbench!).queryByText('当前任务')).not.toBeInTheDocument();
     expect(within(taskCenter!).getByText('当前任务')).toBeInTheDocument();
     expect(taskCenter).toHaveClass('ant-menu-submenu-open');
+  });
+
+  it('removes a terminal penetration session from current tasks', async () => {
+    rememberPentestSession(user.id, task.id);
+    const finishedFetch = (input: RequestInfo | URL) => {
+      const url = new URL(String(input), 'http://localhost');
+      if (url.pathname === `/api/v1/tasks/${task.id}`) {
+        return Promise.resolve(json({ ...task, status: 'SUCCEEDED', progress: 100 }));
+      }
+      return appFetch(input);
+    };
+    renderRoute(`/pentest/session/${task.id}`, finishedFetch);
+
+    await screen.findByText('Test Admin');
+    await waitFor(() => expect(screen.queryByText('当前任务')).not.toBeInTheDocument());
+    expect(localStorage.getItem(`aisec:pentest-session:${user.id}`)).toBeNull();
   });
 
   it('renders the platform overview', async () => {

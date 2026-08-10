@@ -3,15 +3,18 @@ import {
   SearchOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
+import { useQuery } from '@tanstack/react-query';
 import { Alert, Avatar, Dropdown, Input, Layout, Menu, Space, Typography } from 'antd';
 import type { MenuProps } from 'antd';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import expertAvatar from '../../../../素材/工作 (7) 3.png';
+import { getTask } from '../api/pentest';
 import { useAuth } from '../auth/AuthContext';
 import { forgetPentestSession, readPentestSession } from '../pentestSessionRoute';
 
 const { Header, Sider, Content } = Layout;
+const terminalTaskStatuses = new Set(['SUCCEEDED', 'PARTIAL_SUCCEEDED', 'FAILED', 'CANCELLED']);
 
 type NavigationIcon =
   | 'overview'
@@ -132,6 +135,23 @@ export function AppShell({ children }: AppShellProps) {
   const currentSessionPath = isPentestSession
     ? location.pathname
     : readPentestSession(user?.id ?? '');
+  const currentTaskId = currentSessionPath?.split('/').at(-1) ?? '';
+  const currentTaskQuery = useQuery({
+    queryKey: ['pentest', 'task', currentTaskId],
+    queryFn: () => getTask(currentTaskId),
+    enabled: Boolean(currentTaskId),
+    retry: false,
+    refetchInterval: (query) => (
+      query.state.data && terminalTaskStatuses.has(query.state.data.status) ? false : 1_500
+    ),
+  });
+  const currentTaskFinished = Boolean(
+    currentTaskQuery.data && terminalTaskStatuses.has(currentTaskQuery.data.status),
+  );
+  const currentTaskRoute = currentTaskFinished ? null : currentSessionPath;
+  useEffect(() => {
+    if (currentTaskFinished) forgetPentestSession(user?.id ?? '');
+  }, [currentTaskFinished, user?.id]);
   const basePath = isPentestSession ? '/pentest' : location.pathname;
   const selectedPath = isPentestSession
     ? location.pathname
@@ -179,7 +199,7 @@ export function AppShell({ children }: AppShellProps) {
           mode="inline"
           selectedKeys={[selectedPath]}
           defaultOpenKeys={openSection ? [openSection] : []}
-          items={menuItems(currentSessionPath)}
+          items={menuItems(currentTaskRoute)}
           onClick={({ key }) => key.startsWith('/') && navigate(key)}
         />
       </Sider>
