@@ -7,13 +7,15 @@ import { getOrganization, getRuntimeSettings, listAuditLogs } from '../api/resou
 import type { AuditLog } from '../api/resources';
 import { ManagementPageHeader } from '../components/ManagementPageHeader';
 
+const AUDIT_PAGE_SIZE = 12;
+
 export function AuthorizationPage() {
   const [page, setPage] = useState(1);
   const [action, setAction] = useState<string>();
   const [resourceType, setResourceType] = useState<string>();
   const organization = useQuery({ queryKey: ['organization'], queryFn: getOrganization });
   const runtime = useQuery({ queryKey: ['runtime-settings'], queryFn: getRuntimeSettings });
-  const logs = useQuery({ queryKey: ['audit-logs', action, resourceType, page], queryFn: () => listAuditLogs({ action, resourceType, page, pageSize: 20 }) });
+  const logs = useQuery({ queryKey: ['audit-logs', action, resourceType, page], queryFn: () => listAuditLogs({ action, resourceType, page, pageSize: AUDIT_PAGE_SIZE }) });
 
   const columns: ColumnsType<AuditLog> = [
     { title: '时间', dataIndex: 'created_at', width: 190, render: (value) => new Date(value).toLocaleString('zh-CN') },
@@ -41,7 +43,7 @@ export function AuthorizationPage() {
       <Card className="management-table-panel audit-panel" variant="borderless">
         <div className="management-table-toolbar"><div><AuditOutlined /><strong>审计记录</strong></div><div><Select allowClear placeholder="筛选动作" value={action} onChange={(value) => { setAction(value); setPage(1); }} options={[{ value: 'user.create', label: '创建成员' }, { value: 'user.update', label: '更新成员' }, { value: 'organization.update', label: '更新组织' }]} /><Select allowClear placeholder="资源类型" value={resourceType} onChange={(value) => { setResourceType(value); setPage(1); }} options={[{ value: 'user', label: '用户' }, { value: 'organization', label: '组织' }, { value: 'task', label: '任务' }, { value: 'scan_plan', label: '扫描计划' }]} /></div></div>
         {logs.isError && <Alert type="error" showIcon message={logs.error.message} action={<Button onClick={() => logs.refetch()}>重试</Button>} />}
-        <Table rowKey="id" columns={columns} dataSource={logs.data?.items ?? []} loading={logs.isPending} locale={{ emptyText: '暂无审计记录' }} pagination={{ current: page, pageSize: 20, total: logs.data?.total ?? 0, showSizeChanger: false, onChange: setPage }} scroll={{ x: 1050 }} />
+        <Table rowKey="id" columns={columns} dataSource={logs.data?.items ?? []} loading={logs.isPending} locale={{ emptyText: '暂无审计记录' }} pagination={{ current: page, pageSize: AUDIT_PAGE_SIZE, total: logs.data?.total ?? 0, showSizeChanger: false, onChange: setPage }} scroll={{ x: 1050 }} />
       </Card>
     </div>
   );

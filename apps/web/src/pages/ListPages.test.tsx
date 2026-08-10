@@ -48,6 +48,7 @@ describe('resource list pages', () => {
     renderPage(<TasksPage />);
 
     expect(await screen.findByText('API 真实任务')).toBeInTheDocument();
+    expect(screen.getByText('管理员')).toHaveClass('table-nowrap');
     expect(screen.getByText('本页进行中')).toBeInTheDocument();
     expect(screen.queryByText('进行中', { selector: '.metric-top span' })).not.toBeInTheDocument();
     await interaction.click(screen.getByTitle('2'));

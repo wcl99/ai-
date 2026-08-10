@@ -94,7 +94,7 @@ export function TasksPage() {
     { title: '类型', dataIndex: 'type', width: 130, render: (type) => <ServiceType type={type} /> },
     { title: '目标/资产摘要', dataIndex: 'target', ellipsis: true },
     { title: '创建时间', dataIndex: 'createdAt', width: 170, render: dateTime },
-    { title: '创建人', dataIndex: 'creator', width: 110 },
+    { title: '创建人', dataIndex: 'creator', width: 150, render: (value) => <span className="table-nowrap" title={value}>{value}</span> },
     { title: '当前状态', dataIndex: 'status', width: 110, render: (value) => <StatusTag status={value} /> },
     { title: '进度', dataIndex: 'progress', width: 150, render: (value, row) => <ProgressCell value={value} tone={row.status === '异常' ? 'red' : row.status === '已完成' ? 'green' : 'blue'} /> },
     { title: '阶段', dataIndex: 'phase', width: 120, render: (value) => value || '—' },

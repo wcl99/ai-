@@ -103,15 +103,17 @@ describe('management pages', () => {
       action: 'user.create', resource_type: 'user', resource_id: '33333333-3333-4333-8333-333333333333',
       outcome: 'success', details_json: {}, created_at: '2026-08-10T08:05:00Z',
     };
-    vi.stubGlobal('fetch', vi.fn()
+    const fetchMock = vi.fn()
       .mockResolvedValueOnce(response(organization))
       .mockResolvedValueOnce(response({ success: true, message: 'ok', data: runtime }))
-      .mockResolvedValueOnce(response({ success: true, message: 'ok', data: { items: [audit], total: 1, page: 1, page_size: 20 } })));
+      .mockResolvedValueOnce(response({ success: true, message: 'ok', data: { items: [audit], total: 1, page: 1, page_size: 12 } }));
+    vi.stubGlobal('fetch', fetchMock);
 
     renderPage(<AuthorizationPage />);
 
     expect(await screen.findByText('Cloud Shield Lab')).toBeInTheDocument();
     expect(await screen.findByText('user.create')).toBeInTheDocument();
     expect(screen.getByText('success')).toBeInTheDocument();
+    expect(fetchMock.mock.calls.find(([url]) => String(url).includes('/audit-logs'))?.[0]).toContain('page_size=12');
   });
 });
