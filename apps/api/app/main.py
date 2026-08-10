@@ -649,8 +649,7 @@ async def freeze_confirmed_plan(
     if scan_mode not in {
         "standard",
         "two_high_one_weak",
-        "two_clear_two_fixed",
-        "classified_protection_2_0",
+        "mlps_2_0",
     }:
         scan_mode = "standard"
     xiaoyi_context = {

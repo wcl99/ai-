@@ -399,8 +399,7 @@ async def test_confirmation_preserves_explicit_deep_pentest_speed(authenticated_
     [
         "standard",
         "two_high_one_weak",
-        "two_clear_two_fixed",
-        "classified_protection_2_0",
+        "mlps_2_0",
     ],
 )
 async def test_confirmation_preserves_pentest_scenario(authenticated_client, scan_mode):

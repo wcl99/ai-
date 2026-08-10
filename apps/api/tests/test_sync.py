@@ -468,6 +468,50 @@ async def create_queued_task(client, name: str, request_id: str) -> str:
     return task.json()["id"]
 
 
+async def test_successful_xiaoyi_start_is_available_from_task_events(
+    authenticated_client, monkeypatch
+):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": "Logged Xiaoyi start",
+            "scan_mode": "two_high_one_weak",
+            "targets": ["example.test"],
+            "authorization_confirmed": True,
+        },
+    )
+    await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+    )
+    task = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": plan.json()["id"], "request_id": "logged-xiaoyi-start"},
+    )
+    engine = RestartEngine(
+        EngineTask("logged-external", "RUNNING", "INIT", 0, {})
+    )
+    monkeypatch.setattr(sync, "get_engine_client", lambda settings: engine)
+
+    await sync.sync_once(get_settings())
+
+    events = await authenticated_client.get(
+        f"/api/v1/tasks/{task.json()['id']}/events"
+    )
+    started = [
+        item
+        for item in events.json()["data"]
+        if item["event_type"] == "xiaoyi_task_started"
+    ]
+    assert len(started) == 1
+    assert started[0]["message"] == "小易任务启动成功"
+    assert started[0]["data_json"] == {
+        "external_task_id": "logged-external",
+        "scan_mode": "two_high_one_weak",
+        "status": "RUNNING",
+        "phase": "INIT",
+    }
+
+
 async def test_fresh_sync_iteration_rediscovers_task_without_regressing_state(
     authenticated_client, monkeypatch
 ):

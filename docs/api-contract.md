@@ -52,8 +52,8 @@
 - `scan_mode`：场景模式，支持：
   - `standard`：标准渗透
   - `two_high_one_weak`：两高一弱
-  - `two_clear_two_fixed`：两清两固
-  - `classified_protection_2_0`：等保2.0
+  - `two_high_one_weak`：两清两固（小易当前与“两高一弱”共用该模式值）
+  - `mlps_2_0`：等保2.0
 - `scan_speed`：执行速度，支持 `quick`、`standard`、`deep`。
 - 场景与速度随计划快照冻结，授权确认后由平台原样写入小易正式任务上下文。
 

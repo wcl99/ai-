@@ -145,8 +145,7 @@ class ScanPlanCreate(BaseModel):
     scan_mode: Literal[
         "standard",
         "two_high_one_weak",
-        "two_clear_two_fixed",
-        "classified_protection_2_0",
+        "mlps_2_0",
     ] = "standard"
     scan_speed: Literal["quick", "standard", "deep"] = "standard"
     targets: list[str] = Field(min_length=1, max_length=64)

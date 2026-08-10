@@ -256,6 +256,25 @@ async def sync_once(settings: Settings) -> None:
                         task.error_code = (
                             "XIAOYI_TASK_FAILED" if result.error_message else None
                         )
+                        context = plan.snapshot.get("xiaoyi_context")
+                        scan_mode = (
+                            context.get("scan_mode")
+                            if isinstance(context, dict)
+                            else None
+                        ) or plan.snapshot.get("scan_mode", "standard")
+                        session.add(
+                            TaskEvent(
+                                task_id=task.id,
+                                event_type="xiaoyi_task_started",
+                                message="小易任务启动成功",
+                                data_json={
+                                    "external_task_id": result.external_task_id,
+                                    "scan_mode": scan_mode,
+                                    "status": task.status,
+                                    "phase": task.phase,
+                                },
+                            )
+                        )
                         await sync_report(session, task, result.raw)
                 else:
                     result = await client.get_task(task.external_task_id, task.progress)
