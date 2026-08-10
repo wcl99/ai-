@@ -46,6 +46,17 @@
 
 常用状态码为 `401` 未认证、`403` 无权限、`404` 资源不存在、`409` 状态冲突、`422` 输入不合法。前端不得依赖未记录的 `details` 内部结构。
 
+## 渗透测试计划 `POST /api/v1/scan-plans`
+
+- `test_type`：任务大类；渗透测试固定使用 `standard`。
+- `scan_mode`：场景模式，支持：
+  - `standard`：标准渗透
+  - `two_high_one_weak`：两高一弱
+  - `two_clear_two_fixed`：两清两固
+  - `classified_protection_2_0`：等保2.0
+- `scan_speed`：执行速度，支持 `quick`、`standard`、`deep`。
+- 场景与速度随计划快照冻结，授权确认后由平台原样写入小易正式任务上下文。
+
 ## 资源列表
 
 ### 任务 `GET /api/v1/tasks`

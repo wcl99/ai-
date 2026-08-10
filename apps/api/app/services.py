@@ -95,6 +95,7 @@ async def create_plan(
     asset_list = normalize_asset_list(payload.asset_list) if payload.asset_list else []
     snapshot = {
         "test_type": payload.test_type,
+        "scan_mode": payload.scan_mode,
         "scan_speed": payload.scan_speed,
         "targets": targets,
         "asset_list": asset_list,

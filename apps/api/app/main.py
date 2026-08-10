@@ -645,10 +645,18 @@ async def freeze_confirmed_plan(
     scan_speed = requested_speed if requested_speed in {"quick", "standard", "deep"} else "quick"
     if plan.test_type == "standard" and scan_speed == "quick":
         scan_speed = "standard"
+    scan_mode = plan.snapshot.get("scan_mode", "standard")
+    if scan_mode not in {
+        "standard",
+        "two_high_one_weak",
+        "two_clear_two_fixed",
+        "classified_protection_2_0",
+    }:
+        scan_mode = "standard"
     xiaoyi_context = {
         "user_id": settings.xiaoyi_user_id or user.username,
         "plan_id": mapping.id,
-        "scan_mode": plan.test_type,
+        "scan_mode": scan_mode,
         "scan_speed": scan_speed,
         "download_intermediate_results": True,
     }

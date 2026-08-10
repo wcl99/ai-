@@ -394,6 +394,34 @@ async def test_confirmation_preserves_explicit_deep_pentest_speed(authenticated_
     assert confirmed.json()["snapshot"]["xiaoyi_context"]["scan_speed"] == "deep"
 
 
+@pytest.mark.parametrize(
+    "scan_mode",
+    [
+        "standard",
+        "two_high_one_weak",
+        "two_clear_two_fixed",
+        "classified_protection_2_0",
+    ],
+)
+async def test_confirmation_preserves_pentest_scenario(authenticated_client, scan_mode):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": f"Scenario {scan_mode}",
+            "test_type": "standard",
+            "scan_mode": scan_mode,
+            "targets": ["example.test"],
+        },
+    )
+
+    confirmed = await authenticated_client.post(
+        f"/api/v1/scan-plans/{plan.json()['id']}/confirm"
+    )
+
+    assert confirmed.json()["snapshot"]["scan_mode"] == scan_mode
+    assert confirmed.json()["snapshot"]["xiaoyi_context"]["scan_mode"] == scan_mode
+
+
 async def test_reconfirmation_keeps_the_original_xiaoyi_actor(authenticated_client):
     plan = await authenticated_client.post(
         "/api/v1/scan-plans",

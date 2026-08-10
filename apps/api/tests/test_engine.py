@@ -177,6 +177,23 @@ def test_builds_xiaoyi_payload_without_optional_org_id():
     assert payload["plan_id"] == 999
 
 
+def test_builds_xiaoyi_payload_with_pentest_scenario():
+    snapshot = {
+        "xiaoyi_context": {
+            "user_id": "admin",
+            "plan_id": 999,
+            "scan_mode": "two_high_one_weak",
+            "scan_speed": "standard",
+            "download_intermediate_results": True,
+        },
+        "asset_list": [{"host": "example.test", "hostType": "domain"}],
+    }
+
+    payload = build_xiaoyi_chat_payload(snapshot)
+
+    assert payload["scan_mode"] == "two_high_one_weak"
+
+
 @pytest.mark.parametrize(
     "port",
     [
