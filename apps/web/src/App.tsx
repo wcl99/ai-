@@ -6,6 +6,8 @@ import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
 import { ReportsPage, TasksPage, VulnerabilitiesPage } from './pages/ListPages';
 import { AssetsPage, SettingsPage } from './pages/ManagementPages';
+import { AuthorizationPage } from './pages/AuthorizationPage';
+import { TeamPage } from './pages/TeamPage';
 import { ReportOverviewPage, VulnerabilityOverviewPage } from './pages/OverviewPages';
 import { PentestPage, PentestSessionPage } from './pages/PentestPage';
 
@@ -28,6 +30,8 @@ export function App() {
           <Route path="/pentest" element={<PentestPage />} />
           <Route path="/pentest/session/:sessionId" element={<PentestSessionPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/team" element={<TeamPage />} />
+          <Route path="/settings/authorization" element={<AuthorizationPage />} />
           <Route path="*" element={<Navigate to="/overview" replace />} />
         </Routes>
       </AppShell>

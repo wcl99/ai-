@@ -1,11 +1,18 @@
 import {
+  createUser,
   createAsset,
+  getOrganization,
+  getRuntimeSettings,
+  listAuditLogs,
   listAssets,
   listReports,
   listTasks,
+  listUsers,
   listVulnerabilities,
   previewReport,
   reportDownloadUrl,
+  updateOrganization,
+  updateUser,
   updateVulnerability,
 } from './resources';
 
@@ -140,5 +147,55 @@ describe('resource API', () => {
     expect(reportDownloadUrl('55555555-5555-4555-8555-555555555555')).toBe(
       '/api/v1/reports/55555555-5555-4555-8555-555555555555/download',
     );
+  });
+
+  it('uses the existing management endpoints and validates their payloads', async () => {
+    const organization = {
+      id: '22222222-2222-4222-8222-222222222222',
+      name: 'Cloud Shield Lab',
+      created_at: '2026-08-10T08:00:00Z',
+      updated_at: '2026-08-10T08:00:00Z',
+    };
+    const runtime = {
+      app_name: 'AI Security Platform', engine_mode: 'xiaoyi', engine_configured: true,
+      engine_retry_limit: 3, sync_interval_seconds: 5, report_storage: 'local',
+    };
+    const member = {
+      id: '11111111-1111-4111-8111-111111111111', org_id: organization.id,
+      username: 'operator.lin', name: 'Lin Wei', role: 'operator', is_active: true,
+      is_digital_human: false,
+    };
+    const audit = {
+      id: '33333333-3333-4333-8333-333333333333', actor_id: member.id,
+      action: 'user.create', resource_type: 'user', resource_id: member.id,
+      outcome: 'success', details_json: {}, created_at: '2026-08-10T08:05:00Z',
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(organization))
+      .mockResolvedValueOnce(jsonResponse({ success: true, message: 'ok', data: runtime }))
+      .mockResolvedValueOnce(jsonResponse(page([member])))
+      .mockResolvedValueOnce(jsonResponse(member, 201))
+      .mockResolvedValueOnce(jsonResponse({ ...member, role: 'auditor' }))
+      .mockResolvedValueOnce(jsonResponse({ ...organization, name: 'Cloud Shield Operations' }))
+      .mockResolvedValueOnce(jsonResponse(page([audit])));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getOrganization()).resolves.toEqual(organization);
+    await expect(getRuntimeSettings()).resolves.toEqual(runtime);
+    await expect(listUsers({ page: 1, pageSize: 20 })).resolves.toMatchObject({ total: 1 });
+    await createUser({ username: 'operator.lin', name: 'Lin Wei', password: 'simple-pass', role: 'operator', is_digital_human: false });
+    await updateUser(member.id, { role: 'auditor' });
+    await updateOrganization('Cloud Shield Operations');
+    await expect(listAuditLogs({ action: 'user.create', resourceType: 'user', page: 1, pageSize: 20 })).resolves.toMatchObject({ total: 1 });
+
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      '/api/v1/settings/organization',
+      '/api/v1/settings/runtime',
+      '/api/v1/users?page=1&page_size=20',
+      '/api/v1/users',
+      `/api/v1/users/${member.id}`,
+      '/api/v1/settings/organization',
+      '/api/v1/audit-logs?action=user.create&resource_type=user&page=1&page_size=20',
+    ]);
   });
 });

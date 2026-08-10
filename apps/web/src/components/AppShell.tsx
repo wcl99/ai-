@@ -85,7 +85,16 @@ function menuItems(currentTaskRoute: string | null): MenuProps['items'] {
       { key: 'report-exports', label: '导出记录', disabled: true },
     ],
   },
-  { key: '/settings', icon: <NavIcon name="settings" />, label: '平台设置' },
+  {
+    key: 'settings',
+    icon: <NavIcon name="settings" />,
+    label: '平台设置',
+    children: [
+      { key: '/settings', label: '系统设置' },
+      { key: '/settings/team', label: '团队管理' },
+      { key: '/settings/authorization', label: '授权管理' },
+    ],
+  },
   ];
 }
 
@@ -99,6 +108,8 @@ const pageTitles: Record<string, string> = {
   '/reports': '报告列表',
   '/pentest': 'AI 渗透测试',
   '/settings': '平台设置',
+  '/settings/team': '团队管理',
+  '/settings/authorization': '授权管理',
 };
 
 const roleLabels: Record<string, string> = {
@@ -133,7 +144,9 @@ export function AppShell({ children }: AppShellProps) {
         ? 'vulnerability'
         : basePath.startsWith('/reports')
           ? 'report'
-          : undefined;
+          : basePath.startsWith('/settings')
+            ? 'settings'
+            : undefined;
   const profileMenu: MenuProps = {
     items: [{ key: 'logout', label: '退出登录' }],
     onClick: async ({ key }) => {
@@ -203,7 +216,7 @@ export function AppShell({ children }: AppShellProps) {
           />
         )}
         <Content className={basePath === '/pentest' ? 'app-content pentest-content' : 'app-content'}>
-          {children}
+          <div className="app-content-frame">{children}</div>
         </Content>
       </Layout>
     </Layout>

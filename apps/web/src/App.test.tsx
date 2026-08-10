@@ -43,6 +43,15 @@ function appFetch(input: RequestInfo | URL) {
     return Promise.resolve(envelope([], filtered ? 1 : 5));
   }
   if (url.pathname === '/api/v1/reports') return Promise.resolve(envelope([], 6));
+  if (url.pathname === '/api/v1/settings/organization') return Promise.resolve(json({
+    id: user.org_id, name: 'Cloud Shield Lab', created_at: '2026-08-10T08:00:00Z', updated_at: '2026-08-10T08:00:00Z',
+  }));
+  if (url.pathname === '/api/v1/settings/runtime') return Promise.resolve(json({ success: true, message: 'ok', data: {
+    app_name: 'AI Security Platform', engine_mode: 'xiaoyi', engine_configured: true,
+    engine_retry_limit: 3, sync_interval_seconds: 5, report_storage: 'local',
+  } }));
+  if (url.pathname === '/api/v1/users') return Promise.resolve(envelope([user], 1));
+  if (url.pathname === '/api/v1/audit-logs') return Promise.resolve(envelope([], 0));
   return Promise.resolve(json({ success: false, code: 'NOT_FOUND', message: 'Not found', details: null }));
 }
 
@@ -114,6 +123,15 @@ describe('App', () => {
     expect(screen.getAllByText('整体修复进度')).not.toHaveLength(0);
   });
 
+  it.each([
+    ['/settings', '系统设置'],
+    ['/settings/team', '团队管理'],
+    ['/settings/authorization', '授权管理'],
+  ])('renders the management route %s', async (path, heading) => {
+    renderRoute(path);
+    expect(await screen.findAllByRole('heading', { name: heading })).not.toHaveLength(0);
+  });
+
   it('renders the login page without the app shell', async () => {
     const unauthenticatedFetch = () => Promise.resolve(new Response(JSON.stringify({
       success: false,
@@ -121,8 +139,10 @@ describe('App', () => {
       message: 'Authentication required',
       details: null,
     }), { status: 401, headers: { 'Content-Type': 'application/json' } }));
-    renderRoute('/login', unauthenticatedFetch);
+    const { container } = renderRoute('/login', unauthenticatedFetch);
     expect(await screen.findByRole('heading', { name: '系统登录' })).toBeInTheDocument();
     expect(screen.queryByText('平台总览')).not.toBeInTheDocument();
+    expect(container.querySelector('.login-visual-panel')).toBeInTheDocument();
+    expect(container.querySelector('.login-form-panel')).toBeInTheDocument();
   });
 });

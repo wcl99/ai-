@@ -9,6 +9,7 @@ import type {
   VulnerabilityRecord,
 } from '../types';
 import { apiRequest, apiTextRequest } from './client';
+import { userSchema } from './schemas';
 
 const uuid = z.string().uuid();
 const timestamp = z.string();
@@ -101,6 +102,45 @@ const reportSchema = z.object({
   plan_name: z.string(),
   task_name: z.string().nullable(),
 });
+
+const organizationSchema = z.object({
+  id: uuid,
+  name: z.string(),
+  created_at: timestamp,
+  updated_at: timestamp,
+});
+
+const runtimeSettingsSchema = z.object({
+  app_name: z.string(),
+  engine_mode: z.string(),
+  engine_configured: z.boolean(),
+  engine_retry_limit: z.number().int().nonnegative(),
+  sync_interval_seconds: z.number().int().positive(),
+  report_storage: z.string(),
+});
+
+const runtimeSettingsEnvelope = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: runtimeSettingsSchema,
+});
+
+const auditLogSchema = z.object({
+  id: uuid,
+  actor_id: uuid,
+  action: z.string(),
+  resource_type: z.string(),
+  resource_id: z.string(),
+  outcome: z.string(),
+  details_json: z.record(z.string(), z.unknown()),
+  created_at: timestamp,
+});
+
+export type Organization = z.infer<typeof organizationSchema>;
+export type RuntimeSettings = z.infer<typeof runtimeSettingsSchema>;
+export type TeamUser = z.infer<typeof userSchema>;
+export type AuditLog = z.infer<typeof auditLogSchema>;
+export type UserRole = TeamUser['role'];
 
 const taskStatuses: Record<string, TaskStatus> = {
   QUEUED: '排队中',
@@ -293,4 +333,73 @@ export function previewReport(id: string) {
 
 export function reportDownloadUrl(id: string) {
   return `/api/v1/reports/${id}/download`;
+}
+
+export function getOrganization() {
+  return apiRequest('/api/v1/settings/organization', organizationSchema);
+}
+
+export async function getRuntimeSettings() {
+  const response = await apiRequest('/api/v1/settings/runtime', runtimeSettingsEnvelope);
+  return response.data;
+}
+
+export function updateOrganization(name: string) {
+  return apiRequest('/api/v1/settings/organization', organizationSchema, {
+    method: 'PATCH',
+    body: { name: z.string().trim().min(1).max(120).parse(name) },
+  });
+}
+
+export async function listUsers(input: { page: number; pageSize: number }) {
+  const query = params([['page', input.page], ['page_size', input.pageSize]]);
+  const response = await apiRequest(`/api/v1/users?${query}`, pageEnvelope(userSchema));
+  return result(response.data, (item) => item);
+}
+
+const createUserSchema = z.object({
+  username: z.string().trim().min(1).max(80),
+  name: z.string().trim().min(1).max(120),
+  password: z.string().min(8).max(256),
+  role: z.enum(['admin', 'security_expert', 'operator', 'auditor']),
+  is_digital_human: z.boolean(),
+});
+
+export type CreateUserInput = z.infer<typeof createUserSchema>;
+
+export function createUser(input: CreateUserInput) {
+  return apiRequest('/api/v1/users', userSchema, {
+    method: 'POST',
+    body: createUserSchema.parse(input),
+  });
+}
+
+const updateUserSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  role: z.enum(['admin', 'security_expert', 'operator', 'auditor']).optional(),
+  is_active: z.boolean().optional(),
+  is_digital_human: z.boolean().optional(),
+});
+
+export function updateUser(id: string, input: z.infer<typeof updateUserSchema>) {
+  return apiRequest(`/api/v1/users/${uuid.parse(id)}`, userSchema, {
+    method: 'PATCH',
+    body: updateUserSchema.parse(input),
+  });
+}
+
+export async function listAuditLogs(input: {
+  action?: string;
+  resourceType?: string;
+  page: number;
+  pageSize: number;
+}) {
+  const query = params([
+    ['action', input.action],
+    ['resource_type', input.resourceType],
+    ['page', input.page],
+    ['page_size', input.pageSize],
+  ]);
+  const response = await apiRequest(`/api/v1/audit-logs?${query}`, pageEnvelope(auditLogSchema));
+  return result(response.data, (item) => item);
 }

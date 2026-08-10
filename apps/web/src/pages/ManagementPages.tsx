@@ -147,7 +147,7 @@ export function AssetsPage() {
   );
 }
 
-export function SettingsPage() {
+export function LegacySettingsPage() {
   const [engineUrl, setEngineUrl] = useState('http://127.0.0.1:8080/api/osCore');
   const [digitalHumanEnabled, setDigitalHumanEnabled] = useState(true);
   const [allowlistOnly, setAllowlistOnly] = useState(true);
@@ -242,6 +242,8 @@ export function SettingsPage() {
     </div>
   );
 }
+
+export { ManagementSettingsPage as SettingsPage } from './SystemSettingsPage';
 
 function SettingsCard({ icon, title, description, children }: { icon: React.ReactNode; title: string; description: string; children: React.ReactNode }) {
   return (
