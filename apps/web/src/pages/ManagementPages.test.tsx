@@ -14,8 +14,21 @@ function renderPage(page: React.ReactNode) {
   return render(<QueryClientProvider client={queryClient}>{page}</QueryClientProvider>);
 }
 
+const organization = {
+  id: '22222222-2222-4222-8222-222222222222', name: 'Cloud Shield Lab',
+  created_at: '2026-08-10T08:00:00Z', updated_at: '2026-08-10T08:00:00Z',
+};
+
+const runtime = {
+  app_name: 'AI Security Platform', engine_mode: 'xiaoyi', engine_configured: true,
+  engine_retry_limit: 3, sync_interval_seconds: 5, report_storage: 'local',
+};
+
 describe('management pages', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
 
   it('adds an authorized asset', async () => {
     const asset = {
@@ -44,27 +57,31 @@ describe('management pages', () => {
     });
   });
 
-  it('shows live organization and runtime settings', async () => {
-    vi.stubGlobal('fetch', vi.fn()
-      .mockResolvedValueOnce(response({
-        id: '22222222-2222-4222-8222-222222222222', name: 'Cloud Shield Lab',
-        created_at: '2026-08-10T08:00:00Z', updated_at: '2026-08-10T08:00:00Z',
-      }))
-      .mockResolvedValueOnce(response({ success: true, message: 'ok', data: {
-        app_name: 'AI Security Platform', engine_mode: 'xiaoyi', engine_configured: true,
-        engine_retry_limit: 3, sync_interval_seconds: 5, report_storage: 'local',
-      } })));
-
+  it('switches all system settings tabs and persists local model settings', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response(organization))
+      .mockResolvedValueOnce(response({ success: true, message: 'ok', data: runtime }));
+    vi.stubGlobal('fetch', fetchMock);
+    const interaction = userEvent.setup();
     renderPage(<SettingsPage />);
 
-    expect(await screen.findByDisplayValue('Cloud Shield Lab')).toBeInTheDocument();
-    expect(await screen.findByText('xiaoyi')).toBeInTheDocument();
-    expect(screen.getByText('已配置')).toBeInTheDocument();
+    expect(await screen.findByText('登录与退出设置')).toBeInTheDocument();
+    for (const tab of ['认证与安全', 'AI 模型', '场景配置', '规则配置', '模块管理']) {
+      expect(screen.getByRole('tab', { name: tab })).toBeInTheDocument();
+    }
+
+    await interaction.click(screen.getByRole('tab', { name: 'AI 模型' }));
+    const modelName = screen.getByLabelText('模型名称');
+    await interaction.clear(modelName);
+    await interaction.type(modelName, 'deepseek-v4-flash');
+    await interaction.click(screen.getByRole('button', { name: '保存设置' }));
+
+    expect(localStorage.getItem('ai-security-management-settings-v1')).toContain('deepseek-v4-flash');
   });
 
   it('lists team members and creates a member through the real API contract', async () => {
     const member = {
-      id: '11111111-1111-4111-8111-111111111111', org_id: '22222222-2222-4222-8222-222222222222',
+      id: '11111111-1111-4111-8111-111111111111', org_id: organization.id,
       username: 'admin', name: 'Platform Admin', role: 'admin', is_active: true, is_digital_human: false,
     };
     const created = { ...member, id: '33333333-3333-4333-8333-333333333333', username: 'operator.lin', name: 'Lin Wei', role: 'operator' };
@@ -77,7 +94,11 @@ describe('management pages', () => {
 
     renderPage(<TeamPage />);
     expect(await screen.findByText('Platform Admin')).toBeInTheDocument();
-    await interaction.click(screen.getByRole('button', { name: /添加成员/ }));
+    expect(screen.getByText('组织架构')).toBeInTheDocument();
+    expect(screen.getByText('成员列表')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /批量导入/ })).toBeDisabled();
+
+    await interaction.click(screen.getByRole('button', { name: /新增成员/ }));
     await interaction.type(screen.getByLabelText('姓名'), 'Lin Wei');
     await interaction.type(screen.getByLabelText('账号'), 'operator.lin');
     await interaction.type(screen.getByLabelText('初始密码'), 'simple-pass');
@@ -89,31 +110,18 @@ describe('management pages', () => {
     });
   });
 
-  it('renders authorization context and audit activity', async () => {
-    const organization = {
-      id: '22222222-2222-4222-8222-222222222222', name: 'Cloud Shield Lab',
-      created_at: '2026-08-10T08:00:00Z', updated_at: '2026-08-10T08:00:00Z',
-    };
-    const runtime = {
-      app_name: 'AI Security Platform', engine_mode: 'xiaoyi', engine_configured: true,
-      engine_retry_limit: 3, sync_interval_seconds: 5, report_storage: 'local',
-    };
-    const audit = {
-      id: '44444444-4444-4444-8444-444444444444', actor_id: '11111111-1111-4111-8111-111111111111',
-      action: 'user.create', resource_type: 'user', resource_id: '33333333-3333-4333-8333-333333333333',
-      outcome: 'success', details_json: {}, created_at: '2026-08-10T08:05:00Z',
-    };
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(response(organization))
-      .mockResolvedValueOnce(response({ success: true, message: 'ok', data: runtime }))
-      .mockResolvedValueOnce(response({ success: true, message: 'ok', data: { items: [audit], total: 1, page: 1, page_size: 12 } }));
+  it('renders authorization as a disabled visual-only license surface', () => {
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     renderPage(<AuthorizationPage />);
 
-    expect(await screen.findByText('Cloud Shield Lab')).toBeInTheDocument();
-    expect(await screen.findByText('user.create')).toBeInTheDocument();
-    expect(screen.getByText('success')).toBeInTheDocument();
-    expect(fetchMock.mock.calls.find(([url]) => String(url).includes('/audit-logs'))?.[0]).toContain('page_size=12');
+    expect(screen.getByText('系统指纹')).toBeInTheDocument();
+    expect(screen.getByText('授权状态')).toBeInTheDocument();
+    expect(screen.getByText('上传授权文件')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '刷新状态' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '选择授权文件' })).toBeDisabled();
+    expect(screen.getAllByText('授权管理功能暂未开放').length).toBeGreaterThan(0);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
