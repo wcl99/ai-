@@ -13,6 +13,7 @@ __pycache__/
 .env
 *.pem
 .run/
+.worktrees/
 data/*.db
 data/reports/
 .DS_Store
