@@ -78,6 +78,15 @@
 - 过滤参数：`severity`、`status`。
 - 关联摘要：可空的 `task_name`。
 - `tags` 仅返回 `data_json.tags` 中的字符串，非字符串值会被丢弃。
+
+### 漏洞总览 `GET /api/v1/vulnerabilities/overview`
+
+- 查询参数：`range=today|3d|7d|all`，默认 `7d`；`timezone` 接收 IANA 时区，缺省或无效时回退到 `Asia/Shanghai`。
+- `metrics` 是当前组织的全量漏洞指标；`risk_distribution`、`source_distribution` 是当前组织的全量分布。
+- `trend` 仅统计所选时间范围，按时间升序返回 `{start, count}`，没有数据的时间桶也会返回 `count: 0`。
+- `today` 从客户时区当日 00:00 到当前小时，按小时；`3d` 为最近 72 个小时；`7d` 为最近 7 个自然日；`all` 从首条记录开始，跨度不足 90 天按日，否则按月。
+- 数据库过滤采用 UTC 的左闭右开边界，展示桶按客户时区计算。来源缺失时归为 `xiaoyi`（小易回传）。
+- `recommendations` 是根据真实严重度、状态计数生成的确定性建议，不调用模型补造结论。
 - 平台状态：`OPEN`、`FIXING`、`RETESTING`、`FIXED`。
 
 ### 报告 `GET /api/v1/reports`
@@ -86,6 +95,20 @@
 - 过滤参数：`task_id`、`plan_id`。
 - 关联摘要：`plan_name`、可空的 `task_name`。
 - 列表不返回 `local_path`；预览和下载只能通过鉴权接口访问。
+
+### 报告总览 `GET /api/v1/reports/overview`
+
+- 时间参数、时区回退、桶边界和零值补齐规则与漏洞总览一致。
+- `metrics` 返回总数、完整报告数、部分报告数、近 7 日新增数和最新生成时间。
+- `source_distribution` 按平台生成/小易回传聚合；存在 `external_url` 的报告归为小易回传。
+- `level_distribution` 将 `standard`、`partial` 映射为标准报告、部分结果，其他值归为其他。
+- `trend` 统计所选范围内的报告生成数量；`insights` 只解释当前聚合结果。
+
+### 总览性能约束
+
+- 漏洞与报告均使用 `(org_id, created_at)` 复合索引，聚合在数据库内完成，不把明细行加载到应用进程。
+- 目标数据规模为单组织万级；专用 PostgreSQL 性能检查要求预热后接口 P95 不高于 300ms，页面切换目标不高于 500ms。
+- 性能检查仅在显式配置 `OVERVIEW_PERF_DATABASE_URL` 时运行，并在独立临时 schema 内创建和清理测试数据。
 - 新写入的外部 URL 不允许携带用户信息；历史记录若含 URL 凭据，对外返回 `null`。
 
 ## 空值与安全边界
