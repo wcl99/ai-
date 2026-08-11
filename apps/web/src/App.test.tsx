@@ -44,7 +44,23 @@ function appFetch(input: RequestInfo | URL) {
     const filtered = url.searchParams.has('severity') || url.searchParams.has('status');
     return Promise.resolve(envelope([], filtered ? 1 : 5));
   }
+  if (url.pathname === '/api/v1/vulnerabilities/overview') return Promise.resolve(json({ success: true, message: 'ok', data: {
+    range: url.searchParams.get('range') ?? '7d', timezone: 'Asia/Shanghai', granularity: 'day',
+    metrics: { total: 5, critical: 1, high: 1, medium: 1, low: 1, unknown: 1, open: 3, retesting: 1, fixed: 1 },
+    risk_distribution: [{ key: 'critical', label: '严重', count: 1 }, { key: 'high', label: '高危', count: 1 }],
+    source_distribution: [{ key: 'xiaoyi', label: '小易回传', count: 5 }],
+    trend: [{ start: '2026-08-11T00:00:00+08:00', count: 2 }],
+    recommendations: ['优先修复严重和高危漏洞'],
+  } }));
   if (url.pathname === '/api/v1/reports') return Promise.resolve(envelope([], 6));
+  if (url.pathname === '/api/v1/reports/overview') return Promise.resolve(json({ success: true, message: 'ok', data: {
+    range: url.searchParams.get('range') ?? '7d', timezone: 'Asia/Shanghai', granularity: 'day',
+    metrics: { total: 6, ready: 5, partial: 1, recent_7d: 2, latest_at: '2026-08-11T00:00:00Z' },
+    source_distribution: [{ key: 'platform', label: '平台生成', count: 5 }, { key: 'xiaoyi', label: '小易回传', count: 1 }],
+    level_distribution: [{ key: 'standard', label: '标准报告', count: 5 }, { key: 'partial', label: '部分报告', count: 1 }],
+    trend: [{ start: '2026-08-11T00:00:00+08:00', count: 2 }],
+    insights: ['近 7 天生成 2 份报告'],
+  } }));
   if (url.pathname === '/api/v1/settings/organization') return Promise.resolve(json({
     id: user.org_id, name: 'Cloud Shield Lab', created_at: '2026-08-10T08:00:00Z', updated_at: '2026-08-10T08:00:00Z',
   }));
@@ -162,6 +178,17 @@ describe('App', () => {
     renderRoute('/vulnerabilities/overview');
     expect(await screen.findByText('AI 风险一览')).toBeInTheDocument();
     expect(screen.getAllByText('整体修复进度')).not.toHaveLength(0);
+    expect(screen.getByRole('radio', { name: '当日' })).toBeInTheDocument();
+    expect(await screen.findByText('小易回传')).toBeInTheDocument();
+    expect(await screen.findByText('优先修复严重和高危漏洞')).toBeInTheDocument();
+  });
+
+  it('renders report trend, distributions, and insights', async () => {
+    renderRoute('/reports/overview');
+    expect(await screen.findByText('报告生成趋势')).toBeInTheDocument();
+    expect(await screen.findByText('平台生成')).toBeInTheDocument();
+    expect(await screen.findByText('标准报告')).toBeInTheDocument();
+    expect(await screen.findByText('近 7 天生成 2 份报告')).toBeInTheDocument();
   });
 
   it.each([
