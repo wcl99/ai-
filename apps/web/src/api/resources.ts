@@ -19,9 +19,11 @@ const taskStatusFilterSchema = z.enum([
 const assetTypeSchema = z.enum(['domain', 'ip', 'http', 'network_range', 'ip_port']);
 const vulnerabilityStatusSchema = z.enum(['OPEN', 'FIXING', 'RETESTING', 'FIXED']);
 const vulnerabilitySeverityFilterSchema = z.enum(['critical', 'high', 'medium', 'low', 'unknown']);
+const overviewRangeSchema = z.enum(['today', '3d', '7d', 'all']);
 export type TaskStatusCode = z.infer<typeof taskStatusFilterSchema>;
 export type VulnerabilityStatusCode = z.infer<typeof vulnerabilityStatusSchema>;
 export type VulnerabilitySeverityCode = z.infer<typeof vulnerabilitySeverityFilterSchema>;
+export type OverviewRange = z.infer<typeof overviewRangeSchema>;
 
 function pageEnvelope<T extends z.ZodTypeAny>(item: T) {
   return z.object({
@@ -102,6 +104,52 @@ const reportSchema = z.object({
   plan_name: z.string(),
   task_name: z.string().nullable(),
 });
+
+const trendPointSchema = z.object({ start: z.string(), count: z.number().int().nonnegative() });
+const distributionItemSchema = z.object({
+  key: z.string(), label: z.string(), count: z.number().int().nonnegative(),
+});
+const vulnerabilityOverviewSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    range: overviewRangeSchema,
+    timezone: z.string(),
+    granularity: z.enum(['hour', 'day', 'month']),
+    metrics: z.object({
+      total: z.number().int().nonnegative(), critical: z.number().int().nonnegative(),
+      high: z.number().int().nonnegative(), medium: z.number().int().nonnegative(),
+      low: z.number().int().nonnegative(), unknown: z.number().int().nonnegative(),
+      open: z.number().int().nonnegative(), retesting: z.number().int().nonnegative(),
+      fixed: z.number().int().nonnegative(),
+    }),
+    risk_distribution: z.array(distributionItemSchema),
+    source_distribution: z.array(distributionItemSchema),
+    trend: z.array(trendPointSchema),
+    recommendations: z.array(z.string()),
+  }),
+});
+const reportOverviewSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    range: overviewRangeSchema,
+    timezone: z.string(),
+    granularity: z.enum(['hour', 'day', 'month']),
+    metrics: z.object({
+      total: z.number().int().nonnegative(), ready: z.number().int().nonnegative(),
+      partial: z.number().int().nonnegative(), recent_7d: z.number().int().nonnegative(),
+      latest_at: timestamp.nullable(),
+    }),
+    source_distribution: z.array(distributionItemSchema),
+    level_distribution: z.array(distributionItemSchema),
+    trend: z.array(trendPointSchema),
+    insights: z.array(z.string()),
+  }),
+});
+
+export type TrendPoint = z.infer<typeof trendPointSchema>;
+export type DistributionItem = z.infer<typeof distributionItemSchema>;
 
 const organizationSchema = z.object({
   id: uuid,
@@ -325,6 +373,44 @@ export async function listReports(input: { taskId?: string; planId?: string; pag
   ]);
   const response = await apiRequest(`/api/v1/reports?${query}`, pageEnvelope(reportSchema));
   return result(response.data, mapReport);
+}
+
+export async function getVulnerabilityOverview(input: { range: OverviewRange; timezone: string }) {
+  const range = overviewRangeSchema.parse(input.range);
+  const query = params([['range', range], ['timezone', input.timezone]]);
+  const { data } = await apiRequest(`/api/v1/vulnerabilities/overview?${query}`, vulnerabilityOverviewSchema);
+  return {
+    range: data.range,
+    timezone: data.timezone,
+    granularity: data.granularity,
+    metrics: data.metrics,
+    riskDistribution: data.risk_distribution,
+    sourceDistribution: data.source_distribution,
+    trend: data.trend,
+    recommendations: data.recommendations,
+  };
+}
+
+export async function getReportOverview(input: { range: OverviewRange; timezone: string }) {
+  const range = overviewRangeSchema.parse(input.range);
+  const query = params([['range', range], ['timezone', input.timezone]]);
+  const { data } = await apiRequest(`/api/v1/reports/overview?${query}`, reportOverviewSchema);
+  return {
+    range: data.range,
+    timezone: data.timezone,
+    granularity: data.granularity,
+    metrics: {
+      total: data.metrics.total,
+      ready: data.metrics.ready,
+      partial: data.metrics.partial,
+      recent7d: data.metrics.recent_7d,
+      latestAt: data.metrics.latest_at,
+    },
+    sourceDistribution: data.source_distribution,
+    levelDistribution: data.level_distribution,
+    trend: data.trend,
+    insights: data.insights,
+  };
 }
 
 export function previewReport(id: string) {

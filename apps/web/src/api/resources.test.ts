@@ -1,6 +1,8 @@
 import {
   createUser,
   createAsset,
+  getReportOverview,
+  getVulnerabilityOverview,
   getOrganization,
   getRuntimeSettings,
   listAuditLogs,
@@ -29,6 +31,41 @@ function page(items: unknown[]) {
 
 describe('resource API', () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it('maps overview analytics and sends the selected range and timezone', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ success: true, message: 'ok', data: {
+        range: 'today', timezone: 'Asia/Shanghai', granularity: 'hour',
+        metrics: { total: 3, critical: 1, high: 1, medium: 1, low: 0, unknown: 0, open: 2, retesting: 1, fixed: 0 },
+        risk_distribution: [{ key: 'high', label: '高危', count: 1 }],
+        source_distribution: [{ key: 'xiaoyi', label: '小易回传', count: 3 }],
+        trend: [{ start: '2026-08-11T09:00:00+08:00', count: 2 }],
+        recommendations: ['优先修复高危漏洞'],
+      }}))
+      .mockResolvedValueOnce(jsonResponse({ success: true, message: 'ok', data: {
+        range: '7d', timezone: 'Asia/Shanghai', granularity: 'day',
+        metrics: { total: 5, ready: 4, partial: 1, recent_7d: 2, latest_at: '2026-08-11T01:00:00Z' },
+        source_distribution: [{ key: 'platform', label: '平台生成', count: 4 }],
+        level_distribution: [{ key: 'standard', label: '标准报告', count: 4 }],
+        trend: [{ start: '2026-08-11T00:00:00+08:00', count: 2 }],
+        insights: ['近 7 天生成 2 份报告'],
+      }}));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const vulnerabilities = await getVulnerabilityOverview({ range: 'today', timezone: 'Asia/Shanghai' });
+    const reports = await getReportOverview({ range: '7d', timezone: 'Asia/Shanghai' });
+
+    expect(vulnerabilities).toMatchObject({
+      range: 'today', riskDistribution: [{ key: 'high', label: '高危', count: 1 }],
+      sourceDistribution: [{ key: 'xiaoyi', label: '小易回传', count: 3 }],
+    });
+    expect(reports).toMatchObject({
+      metrics: { recent7d: 2, latestAt: '2026-08-11T01:00:00Z' },
+      levelDistribution: [{ key: 'standard', label: '标准报告', count: 4 }],
+    });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/vulnerabilities/overview?range=today&timezone=Asia%2FShanghai');
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/v1/reports/overview?range=7d&timezone=Asia%2FShanghai');
+  });
 
   it('maps confirmed task fields without inventing display data', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(page([{
