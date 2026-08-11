@@ -44,11 +44,28 @@ describe('resource API', () => {
       }}))
       .mockResolvedValueOnce(jsonResponse({ success: true, message: 'ok', data: {
         range: '7d', timezone: 'Asia/Shanghai', granularity: 'day',
-        metrics: { total: 5, ready: 4, partial: 1, recent_7d: 2, latest_at: '2026-08-11T01:00:00Z' },
-        source_distribution: [{ key: 'platform', label: '平台生成', count: 4 }],
-        level_distribution: [{ key: 'standard', label: '标准报告', count: 4 }],
+        metrics: {
+          total: { value: 5, change_percent: null },
+          monthly_new: { value: 3, change_percent: 50 },
+          pending_export: { value: 1, change_percent: null },
+          exported: { value: 4, change_percent: null },
+          pending_confirmation: { value: 2, change_percent: null },
+          monthly_delivered: { value: 2, change_percent: 100 },
+        },
+        source_distribution: [{ key: 'penetration', label: '渗透测试', count: 5 }],
+        risk_distribution: [{ key: 'high', label: '高危', count: 2 }],
         trend: [{ start: '2026-08-11T00:00:00+08:00', count: 2 }],
-        insights: ['近 7 天生成 2 份报告'],
+        latest_reports: [{
+          id: '11111111-1111-4111-8111-111111111111', filename: 'report.pdf',
+          source: 'penetration', source_label: '渗透测试', creator_name: '张安全',
+          created_at: '2026-08-11T01:00:00Z',
+        }],
+        recent_exports: [{
+          id: '11111111-1111-4111-8111-111111111111', filename: 'report.pdf',
+          source: 'penetration', source_label: '渗透测试', format: 'pdf',
+          exporter_name: '张安全', status: 'DELIVERED', exported_at: '2026-08-11T02:00:00Z',
+        }],
+        insights: ['本月新增 3 份报告'],
       }}));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -60,8 +77,10 @@ describe('resource API', () => {
       sourceDistribution: [{ key: 'xiaoyi', label: '小易回传', count: 3 }],
     });
     expect(reports).toMatchObject({
-      metrics: { recent7d: 2, latestAt: '2026-08-11T01:00:00Z' },
-      levelDistribution: [{ key: 'standard', label: '标准报告', count: 4 }],
+      metrics: { monthlyNew: { value: 3, changePercent: 50 }, pendingConfirmation: { value: 2 } },
+      riskDistribution: [{ key: 'high', label: '高危', count: 2 }],
+      latestReports: [{ filename: 'report.pdf', creatorName: '张安全' }],
+      recentExports: [{ filename: 'report.pdf', exporterName: '张安全' }],
     });
     expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/vulnerabilities/overview?range=today&timezone=Asia%2FShanghai');
     expect(fetchMock.mock.calls[1][0]).toBe('/api/v1/reports/overview?range=7d&timezone=Asia%2FShanghai');

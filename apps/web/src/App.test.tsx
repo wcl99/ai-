@@ -55,11 +55,23 @@ function appFetch(input: RequestInfo | URL) {
   if (url.pathname === '/api/v1/reports') return Promise.resolve(envelope([], 6));
   if (url.pathname === '/api/v1/reports/overview') return Promise.resolve(json({ success: true, message: 'ok', data: {
     range: url.searchParams.get('range') ?? '7d', timezone: 'Asia/Shanghai', granularity: 'day',
-    metrics: { total: 6, ready: 5, partial: 1, recent_7d: 2, latest_at: '2026-08-11T00:00:00Z' },
-    source_distribution: [{ key: 'platform', label: '平台生成', count: 5 }, { key: 'xiaoyi', label: '小易回传', count: 1 }],
-    level_distribution: [{ key: 'standard', label: '标准报告', count: 5 }, { key: 'partial', label: '部分报告', count: 1 }],
+    metrics: {
+      total: { value: 6, change_percent: null }, monthly_new: { value: 3, change_percent: 50 },
+      pending_export: { value: 2, change_percent: null }, exported: { value: 4, change_percent: null },
+      pending_confirmation: { value: 1, change_percent: null }, monthly_delivered: { value: 2, change_percent: 100 },
+    },
+    source_distribution: [{ key: 'penetration', label: '渗透测试', count: 5 }, { key: 'code_audit', label: '代码审计', count: 1 }],
+    risk_distribution: [{ key: 'critical', label: '严重', count: 1 }, { key: 'high', label: '高危', count: 2 }, { key: 'none', label: '无已确认风险', count: 3 }],
     trend: [{ start: '2026-08-11T00:00:00+08:00', count: 2 }],
-    insights: ['近 7 天生成 2 份报告'],
+    latest_reports: Array.from({ length: 5 }, (_, index) => ({
+      id: `${index + 1}1111111-1111-4111-8111-111111111111`, filename: `安全报告-${index + 1}.pdf`,
+      source: 'penetration', source_label: '渗透测试', creator_name: '张安全', created_at: '2026-08-11T00:00:00Z',
+    })),
+    recent_exports: [{
+      id: '11111111-1111-4111-8111-111111111111', filename: '安全报告-1.pdf', source: 'penetration',
+      source_label: '渗透测试', format: 'pdf', exporter_name: '张安全', status: 'DELIVERED', exported_at: '2026-08-11T01:00:00Z',
+    }],
+    insights: ['平台累计生成 6 份报告，本月新增 3 份。', '当前有 2 份待导出，1 份尚未查看。'],
   } }));
   if (url.pathname === '/api/v1/settings/organization') return Promise.resolve(json({
     id: user.org_id, name: 'Cloud Shield Lab', created_at: '2026-08-10T08:00:00Z', updated_at: '2026-08-10T08:00:00Z',
@@ -184,11 +196,15 @@ describe('App', () => {
   });
 
   it('renders report trend, distributions, and insights', async () => {
-    renderRoute('/reports/overview');
+    const { container } = renderRoute('/reports/overview');
     expect(await screen.findByText('报告生成趋势')).toBeInTheDocument();
-    expect(await screen.findByText('平台生成')).toBeInTheDocument();
-    expect(await screen.findByText('标准报告')).toBeInTheDocument();
-    expect(await screen.findByText('近 7 天生成 2 份报告')).toBeInTheDocument();
+    expect(await screen.findAllByText('渗透测试')).not.toHaveLength(0);
+    expect(screen.getByLabelText('报告来源分布')).toBeInTheDocument();
+    expect(screen.getByLabelText('报告等级分布')).toBeInTheDocument();
+    expect(container.querySelectorAll('.report-lifecycle-card')).toHaveLength(6);
+    expect(container.querySelectorAll('.recent-material-report')).toHaveLength(5);
+    expect(screen.getByRole('columnheader', { name: '导出人' })).toBeInTheDocument();
+    expect(screen.getByText('平台累计生成 6 份报告，本月新增 3 份。')).toBeInTheDocument();
   });
 
   it.each([

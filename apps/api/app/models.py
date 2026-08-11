@@ -160,7 +160,11 @@ class Vulnerability(Base, TimestampMixin):
 
 class Report(Base, TimestampMixin):
     __tablename__ = "reports"
-    __table_args__ = (Index("ix_reports_org_created", "org_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_reports_org_created", "org_id", "created_at"),
+        Index("ix_reports_org_viewed", "org_id", "first_viewed_at"),
+        Index("ix_reports_org_exported", "org_id", "first_exported_at"),
+    )
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
     plan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("scan_plans.id"), index=True)
@@ -171,6 +175,10 @@ class Report(Base, TimestampMixin):
     local_path: Mapped[str | None] = mapped_column(String(1000))
     external_url: Mapped[str | None] = mapped_column(String(2000))
     status: Mapped[str] = mapped_column(String(32), default="READY")
+    first_viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_viewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    first_exported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_exported_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
 
 
 class AiLog(Base):

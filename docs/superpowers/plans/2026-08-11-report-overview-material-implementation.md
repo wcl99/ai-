@@ -4,9 +4,9 @@
 
 **Goal:** Rebuild the report overview from the approved 1920×1080 SVG while exposing truthful report lifecycle, distribution, trend, recent report, export, and insight data.
 
-**Architecture:** Extend the existing `reports` table and FastAPI report endpoints instead of adding another state store. The existing overview endpoint remains the single page-data source and performs organization-scoped SQL aggregation; the React page renders it with one tree-shaken ECharts dependency and the existing Ant Design shell.
+**Architecture:** Extend the existing `reports` table and FastAPI report endpoints instead of adding another state store. The existing overview endpoint remains the single page-data source and performs organization-scoped SQL aggregation; the React page renders it with native SVG charts and the existing Ant Design shell.
 
-**Tech Stack:** FastAPI, SQLAlchemy async, Alembic, PostgreSQL/SQLite tests, React 18, TypeScript, TanStack Query, Ant Design, ECharts, Vitest, pytest.
+**Tech Stack:** FastAPI, SQLAlchemy async, Alembic, PostgreSQL/SQLite tests, React 18, TypeScript, TanStack Query, Ant Design, SVG, Vitest, pytest.
 
 ---
 
@@ -142,27 +142,25 @@ Run: `cd apps/web; npm test -- src/api/resources.test.ts`
 
 Expected: PASS.
 
-### Task 4: Add the minimum ECharts integration
+### Task 4: Add the native SVG chart integration
 
 **Files:**
-- Modify: `apps/web/package.json`
-- Modify: `apps/web/package-lock.json`
 - Create: `apps/web/src/components/OverviewChart.tsx`
 - Test: `apps/web/src/components/OverviewChart.test.tsx`
 
-- [ ] **Step 1: Write a failing chart lifecycle test**
+- [ ] **Step 1: Write a failing chart rendering test**
 
-Mock ECharts `init`, `setOption`, `resize`, and `dispose`; render `OverviewChart`, change its option, dispatch a resize, unmount, and assert initialization once, option update, resize, and disposal.
+Render bar and donut variants, change their data, and assert truthful labels, totals, accessible names, and responsive SVG view boxes.
 
 - [ ] **Step 2: Run the chart test and verify RED**
 
 Run: `cd apps/web; npm test -- src/components/OverviewChart.test.tsx`
 
-Expected: FAIL because `OverviewChart` and `echarts` do not exist.
+Expected: FAIL because `OverviewChart` does not exist.
 
-- [ ] **Step 3: Install and implement the chart component**
+- [ ] **Step 3: Implement the chart component**
 
-Install `echarts` only. Register `PieChart`, `BarChart`, `GridComponent`, `TooltipComponent`, `LegendComponent`, and `CanvasRenderer` from `echarts/core`. The component owns one instance, updates it with `setOption(option, true)`, uses `ResizeObserver`, disposes on unmount, and includes an accessible label.
+Implement bar and donut variants with native SVG `viewBox`, accessible labels, `<title>` values, source colors, rounded bars, and zero-data handling. Keep sizing entirely container-driven.
 
 - [ ] **Step 4: Run the chart test and verify GREEN**
 

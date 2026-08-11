@@ -82,6 +82,10 @@ async def test_overview_analytics_are_complete_scoped_and_time_filtered(
                     report_level="standard",
                     local_path="/tmp/standard-current.md",
                     status="READY",
+                    first_viewed_at=now - timedelta(minutes=4),
+                    first_viewed_by=user.id,
+                    first_exported_at=now - timedelta(minutes=3),
+                    first_exported_by=user.id,
                     created_at=now - timedelta(minutes=5),
                 ),
                 Report(
@@ -92,6 +96,8 @@ async def test_overview_analytics_are_complete_scoped_and_time_filtered(
                     report_level="partial",
                     external_url="https://xiaoyi.example/report.pdf",
                     status="READY",
+                    first_viewed_at=now - timedelta(days=1),
+                    first_viewed_by=user.id,
                     created_at=now - timedelta(days=2),
                 ),
                 Report(
@@ -102,6 +108,10 @@ async def test_overview_analytics_are_complete_scoped_and_time_filtered(
                     report_level="standard",
                     local_path="/tmp/standard-old.docx",
                     status="READY",
+                    first_viewed_at=now - timedelta(days=7),
+                    first_viewed_by=user.id,
+                    first_exported_at=now - timedelta(days=7),
+                    first_exported_by=user.id,
                     created_at=now - timedelta(days=8),
                 ),
             ]
@@ -171,18 +181,32 @@ async def test_overview_analytics_are_complete_scoped_and_time_filtered(
 
     assert reports.status_code == 200
     report_data = reports.json()["data"]
-    assert report_data["metrics"]["total"] == 3
-    assert report_data["metrics"]["partial"] == 1
-    assert report_data["metrics"]["recent_7d"] == 2
+    assert report_data["metrics"]["total"]["value"] == 3
+    assert report_data["metrics"]["monthly_new"]["value"] == 3
+    assert report_data["metrics"]["pending_export"]["value"] == 1
+    assert report_data["metrics"]["exported"]["value"] == 2
+    assert report_data["metrics"]["pending_confirmation"]["value"] == 0
+    assert report_data["metrics"]["monthly_delivered"]["value"] == 3
     assert sum(item["count"] for item in report_data["trend"]) == 2
     assert {item["key"]: item["count"] for item in report_data["source_distribution"]} == {
-        "platform": 2,
-        "xiaoyi": 1,
+        "code_audit": 0,
+        "data_analysis": 0,
+        "emergency": 0,
+        "other": 0,
+        "penetration": 3,
     }
-    assert {item["key"]: item["count"] for item in report_data["level_distribution"]} == {
-        "partial": 1,
-        "standard": 2,
+    assert {item["key"]: item["count"] for item in report_data["risk_distribution"]} == {
+        "critical": 3,
+        "high": 0,
+        "low": 0,
+        "medium": 0,
+        "none": 0,
     }
+    assert len(report_data["latest_reports"]) == 3
+    assert report_data["latest_reports"][0]["creator_name"] == "Test Admin"
+    assert len(report_data["recent_exports"]) == 2
+    assert report_data["recent_exports"][0]["exporter_name"] == "Test Admin"
+    assert report_data["insights"]
 
 
 async def test_overview_analytics_support_today_and_timezone_fallback(authenticated_client):
@@ -199,6 +223,114 @@ async def test_overview_analytics_support_today_and_timezone_fallback(authentica
         assert response.json()["data"]["timezone"] == "Asia/Shanghai"
         assert response.json()["data"]["granularity"] == "hour"
         assert len(response.json()["data"]["trend"]) >= 1
+
+
+async def test_report_lifecycle_records_only_the_first_successful_view_and_export(
+    authenticated_client, tmp_path
+):
+    report_path = tmp_path / "lifecycle.md"
+    report_path.write_text("# Lifecycle report", encoding="utf-8")
+    async with SessionLocal() as session:
+        user = await session.scalar(select(User).where(User.username == "admin"))
+        plan = ScanPlan(
+            org_id=user.org_id,
+            created_by=user.id,
+            name="Lifecycle plan",
+            test_type="standard",
+            status="READY",
+            snapshot={},
+        )
+        session.add(plan)
+        await session.flush()
+        report = Report(
+            org_id=user.org_id,
+            plan_id=plan.id,
+            filename=report_path.name,
+            format="md",
+            local_path=str(report_path),
+            status="READY",
+        )
+        session.add(report)
+        await session.commit()
+        report_id = report.id
+        user_id = user.id
+
+    first_preview = await authenticated_client.get(f"/api/v1/reports/{report_id}/content")
+    second_preview = await authenticated_client.get(f"/api/v1/reports/{report_id}/content")
+    assert first_preview.status_code == second_preview.status_code == 200
+
+    async with SessionLocal() as session:
+        viewed = await session.get(Report, report_id)
+        first_viewed_at = viewed.first_viewed_at
+        assert first_viewed_at is not None
+        assert viewed.first_viewed_by == user_id
+        assert viewed.first_exported_at is None
+        assert viewed.first_exported_by is None
+
+    first_download = await authenticated_client.get(f"/api/v1/reports/{report_id}/download")
+    second_download = await authenticated_client.get(f"/api/v1/reports/{report_id}/download")
+    assert first_download.status_code == second_download.status_code == 200
+
+    async with SessionLocal() as session:
+        exported = await session.get(Report, report_id)
+        assert exported.first_viewed_at == first_viewed_at
+        assert exported.first_viewed_by == user_id
+        assert exported.first_exported_at is not None
+        assert exported.first_exported_by == user_id
+
+
+async def test_report_lifecycle_ignores_failed_preview_and_download(
+    authenticated_client, tmp_path
+):
+    async with SessionLocal() as session:
+        user = await session.scalar(select(User).where(User.username == "admin"))
+        plan = ScanPlan(
+            org_id=user.org_id,
+            created_by=user.id,
+            name="Failed lifecycle plan",
+            test_type="standard",
+            status="READY",
+            snapshot={},
+        )
+        session.add(plan)
+        await session.flush()
+        missing = Report(
+            org_id=user.org_id,
+            plan_id=plan.id,
+            filename="missing.md",
+            format="md",
+            local_path=str(tmp_path / "missing.md"),
+            status="READY",
+        )
+        unsupported_path = tmp_path / "unsupported.pdf"
+        unsupported_path.write_bytes(b"pdf")
+        unsupported = Report(
+            org_id=user.org_id,
+            plan_id=plan.id,
+            filename=unsupported_path.name,
+            format="pdf",
+            local_path=str(unsupported_path),
+            status="READY",
+        )
+        session.add_all([missing, unsupported])
+        await session.commit()
+        missing_id = missing.id
+        unsupported_id = unsupported.id
+
+    assert (
+        await authenticated_client.get(f"/api/v1/reports/{missing_id}/download")
+    ).status_code == 404
+    assert (
+        await authenticated_client.get(f"/api/v1/reports/{unsupported_id}/content")
+    ).status_code == 415
+
+    async with SessionLocal() as session:
+        for report_id in (missing_id, unsupported_id):
+            report = await session.get(Report, report_id)
+            assert report.first_viewed_at is None
+            assert report.first_viewed_by is None
+            assert report.first_exported_at is None
+            assert report.first_exported_by is None
 
 
 def test_confirmation_query_locks_the_plan_row():

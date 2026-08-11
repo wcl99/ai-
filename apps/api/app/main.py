@@ -4,17 +4,18 @@ import asyncio
 import re
 import uuid
 from contextlib import asynccontextmanager, suppress
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import Depends, FastAPI, Query, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import ValidationError
-from sqlalchemy import and_, case, func, select, text
+from sqlalchemy import and_, case, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -1147,48 +1148,118 @@ async def report_overview(
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    recent_boundary = datetime.now(UTC) - timedelta(days=7)
+    now = datetime.now(UTC)
+    try:
+        customer_timezone = ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        customer_timezone = timezone(timedelta(hours=8), DEFAULT_TIMEZONE)
+    local_now = now.astimezone(customer_timezone)
+    month_start_local = local_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    previous_month_last = month_start_local - timedelta(microseconds=1)
+    previous_month_start_local = previous_month_last.replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+    previous_month_end_local = min(
+        previous_month_start_local + (local_now - month_start_local),
+        month_start_local,
+    )
+    month_start = month_start_local.astimezone(UTC)
+    previous_month_start = previous_month_start_local.astimezone(UTC)
+    previous_month_end = previous_month_end_local.astimezone(UTC)
     metric_row = (
         await session.execute(
             select(
                 func.count(Report.id),
-                func.sum(case((Report.status == "READY", 1), else_=0)),
-                func.sum(case((Report.report_level == "partial", 1), else_=0)),
-                func.sum(case((Report.created_at >= recent_boundary, 1), else_=0)),
-                func.max(Report.created_at),
+                func.sum(case((Report.created_at >= month_start, 1), else_=0)),
+                func.sum(case((Report.first_exported_at.is_(None), 1), else_=0)),
+                func.sum(case((Report.first_exported_at.is_not(None), 1), else_=0)),
+                func.sum(case((Report.first_viewed_at.is_(None), 1), else_=0)),
+                func.sum(case((Report.first_viewed_at >= month_start, 1), else_=0)),
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                Report.created_at >= previous_month_start,
+                                Report.created_at < previous_month_end,
+                            ),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ),
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                Report.first_viewed_at >= previous_month_start,
+                                Report.first_viewed_at < previous_month_end,
+                            ),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ),
             ).where(Report.org_id == user.org_id)
         )
     ).one()
+
+    def metric(value: object, baseline: object | None = None) -> dict[str, int | float | None]:
+        current = int(value or 0)
+        previous = int(baseline or 0)
+        change = round((current - previous) * 100 / previous, 2) if previous else None
+        return {"value": current, "change_percent": change}
+
     metrics = {
-        "total": int(metric_row[0] or 0),
-        "ready": int(metric_row[1] or 0),
-        "partial": int(metric_row[2] or 0),
-        "recent_7d": int(metric_row[3] or 0),
-        "latest_at": metric_row[4],
+        "total": metric(metric_row[0]),
+        "monthly_new": metric(metric_row[1], metric_row[6]),
+        "pending_export": metric(metric_row[2]),
+        "exported": metric(metric_row[3]),
+        "pending_confirmation": metric(metric_row[4]),
+        "monthly_delivered": metric(metric_row[5], metric_row[7]),
     }
+    penetration_modes = ("standard", "two_high_one_weak", "two_clear_two_solid", "mlps_2_0")
     source = case(
-        (Report.external_url.is_not(None), "xiaoyi"),
-        else_="platform",
+        (ScanPlan.test_type.in_(penetration_modes), "penetration"),
+        (ScanPlan.test_type == "code_audit", "code_audit"),
+        (ScanPlan.test_type == "emergency_response", "emergency"),
+        (ScanPlan.test_type == "data_analysis", "data_analysis"),
+        else_="other",
     ).label("source")
     source_rows = (
         await session.execute(
             select(source, func.count())
+            .select_from(Report)
+            .join(ScanPlan, and_(Report.plan_id == ScanPlan.id, ScanPlan.org_id == user.org_id))
             .where(Report.org_id == user.org_id)
             .group_by(source)
             .order_by(source)
         )
     ).all()
-    level = case(
-        (Report.report_level == "standard", "standard"),
-        (Report.report_level == "partial", "partial"),
-        else_="other",
-    ).label("level")
-    level_rows = (
+    severity_rank = case(
+        (Vulnerability.severity == "critical", 4),
+        (Vulnerability.severity == "high", 3),
+        (Vulnerability.severity == "medium", 2),
+        (Vulnerability.severity == "low", 1),
+        else_=0,
+    )
+    report_risks = (
+        select(Report.id.label("report_id"), func.max(severity_rank).label("risk_rank"))
+        .outerjoin(
+            Vulnerability,
+            and_(
+                Vulnerability.plan_id == Report.plan_id,
+                Vulnerability.org_id == Report.org_id,
+            ),
+        )
+        .where(Report.org_id == user.org_id)
+        .group_by(Report.id)
+        .subquery()
+    )
+    risk_rows = (
         await session.execute(
-            select(level, func.count())
-            .where(Report.org_id == user.org_id)
-            .group_by(level)
-            .order_by(level)
+            select(report_risks.c.risk_rank, func.count())
+            .group_by(report_risks.c.risk_rank)
+            .order_by(report_risks.c.risk_rank.desc())
         )
     ).all()
     window, trend = await aggregate_trend(
@@ -1198,15 +1269,61 @@ async def report_overview(
         range_name,
         timezone_name,
     )
-    source_labels = {"platform": "平台生成", "xiaoyi": "小易回传"}
-    level_labels = {"standard": "标准报告", "partial": "部分结果", "other": "其他"}
-    latest = metrics["latest_at"]
+    source_labels = {
+        "penetration": "渗透测试",
+        "code_audit": "代码审计",
+        "emergency": "应急响应",
+        "data_analysis": "数据分析",
+        "other": "其他",
+    }
+    source_counts = {str(key): int(count) for key, count in source_rows}
+    risk_labels = {
+        "critical": "严重",
+        "high": "高危",
+        "medium": "中危",
+        "low": "低危",
+        "none": "无已确认风险",
+    }
+    risk_keys = {4: "critical", 3: "high", 2: "medium", 1: "low", 0: "none"}
+    risk_counts = {risk_keys[int(rank or 0)]: int(count) for rank, count in risk_rows}
+    latest_rows = (
+        await session.execute(
+            select(Report, ScanPlan.test_type, User.name)
+            .join(ScanPlan, and_(Report.plan_id == ScanPlan.id, ScanPlan.org_id == user.org_id))
+            .join(User, and_(ScanPlan.created_by == User.id, User.org_id == user.org_id))
+            .where(Report.org_id == user.org_id)
+            .order_by(Report.created_at.desc(), Report.id.desc())
+            .limit(5)
+        )
+    ).all()
+    export_rows = (
+        await session.execute(
+            select(Report, ScanPlan.test_type, User.name)
+            .join(ScanPlan, and_(Report.plan_id == ScanPlan.id, ScanPlan.org_id == user.org_id))
+            .join(User, and_(Report.first_exported_by == User.id, User.org_id == user.org_id))
+            .where(Report.org_id == user.org_id, Report.first_exported_at.is_not(None))
+            .order_by(Report.first_exported_at.desc(), Report.id.desc())
+            .limit(5)
+        )
+    ).all()
+
+    def source_key(test_type: str) -> str:
+        if test_type in penetration_modes:
+            return "penetration"
+        return {
+            "code_audit": "code_audit",
+            "emergency_response": "emergency",
+            "data_analysis": "data_analysis",
+        }.get(test_type, "other")
+
     insights = [
-        f"当前共有 {metrics['total']} 份报告，最近 7 日新增 {metrics['recent_7d']} 份。",
-        f"其中 {metrics['partial']} 份为部分结果报告。",
+        f"平台累计生成 {metrics['total']['value']} 份报告，本月新增 {metrics['monthly_new']['value']} 份。",
+        f"当前有 {metrics['pending_export']['value']} 份待导出，{metrics['pending_confirmation']['value']} 份尚未查看。",
     ]
-    if latest:
-        insights.append(f"最新报告生成于 {latest.isoformat()}。")
+    if risk_counts.get("critical", 0) or risk_counts.get("high", 0):
+        insights.append(
+            f"严重或高危风险报告共 {risk_counts.get('critical', 0) + risk_counts.get('high', 0)} 份，建议优先确认。"
+        )
     return envelope(
         {
             "range": range_name,
@@ -1215,21 +1332,45 @@ async def report_overview(
             "metrics": metrics,
             "source_distribution": [
                 {
-                    "key": str(key),
-                    "label": source_labels[str(key)],
-                    "count": int(count),
+                    "key": key,
+                    "label": label,
+                    "count": source_counts.get(key, 0),
                 }
-                for key, count in source_rows
+                for key, label in source_labels.items()
             ],
-            "level_distribution": [
+            "risk_distribution": [
                 {
-                    "key": str(key),
-                    "label": level_labels[str(key)],
-                    "count": int(count),
+                    "key": key,
+                    "label": label,
+                    "count": risk_counts.get(key, 0),
                 }
-                for key, count in level_rows
+                for key, label in risk_labels.items()
             ],
             "trend": [point.__dict__ for point in trend],
+            "latest_reports": [
+                {
+                    "id": report.id,
+                    "filename": report.filename,
+                    "source": (key := source_key(test_type)),
+                    "source_label": source_labels[key],
+                    "creator_name": creator_name,
+                    "created_at": report.created_at,
+                }
+                for report, test_type, creator_name in latest_rows
+            ],
+            "recent_exports": [
+                {
+                    "id": report.id,
+                    "filename": report.filename,
+                    "source": (key := source_key(test_type)),
+                    "source_label": source_labels[key],
+                    "format": report.format,
+                    "exporter_name": exporter_name,
+                    "status": "DELIVERED",
+                    "exported_at": report.first_exported_at,
+                }
+                for report, test_type, exporter_name in export_rows
+            ],
             "insights": insights,
         }
     )
@@ -1240,6 +1381,27 @@ async def scoped_report(session: AsyncSession, report_id: uuid.UUID, user: User)
     if report is None:
         raise AppError(404, "REPORT_NOT_FOUND", "Report not found")
     return report
+
+
+async def record_report_lifecycle(
+    session: AsyncSession,
+    report_id: uuid.UUID,
+    user_id: uuid.UUID,
+    *,
+    exported: bool = False,
+) -> None:
+    now = datetime.now(UTC)
+    await session.execute(
+        update(Report)
+        .where(Report.id == report_id, Report.first_viewed_at.is_(None))
+        .values(first_viewed_at=now, first_viewed_by=user_id)
+    )
+    if exported:
+        await session.execute(
+            update(Report)
+            .where(Report.id == report_id, Report.first_exported_at.is_(None))
+            .values(first_exported_at=now, first_exported_by=user_id)
+        )
 
 
 @app.get("/api/v1/reports/{report_id}", response_model=ReportRead)
@@ -1258,6 +1420,7 @@ async def download_report(report_id: uuid.UUID, user: User = Depends(current_use
     report = await scoped_report(session, report_id, user)
     if not report.local_path or not Path(report.local_path).is_file():
         raise AppError(404, "REPORT_FILE_NOT_FOUND", "Report file not found")
+    await record_report_lifecycle(session, report.id, user.id, exported=True)
     await add_audit(session, user, "report.download", "report", report.id)
     await session.commit()
     return FileResponse(report.local_path, filename=report.filename)
@@ -1277,6 +1440,7 @@ async def preview_report(report_id: uuid.UUID, user: User = Depends(current_user
         content = path.read_text(encoding="utf-8")
     except UnicodeDecodeError as exc:
         raise AppError(422, "REPORT_ENCODING_INVALID", "Report is not valid UTF-8 text") from exc
+    await record_report_lifecycle(session, report.id, user.id)
     await add_audit(session, user, "report.preview", "report", report.id)
     await session.commit()
     return PlainTextResponse(

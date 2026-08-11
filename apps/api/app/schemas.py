@@ -378,6 +378,10 @@ class ReportRead(ORMModel):
     report_level: str | None
     external_url: str | None
     status: str
+    first_viewed_at: datetime | None
+    first_viewed_by: uuid.UUID | None
+    first_exported_at: datetime | None
+    first_exported_by: uuid.UUID | None
     created_at: datetime
 
 
@@ -386,12 +390,38 @@ class ReportListRead(ReportRead):
     task_name: str | None
 
 
+class ReportMetricValueRead(BaseModel):
+    value: int
+    change_percent: float | None = None
+
+
 class ReportOverviewMetrics(BaseModel):
-    total: int
-    ready: int
-    partial: int
-    recent_7d: int
-    latest_at: datetime | None
+    total: ReportMetricValueRead
+    monthly_new: ReportMetricValueRead
+    pending_export: ReportMetricValueRead
+    exported: ReportMetricValueRead
+    pending_confirmation: ReportMetricValueRead
+    monthly_delivered: ReportMetricValueRead
+
+
+class RecentReportRead(BaseModel):
+    id: uuid.UUID
+    filename: str
+    source: str
+    source_label: str
+    creator_name: str
+    created_at: datetime
+
+
+class RecentExportRead(BaseModel):
+    id: uuid.UUID
+    filename: str
+    source: str
+    source_label: str
+    format: str
+    exporter_name: str
+    status: str
+    exported_at: datetime
 
 
 class ReportOverviewRead(BaseModel):
@@ -400,8 +430,10 @@ class ReportOverviewRead(BaseModel):
     granularity: Literal["hour", "day", "month"]
     metrics: ReportOverviewMetrics
     source_distribution: list[DistributionItemRead]
-    level_distribution: list[DistributionItemRead]
+    risk_distribution: list[DistributionItemRead]
     trend: list[TrendPointRead]
+    latest_reports: list[RecentReportRead]
+    recent_exports: list[RecentExportRead]
     insights: list[str]
 
 

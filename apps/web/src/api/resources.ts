@@ -137,13 +137,24 @@ const reportOverviewSchema = z.object({
     timezone: z.string(),
     granularity: z.enum(['hour', 'day', 'month']),
     metrics: z.object({
-      total: z.number().int().nonnegative(), ready: z.number().int().nonnegative(),
-      partial: z.number().int().nonnegative(), recent_7d: z.number().int().nonnegative(),
-      latest_at: timestamp.nullable(),
+      total: z.object({ value: z.number().int().nonnegative(), change_percent: z.number().finite().nullable() }),
+      monthly_new: z.object({ value: z.number().int().nonnegative(), change_percent: z.number().finite().nullable() }),
+      pending_export: z.object({ value: z.number().int().nonnegative(), change_percent: z.number().finite().nullable() }),
+      exported: z.object({ value: z.number().int().nonnegative(), change_percent: z.number().finite().nullable() }),
+      pending_confirmation: z.object({ value: z.number().int().nonnegative(), change_percent: z.number().finite().nullable() }),
+      monthly_delivered: z.object({ value: z.number().int().nonnegative(), change_percent: z.number().finite().nullable() }),
     }),
     source_distribution: z.array(distributionItemSchema),
-    level_distribution: z.array(distributionItemSchema),
+    risk_distribution: z.array(distributionItemSchema),
     trend: z.array(trendPointSchema),
+    latest_reports: z.array(z.object({
+      id: uuid, filename: z.string(), source: z.string(), source_label: z.string(),
+      creator_name: z.string(), created_at: timestamp,
+    })),
+    recent_exports: z.array(z.object({
+      id: uuid, filename: z.string(), source: z.string(), source_label: z.string(),
+      format: z.string(), exporter_name: z.string(), status: z.string(), exported_at: timestamp,
+    })),
     insights: z.array(z.string()),
   }),
 });
@@ -399,16 +410,29 @@ export async function getReportOverview(input: { range: OverviewRange; timezone:
     range: data.range,
     timezone: data.timezone,
     granularity: data.granularity,
-    metrics: {
-      total: data.metrics.total,
-      ready: data.metrics.ready,
-      partial: data.metrics.partial,
-      recent7d: data.metrics.recent_7d,
-      latestAt: data.metrics.latest_at,
+    metrics: Object.fromEntries(Object.entries(data.metrics).map(([key, item]) => [
+      key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()),
+      { value: item.value, changePercent: item.change_percent },
+    ])) as {
+      total: { value: number; changePercent: number | null };
+      monthlyNew: { value: number; changePercent: number | null };
+      pendingExport: { value: number; changePercent: number | null };
+      exported: { value: number; changePercent: number | null };
+      pendingConfirmation: { value: number; changePercent: number | null };
+      monthlyDelivered: { value: number; changePercent: number | null };
     },
     sourceDistribution: data.source_distribution,
-    levelDistribution: data.level_distribution,
+    riskDistribution: data.risk_distribution,
     trend: data.trend,
+    latestReports: data.latest_reports.map((item) => ({
+      id: item.id, filename: item.filename, source: item.source, sourceLabel: item.source_label,
+      creatorName: item.creator_name, createdAt: item.created_at,
+    })),
+    recentExports: data.recent_exports.map((item) => ({
+      id: item.id, filename: item.filename, source: item.source, sourceLabel: item.source_label,
+      format: item.format, exporterName: item.exporter_name, status: item.status,
+      exportedAt: item.exported_at,
+    })),
     insights: data.insights,
   };
 }
