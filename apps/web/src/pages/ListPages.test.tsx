@@ -110,6 +110,11 @@ describe('resource list pages', () => {
     renderPage(<VulnerabilitiesPage />);
     await screen.findByText('API 真实漏洞');
 
+    await interaction.click(screen.getByRole('button', { name: '查看漏洞详情' }));
+    expect(screen.getByText('基础信息')).toBeInTheDocument();
+    expect(screen.getByText('AI 风险研判')).toBeInTheDocument();
+    expect(screen.getByText('修复建议')).toBeInTheDocument();
+
     await interaction.click(screen.getByRole('button', { name: '处置漏洞' }));
     await interaction.click(await screen.findByText('标记修复中'));
 

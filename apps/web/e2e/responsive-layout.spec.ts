@@ -34,7 +34,7 @@ test('keeps the full desktop canvas at 1280px', async ({ page }) => {
       viewportWidth: window.innerWidth,
       documentWidth: document.documentElement.scrollWidth,
       siderWidth: box('.app-sider')?.width,
-      consultationWidth: box('.expert-consultation')?.width,
+      consultationCount: document.querySelectorAll('.expert-consultation').length,
       visualDisplay: getComputedStyle(document.querySelector('.hero-visual')!).display,
     };
   });
@@ -42,9 +42,8 @@ test('keeps the full desktop canvas at 1280px', async ({ page }) => {
   expect(layout.documentWidth).toBeGreaterThanOrEqual(1920);
   expect(layout.documentWidth).toBeGreaterThan(layout.viewportWidth);
   expect(layout.siderWidth).toBe(260);
-  expect(layout.consultationWidth).toBe(352);
+  expect(layout.consultationCount).toBe(0);
   expect(layout.visualDisplay).not.toBe('none');
-  await expect(page.locator('.expert-consultation')).toBeVisible();
 });
 
 test('uses horizontal scrolling instead of rearranging below the desktop canvas', async ({ page }) => {
@@ -56,14 +55,14 @@ test('uses horizontal scrolling instead of rearranging below the desktop canvas'
     viewportWidth: window.innerWidth,
     documentWidth: document.documentElement.scrollWidth,
     siderWidth: document.querySelector('.app-sider')?.getBoundingClientRect().width,
-    consultationWidth: document.querySelector('.expert-consultation')?.getBoundingClientRect().width,
+    consultationCount: document.querySelectorAll('.expert-consultation').length,
     visualDisplay: getComputedStyle(document.querySelector('.hero-visual')!).display,
   }));
 
   expect(layout.documentWidth).toBeGreaterThanOrEqual(1920);
   expect(layout.documentWidth).toBeGreaterThan(layout.viewportWidth);
   expect(layout.siderWidth).toBe(260);
-  expect(layout.consultationWidth).toBe(352);
+  expect(layout.consultationCount).toBe(0);
   expect(layout.visualDisplay).not.toBe('none');
 });
 
@@ -72,7 +71,7 @@ test('preserves the spacious desktop layout at 1920px', async ({ page }) => {
   await page.goto('/pentest');
 
   await expect(page.locator('.hero-visual')).toBeVisible();
-  await expect(page.locator('.expert-consultation')).toHaveCSS('width', '352px');
+  await expect(page.locator('.expert-consultation')).toHaveCount(0);
   await expect(page.locator('.app-sider')).toHaveCSS('width', '260px');
 });
 

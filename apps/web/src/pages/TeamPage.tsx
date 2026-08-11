@@ -43,7 +43,7 @@ export function TeamPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
   });
 
-  const items = users.data?.items ?? [];
+  const items = useMemo(() => users.data?.items ?? [], [users.data?.items]);
   const visibleItems = useMemo(() => {
     const normalized = keyword.trim().toLowerCase();
     return items.filter((item) => {

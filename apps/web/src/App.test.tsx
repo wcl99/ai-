@@ -150,6 +150,8 @@ describe('App', () => {
     expect(screen.getByText('AI 今日摘要')).toBeInTheDocument();
     expect(await screen.findAllByText('API 近期任务')).not.toHaveLength(0);
     expect(screen.getByText('暂无历史趋势数据')).toBeInTheDocument();
+    expect(container.querySelector('.material-dashboard')).toBeInTheDocument();
+    expect(container.querySelectorAll('.feature-card')).toHaveLength(4);
     expect(
       [...container.querySelectorAll<HTMLImageElement>('.metric-card img')].map((image) => image.src),
     ).toEqual([
@@ -176,9 +178,9 @@ describe('App', () => {
   });
 
   it.each([
-    ['/tasks', ['metric-task-all', 'metric-task-queued', 'metric-task-running', 'metric-task-completed', 'metric-task-abnormal']],
+    ['/tasks', ['metric-task-all', 'metric-task-queued', 'metric-task-running', 'metric-task-completed', 'metric-task-abnormal', 'metric-task-all']],
     ['/vulnerabilities', ['metric-vulnerability-total', 'metric-vulnerability-high', 'metric-vulnerability-medium', 'metric-vulnerability-pending', 'metric-vulnerability-retest', 'metric-vulnerability-fixed']],
-    ['/reports', ['metric-report-total']],
+    ['/reports', ['metric-report-total', 'metric-report-pending-export', 'metric-report-exported', 'metric-report-pending-confirm', 'metric-report-delivered']],
   ])('uses the exported metric icons on %s', async (path, icons) => {
     const { container } = renderRoute(path);
     await screen.findByRole('button', { name: '用户菜单' });
@@ -226,7 +228,9 @@ describe('App', () => {
     const { container } = renderRoute('/login', unauthenticatedFetch);
     expect(await screen.findByRole('heading', { name: '系统登录' })).toBeInTheDocument();
     expect(screen.queryByText('平台总览')).not.toBeInTheDocument();
-    expect(container.querySelector('.login-visual-panel')).toBeInTheDocument();
-    expect(container.querySelector('.login-form-panel')).toBeInTheDocument();
+    expect(container.querySelector('.material-login-brand')).toBeInTheDocument();
+    expect(container.querySelector('.material-login-card')).toBeInTheDocument();
+    expect(screen.getByLabelText('验证码')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: '记住登录状态' })).toBeInTheDocument();
   });
 });

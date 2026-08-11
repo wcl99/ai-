@@ -46,6 +46,8 @@ describe('management pages', () => {
     renderPage(<AssetsPage />);
 
     expect(await screen.findByText('existing.example.com')).toBeInTheDocument();
+    expect(screen.getByText('资产列表')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: '资产类型筛选' })).toBeInTheDocument();
     await interaction.click(screen.getByRole('button', { name: /新增资产/ }));
     await interaction.type(screen.getByPlaceholderText(/admin.example.com/), 'new.example.com');
     await interaction.type(screen.getByPlaceholderText('例如电商业务线'), '验证业务线');

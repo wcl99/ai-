@@ -61,6 +61,7 @@ export function AssetsPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<AssetType>();
   const query = useQuery({
     queryKey: ['assets', { page, pageSize: 10 }],
     queryFn: () => listAssets({ page, pageSize: 10 }),
@@ -88,10 +89,14 @@ export function AssetsPage() {
   });
 
   const assets = query.data?.items ?? [];
+  const visibleAssets = typeFilter ? assets.filter((asset) => asset.type === typeFilter) : assets;
   const assetMetrics: Metric[] = [
     { label: '资产总数', value: query.data && !query.isError ? String(query.data.total) : '—', tone: 'blue' },
     { label: '本页已授权', value: query.data && !query.isError ? String(assets.filter((asset) => asset.authorized).length) : '—', tone: 'green' },
     { label: '本页待授权', value: query.data && !query.isError ? String(assets.filter((asset) => !asset.authorized).length) : '—', tone: 'orange' },
+    { label: '本页域名', value: query.data && !query.isError ? String(assets.filter((asset) => asset.type === 'domain').length) : '—', tone: 'purple' },
+    { label: '本页 IP', value: query.data && !query.isError ? String(assets.filter((asset) => asset.type === 'ip').length) : '—', tone: 'blue' },
+    { label: '本页网段', value: query.data && !query.isError ? String(assets.filter((asset) => asset.type === 'network_range').length) : '—', tone: 'gray' },
   ];
 
   const columns: ColumnsType<AssetRecord> = [
@@ -107,7 +112,16 @@ export function AssetsPage() {
     <div className="page list-page assets-page">
       <div className="metric-grid metric-grid-six">{assetMetrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}</div>
       <Card variant="borderless" className="data-card">
+        <div className="material-data-heading"><div><h3>资产列表</h3><p>统一管理已发现和已授权的业务资产</p></div></div>
         <div className="filter-bar">
+          <Select
+            aria-label="资产类型筛选"
+            allowClear
+            value={typeFilter}
+            placeholder="全部资产类型"
+            options={Object.entries(assetTypeLabels).map(([value, label]) => ({ value, label }))}
+            onChange={(value) => setTypeFilter(value as AssetType | undefined)}
+          />
           <div className="filter-spacer" />
           <Button onClick={() => query.refetch()}>刷新</Button>
           <Button disabled title="导入接口尚未确认">导入资产</Button>
@@ -116,7 +130,7 @@ export function AssetsPage() {
         </div>
         <div className="table-toolbar"><span className="muted">资产授权后才允许发起真实扫描</span></div>
         {query.isError ? <Alert type="error" showIcon message={query.error instanceof Error ? query.error.message : '资产加载失败'} action={<Button onClick={() => query.refetch()}>重试</Button>} /> : (
-          <Table rowKey="id" columns={columns} dataSource={assets} loading={query.isPending} locale={{ emptyText: '暂无资产数据' }} pagination={{ current: page, pageSize: 10, total: query.data?.total ?? 0, showSizeChanger: false, onChange: setPage }} scroll={{ x: 900 }} />
+          <Table rowKey="id" columns={columns} dataSource={visibleAssets} loading={query.isPending} locale={{ emptyText: '暂无资产数据' }} pagination={{ current: page, pageSize: 10, total: typeFilter ? visibleAssets.length : query.data?.total ?? 0, showSizeChanger: false, onChange: setPage }} scroll={{ x: 900 }} />
         )}
       </Card>
 

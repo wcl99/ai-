@@ -64,7 +64,7 @@ export function DashboardPage() {
     : '—';
 
   return (
-    <div className="page dashboard-page">
+    <div className="page dashboard-page material-dashboard">
       {firstError && <Alert className="resource-error" type="error" showIcon message={firstError instanceof Error ? firstError.message : '总览数据加载失败'} action={<Button onClick={() => queries.forEach((query) => query.refetch())}>重试</Button>} />}
       <div className="metric-grid metric-grid-five">{metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}</div>
 

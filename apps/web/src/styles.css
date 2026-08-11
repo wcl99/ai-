@@ -265,3 +265,73 @@ a { color: var(--primary); cursor: pointer; }
 .recent-material-section{margin-bottom:16px}.recent-material-section .section-heading{margin-bottom:12px}.recent-material-section .section-heading h3{margin:0;font-size:18px}.recent-material-reports{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) 58px;gap:22px;align-items:center}.recent-material-report{height:132px;padding:20px 22px;display:flex;flex-direction:column;border:1px solid #edf0f7;border-radius:12px;background:linear-gradient(120deg,#fff 72%,#f8f5fb);box-shadow:0 8px 24px rgba(44,75,139,.06)}.recent-material-report>div{display:flex;align-items:center;justify-content:space-between}.recent-material-report .ant-tag{margin:0;border:0;color:#075bcc;background:#edf4ff}.recent-material-report time{color:#8791a2;font-size:11px}.recent-material-report>strong{margin:13px 0 12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.recent-material-report>span{display:flex;align-items:center;gap:8px;color:#5d687b;font-size:11px}.recent-material-report>span b{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;color:#fff;background:#526d93}.material-next-button{width:50px!important;height:50px!important;border:0!important;border-radius:14px!important;color:#075bcc!important;font-size:24px!important;box-shadow:0 8px 20px rgba(34,90,183,.13)!important}
 .report-material-bottom{display:grid;grid-template-columns:1fr 1fr;gap:24px}.report-material-bottom>.ant-card{height:282px;border:1px solid #e4eaf6}.report-material-bottom .ant-card-body{height:100%;padding:20px 24px}.report-material-bottom .section-title{margin-bottom:12px}.material-table-wrap{overflow:auto}.material-table-wrap table{width:100%;border-collapse:collapse;font-size:11px}.material-table-wrap th{height:36px;padding:0 10px;text-align:left;color:#536075;background:#f2f5fb;white-space:nowrap}.material-table-wrap td{height:34px;padding:0 10px;border-bottom:1px solid #edf1f6;color:#667085;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.material-report-insight{position:relative;overflow:hidden;border-color:#a9c8fa!important}.material-report-insight::after{content:'◔';position:absolute;right:26px;bottom:-58px;color:#eaf1fc;font-size:170px;line-height:1}.material-report-insight p{position:relative;z-index:1;margin:0;padding:14px 16px;border:1px solid #cfe0ff;border-radius:9px;color:#5a667b;background:#f5f8ff;line-height:1.7}.material-report-insight ul{position:relative;z-index:1;margin:14px 0 0;padding-left:20px;color:#536075;line-height:1.85;font-size:12px}.material-report-insight li::marker{color:#075bcc}
 @media (min-width:2400px){.report-overview-material{max-width:2100px}.report-lifecycle-card{min-height:144px}.material-chart-card{height:370px}.material-donut,.material-bars{height:275px}.recent-material-report{height:150px}.report-material-bottom>.ant-card{height:320px}}
+
+/* 2026-08 material alignment: non-pentest pages only. */
+.app-content:not(.pentest-content){background:#f1f5ff}
+.app-content:not(.pentest-content) .page{width:100%}
+.app-content:not(.pentest-content) .ant-card{border:1px solid rgba(224,231,244,.82);box-shadow:0 8px 26px rgba(34,72,139,.055)}
+.app-content:not(.pentest-content) .data-card{border-radius:13px}
+.app-content:not(.pentest-content) .metric-card{min-height:126px}
+.app-content:not(.pentest-content) .metric-card .metric-top{color:#344258}
+.app-content:not(.pentest-content) .metric-card strong{color:#12223a}
+.app-content:not(.pentest-content) .metric-card.tone-red strong{color:#c62d36}
+.app-content:not(.pentest-content) .metric-card.tone-orange strong{color:#f08a24}
+.app-content:not(.pentest-content) .metric-card.tone-blue strong{color:#075bcc}
+.app-content:not(.pentest-content) .metric-card.tone-purple strong{color:#7c35e8}
+.app-content:not(.pentest-content) .metric-card.tone-green strong{color:#087c5c}
+.material-dashboard .feature-card{min-height:108px}
+.material-dashboard .feature-card .ant-card-body{min-height:108px}
+.material-dashboard .dashboard-main-grid>.ant-card{min-height:328px}
+.material-dashboard .dashboard-bottom-grid>.ant-card{min-height:286px}
+.material-filter-bar .ant-input-affix-wrapper{width:330px;height:38px;background:#f7f9fd}
+.material-filter-bar .ant-select{min-width:150px}
+.material-data-heading{min-height:76px;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+.material-data-heading h3{margin:0 0 5px;color:#142944;font-size:17px}
+.material-data-heading p{margin:0;color:#8a95a6;font-size:12px}
+.assets-page .filter-bar{min-height:66px}
+.material-vulnerability-drawer .ant-drawer-header{min-height:74px;padding-inline:28px;border-bottom:1px solid #e8edf5}
+.material-vulnerability-drawer .ant-drawer-body{padding:24px 28px 32px;background:#f8faff}
+.material-vulnerability-drawer .detail-drawer>section,.material-vulnerability-drawer .ant-card{padding:0;border:1px solid #e4eaf4;border-radius:10px;background:#fff!important;box-shadow:none}
+.material-vulnerability-drawer .detail-drawer>section>h3,.material-vulnerability-drawer .ant-card h3{margin:0;padding:17px 20px;border-bottom:1px solid #edf1f7;color:#173252;font-size:15px}
+.material-vulnerability-drawer .detail-meta{display:grid;grid-template-columns:1fr 1fr;margin:0;padding:8px 20px 14px;column-gap:24px}
+.material-vulnerability-drawer .detail-meta>span{min-height:48px;display:flex;justify-content:space-between;gap:14px}
+.material-vulnerability-drawer .detail-meta>span>strong{max-width:62%;overflow-wrap:anywhere;text-align:right}
+.material-vulnerability-drawer .ant-card .ant-card-body{padding:0}
+.material-vulnerability-drawer .ant-card p{margin:0;padding:18px 20px;line-height:1.8}
+.material-vulnerability-drawer .drawer-insight{margin:18px 0!important;border-color:#bcd2f8;background:#fff!important}
+.material-vulnerability-drawer .drawer-remediation{margin:18px 0!important}
+
+/* The login export is a centered product mark and card, not a split marketing page. */
+.login-page{position:relative;min-width:1920px;min-height:100vh;display:grid;grid-template-columns:1fr;place-items:center;padding:150px 24px 72px;background:radial-gradient(circle at 50% 38%,#fff 0,#f4f7ff 42%,#e8effd 100%);overflow:auto}
+.login-page>.login-visual-panel{display:none}
+.material-login-brand{position:absolute;top:68px;left:50%;display:flex;align-items:center;gap:14px;transform:translateX(-50%);text-align:left}
+.material-login-brand .brand-mark{width:46px;height:46px}
+.material-login-brand h1{margin:0;color:#1460d1;font-size:30px;letter-spacing:.02em}
+.material-login-brand p{margin:5px 0 0;color:#7f8999;font-size:13px}
+.login-form-panel{min-height:0;display:block;padding:0;background:transparent}
+.login-card.material-login-card{width:520px;padding:46px 52px 34px;border:1px solid #e0e7f3;border-radius:20px;background:#fff;box-shadow:0 18px 50px rgba(31,74,150,.13)}
+.material-login-card .login-card-heading{text-align:center;margin-bottom:28px}
+.material-login-card .login-card-heading h2{margin:0 0 10px;color:#132842;font-size:28px}
+.material-login-card .login-card-heading p{margin:0;color:#8c96a6}
+.material-login-card .ant-form-item{margin-bottom:20px}
+.material-login-card .ant-form-item-label label{color:#33435a;font-weight:600}
+.material-login-card .ant-input-affix-wrapper,.material-login-card .material-captcha-row>.ant-input{height:50px;border-color:#dae3f1;background:#f6f8fc}
+.material-captcha-row{display:grid;grid-template-columns:1fr 128px;gap:12px}
+.material-captcha-row>span{height:50px;display:grid;place-items:center;border:1px solid #dbe5f3;border-radius:8px;color:#235db1;background:repeating-linear-gradient(-18deg,#eef4ff 0,#eef4ff 4px,#fff 4px,#fff 9px);font:700 19px/1 ui-monospace,Consolas,monospace;letter-spacing:.22em}
+.material-login-options{display:flex;align-items:center;justify-content:space-between;margin:-4px 0 22px;color:#6c778a}
+.material-login-options button{padding:0;border:0;color:#97a0ae;background:transparent}
+.material-login-card .ant-btn-primary{height:50px;margin:0;border-radius:8px;background:#075bcc;box-shadow:0 9px 20px rgba(7,91,204,.2)}
+.material-login-card footer{margin-top:25px;color:#a0a9b8;text-align:center;font-size:11px}
+
+@media (min-width:2400px){
+  .app-content:not(.pentest-content) .page{max-width:2100px}
+  .app-content:not(.pentest-content) .metric-card{min-height:142px}
+  .material-login-brand{top:100px}.login-card.material-login-card{width:590px;padding:56px 62px 42px}
+}
+@media (min-width:3200px){
+  .app-content:not(.pentest-content) .page{max-width:2800px}
+  .app-content:not(.pentest-content) .metric-card{min-height:154px}
+  .material-dashboard .dashboard-main-grid>.ant-card{min-height:390px}
+  .material-dashboard .dashboard-bottom-grid>.ant-card{min-height:340px}
+  .material-login-brand{top:132px}.login-card.material-login-card{width:700px;padding:68px 76px 50px}
+}
