@@ -100,6 +100,15 @@ def test_xiaoyi_mapping_migration_invalidates_stale_ready_snapshots(
             for index in connection.execute("PRAGMA index_list('assets')").fetchall()
             if index[2]
         ]
+        overview_indexes = {
+            table: {
+                row[1]
+                for row in connection.execute(
+                    f"PRAGMA index_list('{table}')"
+                ).fetchall()
+            }
+            for table in ("vulnerabilities", "reports")
+        }
     stored_snapshot = json.loads(stored_snapshot)
     assert status == "DRAFT"
     assert stored_snapshot["authorization_confirmed"] is False
@@ -116,4 +125,6 @@ def test_xiaoyi_mapping_migration_invalidates_stale_ready_snapshots(
         "created_at",
     }
     assert {"org_id", "plan_id", "asset_key"} in asset_unique_indexes
+    assert "ix_vulnerabilities_org_created" in overview_indexes["vulnerabilities"]
+    assert "ix_reports_org_created" in overview_indexes["reports"]
     get_settings.cache_clear()

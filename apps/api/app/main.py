@@ -4,8 +4,9 @@ import asyncio
 import re
 import uuid
 from contextlib import asynccontextmanager, suppress
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, Query, Request, Response, WebSocket, WebSocketDisconnect
@@ -13,7 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import ValidationError
-from sqlalchemy import and_, func, select, text
+from sqlalchemy import and_, case, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -37,6 +38,7 @@ from .engine import (
 )
 from .errors import AppError
 from .models import AiLog, Asset, AuditLog, Organization, QAMessage, Report, ScanPlan, ScanPlanMessage, Task, TaskEvent, User, Vulnerability, XiaoyiPlanMapping
+from .overview_analytics import DEFAULT_TIMEZONE, aggregate_trend
 from .schemas import (
     AiAssetUpload,
     AiLogRead,
@@ -63,6 +65,7 @@ from .schemas import (
     QAMessageRead,
     TaskQAResponse,
     ReportListRead,
+    ReportOverviewRead,
     ReportRead,
     ScanPlanAssetUpdate,
     ScanPlanCreate,
@@ -76,6 +79,7 @@ from .schemas import (
     UserRead,
     UserUpdate,
     VulnerabilityListRead,
+    VulnerabilityOverviewRead,
     VulnerabilityRead,
     VulnerabilityUpdate,
 )
@@ -969,6 +973,103 @@ async def list_vulnerabilities(
     return envelope(page_data(items, total or 0, page, page_size))
 
 
+@app.get(
+    "/api/v1/vulnerabilities/overview",
+    response_model=ApiEnvelope[VulnerabilityOverviewRead],
+)
+async def vulnerability_overview(
+    range_name: Literal["today", "3d", "7d", "all"] = Query("7d", alias="range"),
+    timezone_name: str = Query(DEFAULT_TIMEZONE, alias="timezone", max_length=64),
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    metric_row = (
+        await session.execute(
+            select(
+                func.count(Vulnerability.id),
+                func.sum(case((Vulnerability.severity == "critical", 1), else_=0)),
+                func.sum(case((Vulnerability.severity == "high", 1), else_=0)),
+                func.sum(case((Vulnerability.severity == "medium", 1), else_=0)),
+                func.sum(case((Vulnerability.severity == "low", 1), else_=0)),
+                func.sum(
+                    case(
+                        (~Vulnerability.severity.in_(["critical", "high", "medium", "low"]), 1),
+                        else_=0,
+                    )
+                ),
+                func.sum(case((Vulnerability.status == "OPEN", 1), else_=0)),
+                func.sum(case((Vulnerability.status == "RETESTING", 1), else_=0)),
+                func.sum(case((Vulnerability.status == "FIXED", 1), else_=0)),
+            ).where(Vulnerability.org_id == user.org_id)
+        )
+    ).one()
+    values = [int(value or 0) for value in metric_row]
+    metrics = dict(
+        zip(
+            ["total", "critical", "high", "medium", "low", "unknown", "open", "retesting", "fixed"],
+            values,
+            strict=True,
+        )
+    )
+    source = func.coalesce(
+        Vulnerability.data_json["source_tool"].as_string(),
+        "xiaoyi",
+    ).label("source")
+    source_rows = (
+        await session.execute(
+            select(source, func.count())
+            .where(Vulnerability.org_id == user.org_id)
+            .group_by(source)
+            .order_by(func.count().desc(), source)
+        )
+    ).all()
+    window, trend = await aggregate_trend(
+        session,
+        Vulnerability,
+        user.org_id,
+        range_name,
+        timezone_name,
+    )
+    risk_labels = {
+        "critical": "严重",
+        "high": "高危",
+        "medium": "中危",
+        "low": "低危",
+        "unknown": "未知",
+    }
+    recommendations = []
+    if metrics["critical"] or metrics["high"]:
+        recommendations.append(
+            f"优先处置 {metrics['critical'] + metrics['high']} 个严重或高危漏洞。"
+        )
+    if metrics["retesting"]:
+        recommendations.append(f"有 {metrics['retesting']} 个漏洞等待复测确认。")
+    if not recommendations:
+        recommendations.append("当前没有需要优先处置或复测的漏洞。")
+    return envelope(
+        {
+            "range": range_name,
+            "timezone": window.timezone_name,
+            "granularity": window.granularity,
+            "metrics": metrics,
+            "risk_distribution": [
+                {"key": key, "label": label, "count": metrics[key]}
+                for key, label in risk_labels.items()
+            ],
+            "source_distribution": [
+                {
+                    "key": str(key),
+                    "label": "小易回传" if key == "xiaoyi" else str(key),
+                    "count": int(count),
+                }
+                for key, count in source_rows
+            ],
+            "trend": [point.__dict__ for point in trend],
+            "recommendations": recommendations,
+        }
+    )
+
+
 @app.get("/api/v1/vulnerabilities/{vulnerability_id}", response_model=VulnerabilityRead)
 async def read_vulnerability(vulnerability_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
     item = await session.scalar(select(Vulnerability).where(Vulnerability.id == vulnerability_id, Vulnerability.org_id == user.org_id))
@@ -1034,6 +1135,104 @@ async def list_reports(
         for report, plan_name, task_name in rows
     ]
     return envelope(page_data(items, total or 0, page, page_size))
+
+
+@app.get(
+    "/api/v1/reports/overview",
+    response_model=ApiEnvelope[ReportOverviewRead],
+)
+async def report_overview(
+    range_name: Literal["today", "3d", "7d", "all"] = Query("7d", alias="range"),
+    timezone_name: str = Query(DEFAULT_TIMEZONE, alias="timezone", max_length=64),
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    recent_boundary = datetime.now(UTC) - timedelta(days=7)
+    metric_row = (
+        await session.execute(
+            select(
+                func.count(Report.id),
+                func.sum(case((Report.status == "READY", 1), else_=0)),
+                func.sum(case((Report.report_level == "partial", 1), else_=0)),
+                func.sum(case((Report.created_at >= recent_boundary, 1), else_=0)),
+                func.max(Report.created_at),
+            ).where(Report.org_id == user.org_id)
+        )
+    ).one()
+    metrics = {
+        "total": int(metric_row[0] or 0),
+        "ready": int(metric_row[1] or 0),
+        "partial": int(metric_row[2] or 0),
+        "recent_7d": int(metric_row[3] or 0),
+        "latest_at": metric_row[4],
+    }
+    source = case(
+        (Report.external_url.is_not(None), "xiaoyi"),
+        else_="platform",
+    ).label("source")
+    source_rows = (
+        await session.execute(
+            select(source, func.count())
+            .where(Report.org_id == user.org_id)
+            .group_by(source)
+            .order_by(source)
+        )
+    ).all()
+    level = case(
+        (Report.report_level == "standard", "standard"),
+        (Report.report_level == "partial", "partial"),
+        else_="other",
+    ).label("level")
+    level_rows = (
+        await session.execute(
+            select(level, func.count())
+            .where(Report.org_id == user.org_id)
+            .group_by(level)
+            .order_by(level)
+        )
+    ).all()
+    window, trend = await aggregate_trend(
+        session,
+        Report,
+        user.org_id,
+        range_name,
+        timezone_name,
+    )
+    source_labels = {"platform": "平台生成", "xiaoyi": "小易回传"}
+    level_labels = {"standard": "标准报告", "partial": "部分结果", "other": "其他"}
+    latest = metrics["latest_at"]
+    insights = [
+        f"当前共有 {metrics['total']} 份报告，最近 7 日新增 {metrics['recent_7d']} 份。",
+        f"其中 {metrics['partial']} 份为部分结果报告。",
+    ]
+    if latest:
+        insights.append(f"最新报告生成于 {latest.isoformat()}。")
+    return envelope(
+        {
+            "range": range_name,
+            "timezone": window.timezone_name,
+            "granularity": window.granularity,
+            "metrics": metrics,
+            "source_distribution": [
+                {
+                    "key": str(key),
+                    "label": source_labels[str(key)],
+                    "count": int(count),
+                }
+                for key, count in source_rows
+            ],
+            "level_distribution": [
+                {
+                    "key": str(key),
+                    "label": level_labels[str(key)],
+                    "count": int(count),
+                }
+                for key, count in level_rows
+            ],
+            "trend": [point.__dict__ for point in trend],
+            "insights": insights,
+        }
+    )
 
 
 async def scoped_report(session: AsyncSession, report_id: uuid.UUID, user: User) -> Report:

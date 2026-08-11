@@ -330,6 +330,40 @@ class VulnerabilityListRead(ORMModel):
     tags: list[str]
 
 
+class TrendPointRead(BaseModel):
+    start: str
+    count: int
+
+
+class DistributionItemRead(BaseModel):
+    key: str
+    label: str
+    count: int
+
+
+class VulnerabilityOverviewMetrics(BaseModel):
+    total: int
+    critical: int
+    high: int
+    medium: int
+    low: int
+    unknown: int
+    open: int
+    retesting: int
+    fixed: int
+
+
+class VulnerabilityOverviewRead(BaseModel):
+    range: Literal["today", "3d", "7d", "all"]
+    timezone: str
+    granularity: Literal["hour", "day", "month"]
+    metrics: VulnerabilityOverviewMetrics
+    risk_distribution: list[DistributionItemRead]
+    source_distribution: list[DistributionItemRead]
+    trend: list[TrendPointRead]
+    recommendations: list[str]
+
+
 class TaskQAResponse(BaseModel):
     user_message: QAMessageRead
     assistant_message: QAMessageRead
@@ -350,6 +384,25 @@ class ReportRead(ORMModel):
 class ReportListRead(ReportRead):
     plan_name: str
     task_name: str | None
+
+
+class ReportOverviewMetrics(BaseModel):
+    total: int
+    ready: int
+    partial: int
+    recent_7d: int
+    latest_at: datetime | None
+
+
+class ReportOverviewRead(BaseModel):
+    range: Literal["today", "3d", "7d", "all"]
+    timezone: str
+    granularity: Literal["hour", "day", "month"]
+    metrics: ReportOverviewMetrics
+    source_distribution: list[DistributionItemRead]
+    level_distribution: list[DistributionItemRead]
+    trend: list[TrendPointRead]
+    insights: list[str]
 
 
 class AuditLogRead(ORMModel):

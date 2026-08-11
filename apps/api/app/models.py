@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -143,6 +143,9 @@ class QAMessage(Base):
 
 class Vulnerability(Base, TimestampMixin):
     __tablename__ = "vulnerabilities"
+    __table_args__ = (
+        Index("ix_vulnerabilities_org_created", "org_id", "created_at"),
+    )
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
     plan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("scan_plans.id"), index=True)
@@ -157,6 +160,7 @@ class Vulnerability(Base, TimestampMixin):
 
 class Report(Base, TimestampMixin):
     __tablename__ = "reports"
+    __table_args__ = (Index("ix_reports_org_created", "org_id", "created_at"),)
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
     plan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("scan_plans.id"), index=True)

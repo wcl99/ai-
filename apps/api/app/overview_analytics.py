@@ -7,6 +7,8 @@ from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import func
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 OverviewRange = Literal["today", "3d", "7d", "all"]
 Granularity = Literal["hour", "day", "month"]
@@ -134,3 +136,40 @@ def bucket_expression(column, window: TrendWindow, dialect_name: str):
 def fill_buckets(window: TrendWindow, counts: Mapping[object, int]) -> list[TrendPoint]:
     normalized = {str(key): int(value) for key, value in counts.items()}
     return [TrendPoint(start=key, count=normalized.get(key, 0)) for key in window.buckets]
+
+
+async def aggregate_trend(
+    session: AsyncSession,
+    model,
+    org_id,
+    range_name: OverviewRange,
+    timezone_name: str,
+) -> tuple[TrendWindow, list[TrendPoint]]:
+    earliest = None
+    if range_name == "all":
+        earliest = await session.scalar(
+            select(func.min(model.created_at)).where(model.org_id == org_id)
+        )
+    window = build_window(
+        range_name,
+        timezone_name,
+        earliest=earliest,
+    )
+    bucket = bucket_expression(
+        model.created_at,
+        window,
+        session.get_bind().dialect.name,
+    ).label("bucket")
+    rows = (
+        await session.execute(
+            select(bucket, func.count())
+            .where(
+                model.org_id == org_id,
+                model.created_at >= window.start_utc,
+                model.created_at < window.end_utc,
+            )
+            .group_by(bucket)
+            .order_by(bucket)
+        )
+    ).all()
+    return window, fill_buckets(window, {key: count for key, count in rows if key})

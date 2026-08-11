@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -12,7 +13,7 @@ import app.main as main_module
 from app.auth import create_token, password_hash
 from app.config import get_settings
 from app.db import SessionLocal
-from app.models import Organization, ScanPlan, Task, User, XiaoyiPlanMapping
+from app.models import Organization, Report, ScanPlan, Task, User, Vulnerability, XiaoyiPlanMapping
 from app.schemas import DomainPrecheckRequest, PortPrecheckRequest
 from app.services import plan_for_update_query
 
@@ -26,6 +27,178 @@ async def test_liveness_is_independent_and_keeps_compatibility_alias(client):
     assert live.status_code == 200
     assert live.json() == {"status": "ok"}
     assert compatibility.json() == live.json()
+
+
+async def test_overview_analytics_are_complete_scoped_and_time_filtered(
+    authenticated_client,
+):
+    now = datetime.now(UTC)
+    async with SessionLocal() as session:
+        user = await session.scalar(select(User).where(User.username == "admin"))
+        plan = ScanPlan(
+            org_id=user.org_id,
+            created_by=user.id,
+            name="Overview analytics",
+            test_type="standard",
+            status="READY",
+            snapshot={},
+        )
+        session.add(plan)
+        await session.flush()
+        session.add_all(
+            [
+                Vulnerability(
+                    org_id=user.org_id,
+                    plan_id=plan.id,
+                    title="Critical old finding",
+                    severity="critical",
+                    status="OPEN",
+                    data_json={"source_tool": "nuclei"},
+                    created_at=now - timedelta(days=8),
+                ),
+                Vulnerability(
+                    org_id=user.org_id,
+                    plan_id=plan.id,
+                    title="High recent finding",
+                    severity="high",
+                    status="OPEN",
+                    data_json={"source_tool": "WebRE工具"},
+                    created_at=now - timedelta(minutes=5),
+                ),
+                Vulnerability(
+                    org_id=user.org_id,
+                    plan_id=plan.id,
+                    title="Medium recent finding",
+                    severity="medium",
+                    status="RETESTING",
+                    data_json={},
+                    created_at=now - timedelta(days=2),
+                ),
+                Report(
+                    org_id=user.org_id,
+                    plan_id=plan.id,
+                    filename="standard-current.md",
+                    format="md",
+                    report_level="standard",
+                    local_path="/tmp/standard-current.md",
+                    status="READY",
+                    created_at=now - timedelta(minutes=5),
+                ),
+                Report(
+                    org_id=user.org_id,
+                    plan_id=plan.id,
+                    filename="partial-external.pdf",
+                    format="pdf",
+                    report_level="partial",
+                    external_url="https://xiaoyi.example/report.pdf",
+                    status="READY",
+                    created_at=now - timedelta(days=2),
+                ),
+                Report(
+                    org_id=user.org_id,
+                    plan_id=plan.id,
+                    filename="standard-old.docx",
+                    format="docx",
+                    report_level="standard",
+                    local_path="/tmp/standard-old.docx",
+                    status="READY",
+                    created_at=now - timedelta(days=8),
+                ),
+            ]
+        )
+        other_org = Organization(name="Other overview organization")
+        session.add(other_org)
+        await session.flush()
+        other_user = User(
+            org_id=other_org.id,
+            username="other-overview-admin",
+            name="Other Admin",
+            password_hash=password_hash.hash("other-password"),
+            role="admin",
+        )
+        session.add(other_user)
+        await session.flush()
+        other_plan = ScanPlan(
+            org_id=other_org.id,
+            created_by=other_user.id,
+            name="Other overview plan",
+            test_type="standard",
+            status="READY",
+            snapshot={},
+        )
+        session.add(other_plan)
+        await session.flush()
+        session.add(
+            Vulnerability(
+                org_id=other_org.id,
+                plan_id=other_plan.id,
+                title="Foreign finding",
+                severity="high",
+                data_json={"source_tool": "foreign"},
+                created_at=now - timedelta(minutes=5),
+            )
+        )
+        await session.commit()
+
+    vulnerabilities = await authenticated_client.get(
+        "/api/v1/vulnerabilities/overview?range=7d&timezone=Asia%2FShanghai"
+    )
+    reports = await authenticated_client.get(
+        "/api/v1/reports/overview?range=7d&timezone=Asia%2FShanghai"
+    )
+
+    assert vulnerabilities.status_code == 200
+    vulnerability_data = vulnerabilities.json()["data"]
+    assert vulnerability_data["metrics"] == {
+        "total": 3,
+        "critical": 1,
+        "high": 1,
+        "medium": 1,
+        "low": 0,
+        "unknown": 0,
+        "open": 2,
+        "retesting": 1,
+        "fixed": 0,
+    }
+    assert sum(item["count"] for item in vulnerability_data["trend"]) == 2
+    assert sum(item["count"] for item in vulnerability_data["source_distribution"]) == 3
+    assert {item["key"] for item in vulnerability_data["source_distribution"]} == {
+        "WebRE工具",
+        "nuclei",
+        "xiaoyi",
+    }
+    assert vulnerability_data["granularity"] == "day"
+
+    assert reports.status_code == 200
+    report_data = reports.json()["data"]
+    assert report_data["metrics"]["total"] == 3
+    assert report_data["metrics"]["partial"] == 1
+    assert report_data["metrics"]["recent_7d"] == 2
+    assert sum(item["count"] for item in report_data["trend"]) == 2
+    assert {item["key"]: item["count"] for item in report_data["source_distribution"]} == {
+        "platform": 2,
+        "xiaoyi": 1,
+    }
+    assert {item["key"]: item["count"] for item in report_data["level_distribution"]} == {
+        "partial": 1,
+        "standard": 2,
+    }
+
+
+async def test_overview_analytics_support_today_and_timezone_fallback(authenticated_client):
+    vulnerabilities = await authenticated_client.get(
+        "/api/v1/vulnerabilities/overview?range=today&timezone=invalid%2Fzone"
+    )
+    reports = await authenticated_client.get(
+        "/api/v1/reports/overview?range=today&timezone=invalid%2Fzone"
+    )
+
+    for response in (vulnerabilities, reports):
+        assert response.status_code == 200
+        assert response.json()["data"]["range"] == "today"
+        assert response.json()["data"]["timezone"] == "Asia/Shanghai"
+        assert response.json()["data"]["granularity"] == "hour"
+        assert len(response.json()["data"]["trend"]) >= 1
 
 
 def test_confirmation_query_locks_the_plan_row():
