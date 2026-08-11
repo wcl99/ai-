@@ -1,50 +1,40 @@
-import { AuditOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Select, Table, Tag } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
-import { useState } from 'react';
-import { getOrganization, getRuntimeSettings, listAuditLogs } from '../api/resources';
-import type { AuditLog } from '../api/resources';
-import { ManagementPageHeader } from '../components/ManagementPageHeader';
+import {
+  CloudUploadOutlined,
+  CopyOutlined,
+  ReloadOutlined,
+  SafetyCertificateOutlined,
+  SafetyOutlined,
+} from '@ant-design/icons';
+import { Button, Card, Tag, Tooltip, message } from 'antd';
 
-const AUDIT_PAGE_SIZE = 12;
+const fingerprint = 'YD-AI-SECURITY-PLATFORM';
 
 export function AuthorizationPage() {
-  const [page, setPage] = useState(1);
-  const [action, setAction] = useState<string>();
-  const [resourceType, setResourceType] = useState<string>();
-  const organization = useQuery({ queryKey: ['organization'], queryFn: getOrganization });
-  const runtime = useQuery({ queryKey: ['runtime-settings'], queryFn: getRuntimeSettings });
-  const logs = useQuery({ queryKey: ['audit-logs', action, resourceType, page], queryFn: () => listAuditLogs({ action, resourceType, page, pageSize: AUDIT_PAGE_SIZE }) });
-
-  const columns: ColumnsType<AuditLog> = [
-    { title: '时间', dataIndex: 'created_at', width: 190, render: (value) => new Date(value).toLocaleString('zh-CN') },
-    { title: '动作', dataIndex: 'action', width: 180, render: (value) => <strong>{value}</strong> },
-    { title: '资源', key: 'resource', render: (_, item) => <div className="audit-resource"><Tag>{item.resource_type}</Tag><span>{item.resource_id}</span></div> },
-    { title: '结果', dataIndex: 'outcome', width: 120, render: (value) => <Tag color={value === 'success' ? 'green' : 'red'}>{value}</Tag> },
-    { title: '操作人', dataIndex: 'actor_id', width: 240 },
-  ];
-
   return (
-    <div className="page management-page authorization-page">
-      <ManagementPageHeader eyebrow="边界与留痕" title="授权管理" description="查看当前组织的执行边界、引擎状态和平台审计记录。" actions={<Button onClick={() => logs.refetch()}>刷新状态</Button>} />
-      <div className="authorization-summary">
-        <Card variant="borderless" className="authorization-identity">
-          <SafetyCertificateOutlined />
-          <div><span>当前组织</span><strong>{organization.data?.name ?? '正在读取…'}</strong><small>{organization.data?.id ?? '—'}</small></div>
+    <div className="page management-page material-authorization-page">
+      <div className="material-page-heading">
+        <div><h2>授权管理</h2><p>查看平台授权状态与设备信息。</p></div>
+        <Tooltip title="授权管理功能暂未开放"><Button aria-label="刷新状态" disabled icon={<ReloadOutlined />}>刷新状态</Button></Tooltip>
+      </div>
+      <div className="material-authorization-summary">
+        <Card variant="borderless">
+          <header><span><SafetyOutlined /></span><div><h3>系统指纹</h3><p>用于绑定当前部署环境的唯一标识</p></div></header>
+          <div className="material-fingerprint">
+            <code>{fingerprint}</code>
+            <Button type="text" icon={<CopyOutlined />} onClick={() => { void navigator.clipboard?.writeText(fingerprint); message.success('系统指纹已复制'); }} aria-label="复制系统指纹" />
+          </div>
+          <dl><div><dt>设备名称</dt><dd>AI 安服平台</dd></div><div><dt>部署类型</dt><dd>私有化部署</dd></div><div><dt>绑定状态</dt><dd><Tag>未绑定</Tag></dd></div></dl>
         </Card>
-        <Card variant="borderless" className="authorization-status">
-          <div><span>引擎模式</span><strong>{runtime.data?.engine_mode ?? '—'}</strong></div>
-          <div><span>连接状态</span><Tag color={runtime.data?.engine_configured ? 'green' : 'orange'}>{runtime.data?.engine_configured ? '已配置' : '未配置'}</Tag></div>
-          <div><span>授权机制</span><strong>任务前确认</strong></div>
+        <Card variant="borderless" className="material-license-status">
+          <header><span><SafetyCertificateOutlined /></span><div><h3>授权状态</h3><p>当前平台许可证信息</p></div></header>
+          <div className="material-license-empty"><SafetyCertificateOutlined /><strong>尚未导入授权文件</strong><p>授权功能开放后，可在下方上传许可证文件。</p><Tag color="orange">等待授权</Tag></div>
         </Card>
       </div>
-      {(organization.isError || runtime.isError) && <Alert type="error" showIcon message="授权上下文加载失败" />}
-      <Card className="management-table-panel audit-panel" variant="borderless">
-        <div className="management-table-toolbar"><div><AuditOutlined /><strong>审计记录</strong></div><div><Select allowClear placeholder="筛选动作" value={action} onChange={(value) => { setAction(value); setPage(1); }} options={[{ value: 'user.create', label: '创建成员' }, { value: 'user.update', label: '更新成员' }, { value: 'organization.update', label: '更新组织' }]} /><Select allowClear placeholder="资源类型" value={resourceType} onChange={(value) => { setResourceType(value); setPage(1); }} options={[{ value: 'user', label: '用户' }, { value: 'organization', label: '组织' }, { value: 'task', label: '任务' }, { value: 'scan_plan', label: '扫描计划' }]} /></div></div>
-        {logs.isError && <Alert type="error" showIcon message={logs.error.message} action={<Button onClick={() => logs.refetch()}>重试</Button>} />}
-        <Table rowKey="id" columns={columns} dataSource={logs.data?.items ?? []} loading={logs.isPending} locale={{ emptyText: '暂无审计记录' }} pagination={{ current: page, pageSize: AUDIT_PAGE_SIZE, total: logs.data?.total ?? 0, showSizeChanger: false, onChange: setPage }} scroll={{ x: 1050 }} />
+      <Card className="material-license-upload" variant="borderless">
+        <header><h3>上传授权文件</h3><p>支持平台签发的许可证文件</p></header>
+        <div className="material-upload-dropzone" aria-disabled="true"><CloudUploadOutlined /><strong>拖拽授权文件到此处</strong><span>授权管理功能暂未开放</span><Button disabled>选择授权文件</Button></div>
       </Card>
+      <p className="material-authorization-notice">授权管理功能暂未开放</p>
     </div>
   );
 }
