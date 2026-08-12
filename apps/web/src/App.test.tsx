@@ -177,6 +177,14 @@ describe('App', () => {
     expect(container.querySelectorAll('.dashboard-summary-block')).toHaveLength(3);
     expect(container.querySelectorAll('.dashboard-risk-chart .risk-series path')).toHaveLength(4);
     expect(container.querySelector('.dashboard-risk-bars')).not.toBeInTheDocument();
+    expect(
+      [...container.querySelectorAll<HTMLImageElement>('.overview-material-panel > img')].map((image) => image.src),
+    ).toEqual([
+      expect.stringContaining('/material/overview/ai-summary.png'),
+      expect.stringContaining('/material/overview/risk-trend.png'),
+      expect.stringContaining('/material/overview/recent-tasks.png'),
+      expect.stringContaining('/material/overview/latest-activity.png'),
+    ]);
     expect(container.querySelectorAll('.recent-task > i')).toHaveLength(1);
     expect(screen.getByRole('progressbar', { name: 'API 近期任务执行进度' })).toHaveAttribute('aria-valuenow', '42');
     expect(container.querySelectorAll('.activity-timeline .activity-node')).toHaveLength(1);

@@ -3,10 +3,8 @@ import {
   BugOutlined,
   CodeOutlined,
   DatabaseOutlined,
-  FileTextOutlined,
   KeyOutlined,
   RadarChartOutlined,
-  RobotOutlined,
   SettingOutlined,
   TeamOutlined,
   ThunderboltOutlined,
@@ -14,6 +12,7 @@ import {
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { Alert, Button, Card, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import { getDashboardSummary, listAssets, listReports, listTasks, listVulnerabilities } from '../api/resources';
 import { MetricCard, SectionTitle } from '../components/Ui';
 import type { Metric } from '../types';
@@ -79,18 +78,17 @@ export function DashboardPage() {
       </div>
 
       <div className="dashboard-main-grid">
-        <Card variant="borderless" className="summary-card overview-material-card"><SectionTitle icon={<RobotOutlined />} title="AI 今日摘要" />
-          {dashboard.isPending ? <TruthfulEmpty text="正在生成摘要..." /> : dashboard.data ? <div className="dashboard-ai-summary">
+        <MaterialPanel className="summary-card" image="ai-summary.png" label="AI 今日摘要">
+          {dashboard.isPending ? <TruthfulEmpty text="正在生成摘要..." /> : dashboard.data ? <div className="dashboard-ai-summary material-panel-data">
             <SummaryBlock tone="danger" title="高危风险预警" items={dashboard.data.aiSummary.warnings} />
             <SummaryBlock tone="warning" title="重点发现" items={dashboard.data.aiSummary.priorityFindings} />
             <SummaryBlock tone="safe" title="处置建议" items={dashboard.data.aiSummary.remediation} />
             <span className="ai-source">{dashboard.data.aiSummary.source === 'deepseek' ? 'DeepSeek 分析' : '基于平台数据生成'}</span>
-            <RobotOutlined className="dashboard-summary-watermark" aria-hidden />
           </div> : <TruthfulEmpty text="摘要暂不可用" />}
-        </Card>
-        <Card variant="borderless" className="trend-card overview-material-card"><SectionTitle icon={<BarChartOutlined />} title="风险趋势" />
-          {dashboard.isPending ? <TruthfulEmpty text="正在加载风险趋势..." /> : dashboard.data ? <RiskTrend values={dashboard.data.riskTrend} /> : <TruthfulEmpty text="趋势暂不可用" />}
-        </Card>
+        </MaterialPanel>
+        <MaterialPanel className="trend-card" image="risk-trend.png" label="风险趋势">
+          {dashboard.isPending ? <TruthfulEmpty text="正在加载风险趋势..." /> : dashboard.data ? <div className="material-panel-data"><RiskTrend values={dashboard.data.riskTrend} /></div> : <TruthfulEmpty text="趋势暂不可用" />}
+        </MaterialPanel>
         <Card variant="borderless" className="risk-card">
           <SectionTitle icon={<BugOutlined />} title="风险概况" />
           <div className="risk-content"><div className="risk-donut"><div><span>漏洞总数</span><strong>{totalValue(vulnerabilities.data?.total, vulnerabilities.isError)}</strong></div></div><ul><li><i className="dot high" />高危 <strong>{totalValue(high.data?.total, high.isError)}</strong></li><li><i className="dot low" />其他 <strong>{otherRisk}</strong></li></ul></div>
@@ -98,14 +96,13 @@ export function DashboardPage() {
       </div>
 
       <div className="dashboard-bottom-grid">
-        <Card variant="borderless" className="recent-tasks-card overview-material-card">
-          <SectionTitle icon={<FileTextOutlined />} title="近期任务" action={<Button type="link" onClick={() => navigate('/tasks')}>查看全部</Button>} />
-          {tasks.isPending ? <TruthfulEmpty text="正在加载任务..." /> : tasks.isError ? <TruthfulEmpty text="任务数据不可用" /> : tasks.data.items.length === 0 ? <TruthfulEmpty text="暂无任务数据" /> : <div className="recent-task-list">{tasks.data.items.map((task, index) => <button className={`recent-task recent-task-tone-${index % 3}`} key={task.id} type="button" onClick={() => navigate(`/pentest/session/${task.id}`)}><i aria-hidden /><div className="recent-task-copy"><strong>{task.name}</strong><span>{formatDashboardTime(task.createdAt)}</span></div><div className="recent-task-progress"><span>进度 <b>{task.progress}%</b></span><div role="progressbar" aria-label={`${task.name}执行进度`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={task.progress}><i style={{ width: `${task.progress}%` }} /></div></div></button>)}</div>}
-        </Card>
-        <Card variant="borderless" className="latest-activity-card overview-material-card">
-          <SectionTitle icon={<ThunderboltOutlined />} title="最新动态" />
-          {tasks.isPending ? <TruthfulEmpty text="正在加载动态..." /> : tasks.isError ? <TruthfulEmpty text="任务动态不可用" /> : tasks.data.items.length === 0 ? <TruthfulEmpty text="暂无任务动态" /> : <div className="activity-timeline">{tasks.data.items.map((task) => { const tone = task.statusCode === 'FAILED' ? 'orange' : task.statusCode === 'SUCCEEDED' ? 'green' : 'blue'; return <button className={`activity activity-${tone}`} key={task.id} type="button" onClick={() => navigate(`/pentest/session/${task.id}`)}><i className="activity-node" aria-hidden /><div className="activity-copy"><div><Tag color={tone === 'green' ? 'success' : tone === 'orange' ? 'warning' : 'processing'}>{task.status}</Tag><strong>{task.name}</strong><time>{formatDashboardTime(task.createdAt)}</time></div><p>当前阶段：{task.phase || '暂无阶段信息'}，执行进度 {task.progress}%</p></div></button>; })}</div>}
-        </Card>
+        <MaterialPanel className="recent-tasks-card" image="recent-tasks.png" label="近期任务">
+          <button className="material-panel-link" type="button" onClick={() => navigate('/tasks')}>查看全部</button>
+          {tasks.isPending ? <TruthfulEmpty text="正在加载任务..." /> : tasks.isError ? <TruthfulEmpty text="任务数据不可用" /> : tasks.data.items.length === 0 ? <TruthfulEmpty text="暂无任务数据" /> : <div className="recent-task-list material-panel-data">{tasks.data.items.map((task, index) => <button className={`recent-task recent-task-tone-${index % 3}`} key={task.id} type="button" onClick={() => navigate(`/pentest/session/${task.id}`)}><i aria-hidden /><div className="recent-task-copy"><strong>{task.name}</strong><span>{formatDashboardTime(task.createdAt)}</span></div><div className="recent-task-progress"><span>进度 <b>{task.progress}%</b></span><div role="progressbar" aria-label={`${task.name}执行进度`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={task.progress}><i style={{ width: `${task.progress}%` }} /></div></div></button>)}</div>}
+        </MaterialPanel>
+        <MaterialPanel className="latest-activity-card" image="latest-activity.png" label="最新动态">
+          {tasks.isPending ? <TruthfulEmpty text="正在加载动态..." /> : tasks.isError ? <TruthfulEmpty text="任务动态不可用" /> : tasks.data.items.length === 0 ? <TruthfulEmpty text="暂无任务动态" /> : <div className="activity-timeline material-panel-data">{tasks.data.items.map((task) => { const tone = task.statusCode === 'FAILED' ? 'orange' : task.statusCode === 'SUCCEEDED' ? 'green' : 'blue'; return <button className={`activity activity-${tone}`} key={task.id} type="button" onClick={() => navigate(`/pentest/session/${task.id}`)}><i className="activity-node" aria-hidden /><div className="activity-copy"><div><Tag color={tone === 'green' ? 'success' : tone === 'orange' ? 'warning' : 'processing'}>{task.status}</Tag><strong>{task.name}</strong><time>{formatDashboardTime(task.createdAt)}</time></div><p>当前阶段：{task.phase || '暂无阶段信息'}，执行进度 {task.progress}%</p></div></button>; })}</div>}
+        </MaterialPanel>
         <Card variant="borderless"><SectionTitle icon={<BugOutlined />} title="快捷入口" /><div className="quick-grid">{quickLinks.map(([label, icon]) => <Button key={label} icon={icon}>{label}</Button>)}</div><p className="muted">报告总数：{totalValue(reports.data?.total, reports.isError)}</p></Card>
       </div>
     </div>
@@ -116,8 +113,12 @@ function TruthfulEmpty({ text }: { text: string }) {
   return <div className="truthful-empty">{text}</div>;
 }
 
+function MaterialPanel({ className, image, label, children }: { className: string; image: string; label: string; children: ReactNode }) {
+  return <section className={`overview-material-panel ${className}`} aria-label={label}><img src={`/material/overview/${image}`} alt="" aria-hidden /><span className="material-panel-accessible-title">{label}</span>{children}</section>;
+}
+
 function SummaryBlock({ tone, title, items }: { tone: 'danger' | 'warning' | 'safe'; title: string; items: string[] }) {
-  return <section className={`dashboard-summary-block ${tone}`}><span className="dashboard-summary-symbol" aria-hidden>{tone === 'danger' ? '!' : tone === 'warning' ? '△' : '✓'}</span><div><strong>{title}</strong><ul>{items.map((item) => <li key={item}>{item}</li>)}</ul></div></section>;
+  return <section className={`dashboard-summary-block ${tone}`}><span className="dashboard-summary-symbol" aria-hidden>{tone === 'danger' ? '!' : tone === 'warning' ? '△' : '✓'}</span><div><strong>{title}</strong><ul>{items.slice(0, 2).map((item) => <li key={item}>{item}</li>)}</ul></div></section>;
 }
 
 function RiskTrend({ values }: { values: Array<{ start: string; critical: number; high: number; medium: number; low: number }> }) {

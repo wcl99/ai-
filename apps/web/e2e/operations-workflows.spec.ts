@@ -111,9 +111,16 @@ test('shows overview intelligence and task actions', async ({ page }) => {
   await expect(page.getByLabel('风险趋势图')).toBeVisible();
   await expect(page.locator('.dashboard-risk-chart .risk-series path')).toHaveCount(4);
   await expect(page.locator('.dashboard-summary-block')).toHaveCount(3);
+  await expect(page.locator('.overview-material-panel > img')).toHaveCount(4);
   await expect(page.getByRole('progressbar', { name: `${task.name}执行进度` })).toHaveAttribute('aria-valuenow', '42');
   await expect(page.locator('.activity-timeline .activity-node')).toHaveCount(1);
   await page.screenshot({ path: 'test-results/overview-material-1196x912.png', fullPage: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await expect(page.locator('.overview-material-panel > img')).toHaveCount(4);
+  await page.screenshot({ path: 'test-results/overview-material-1920x1080.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('.overview-material-panel').first()).toBeVisible();
+  await page.screenshot({ path: 'test-results/overview-material-mobile.png', fullPage: true });
   await page.locator('.recent-task').click();
   await expect(page).toHaveURL(`/pentest/session/${taskId}`);
 
