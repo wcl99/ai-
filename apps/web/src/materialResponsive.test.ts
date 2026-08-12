@@ -28,7 +28,7 @@ describe('material responsive layout', () => {
 
   it('keeps pentest pages outside the material responsive rules', () => {
     expect(styles).toMatch(/\.pentest-shell\s*\{[^}]*min-width\s*:\s*1920px/s);
-    expect(styles).not.toContain('.app-shell.pentest-shell,.login-page');
-    expect(styles).toContain('.app-shell:not(.pentest-shell),.login-page');
+    expect(styles).toMatch(/\.app-shell:not\(\.pentest-shell\) \.app-sider\s*\{/s);
+    expect(styles).toMatch(/\.app-content:not\(\.pentest-content\) \.metric-grid\s*\{/s);
   });
 });
