@@ -369,8 +369,8 @@ export async function getVulnerability(id: string) {
     url: text('http_url') ?? text('url'),
     httpMethod: text('http_method'),
     payload: text('payload'),
-    httpRequest: text('http_request'),
-    httpResponse: text('http_response'),
+    httpRequest: text('http_request') ?? text('request_example'),
+    httpResponse: text('http_response') ?? text('response_example'),
     remediation: text('vuln_suggestions') ?? text('remediation') ?? text('recommendation'),
   };
 }
