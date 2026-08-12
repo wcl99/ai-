@@ -2,6 +2,7 @@ import {
   ApiOutlined,
   AppstoreOutlined,
   DeleteOutlined,
+  DownloadOutlined,
   FileProtectOutlined,
   KeyOutlined,
   LockOutlined,
@@ -10,17 +11,23 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Input, InputNumber, Select, Switch, Tabs, Tag, message } from 'antd';
+import { Alert, Button, Card, Input, InputNumber, Select, Switch, Tabs, message } from 'antd';
 import { useState } from 'react';
 import { getOrganization, getRuntimeSettings } from '../api/resources';
 
 const STORAGE_KEY = 'ai-security-management-settings-v1';
 
 type LocalSettings = {
+  loginAttempts: number;
   sessionMinutes: number;
   singleLogin: boolean;
   auditDays: number;
   auditEnabled: boolean;
+  auditPermissionChanges: boolean;
+  auditControlActions: boolean;
+  auditExports: boolean;
+  rbacEnabled: boolean;
+  roleGuardEnabled: boolean;
   allowList: string;
   modelPlatform: string;
   apiBaseUrl: string;
@@ -36,10 +43,16 @@ type LocalSettings = {
 };
 
 const DEFAULT_SETTINGS: LocalSettings = {
+  loginAttempts: 5,
   sessionMinutes: 30,
   singleLogin: true,
   auditDays: 180,
   auditEnabled: true,
+  auditPermissionChanges: true,
+  auditControlActions: true,
+  auditExports: true,
+  rbacEnabled: true,
+  roleGuardEnabled: true,
   allowList: '127.0.0.1\n10.0.0.0/8',
   modelPlatform: 'DeepSeek',
   apiBaseUrl: 'https://api.deepseek.com/v1',
@@ -73,9 +86,9 @@ function loadLocalSettings(): LocalSettings {
   }
 }
 
-function SettingCard({ icon, title, description, children }: { icon: React.ReactNode; title: string; description: string; children: React.ReactNode }) {
+function SettingCard({ icon, title, description, className = '', children }: { icon: React.ReactNode; title: string; description: string; className?: string; children: React.ReactNode }) {
   return (
-    <Card className="material-settings-card" variant="borderless">
+    <Card className={`material-settings-card ${className}`} variant="borderless">
       <header><span>{icon}</span><div><h3>{title}</h3><p>{description}</p></div></header>
       {children}
     </Card>
@@ -106,20 +119,40 @@ export function ManagementSettingsPage() {
     localStorage.removeItem(STORAGE_KEY);
     message.success('已恢复默认设置');
   };
+  const exportAuditSettings = () => {
+    const blob = new Blob([JSON.stringify({
+      retention_days: settings.auditDays,
+      permission_changes: settings.auditPermissionChanges,
+      control_actions: settings.auditControlActions,
+      exports: settings.auditExports,
+    }, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'audit-settings.json';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
 
   const security = (
-    <div className="material-settings-grid">
+    <div className="material-settings-grid material-security-grid">
       <SettingCard icon={<LockOutlined />} title="登录与退出设置" description="控制管理端会话与账号登录策略">
-        <SettingRow label="会话超时时间" hint="单位：分钟；超过该时间无操作将自动退出"><InputNumber min={5} max={1440} value={settings.sessionMinutes} onChange={(value) => patch('sessionMinutes', value ?? 30)} /></SettingRow>
-        <SettingRow label="单点登录限制" hint="同一账号仅保留一个有效会话"><Switch checked={settings.singleLogin} onChange={(value) => patch('singleLogin', value)} /></SettingRow>
-        <SettingRow label="当前组织" hint="来自平台真实组织配置"><Input value={organization.data?.name ?? '正在读取…'} disabled /></SettingRow>
+        <div className="material-login-settings">
+          <label><span>登录尝试次数限制</span><InputNumber min={1} max={20} value={settings.loginAttempts} onChange={(value) => patch('loginAttempts', value ?? 5)} /><small>达到限制后账户将临时锁定</small></label>
+          <label><span>自动登出时间</span><InputNumber min={5} max={1440} value={settings.sessionMinutes} onChange={(value) => patch('sessionMinutes', value ?? 30)} /><small>用户无操作后的自动登出时间（分钟）</small></label>
+        </div>
       </SettingCard>
       <SettingCard icon={<FileProtectOutlined />} title="审计日志设置" description="设置平台操作留痕与保存周期">
-        <SettingRow label="启用审计日志"><Switch checked={settings.auditEnabled} onChange={(value) => patch('auditEnabled', value)} /></SettingRow>
+        <div className="material-audit-options">
+          <label><input type="checkbox" checked={settings.auditPermissionChanges} onChange={(event) => patch('auditPermissionChanges', event.target.checked)} />记录权限变更操作</label>
+          <label><input type="checkbox" checked={settings.auditControlActions} onChange={(event) => patch('auditControlActions', event.target.checked)} />记录执行控制操作</label>
+          <label><input type="checkbox" checked={settings.auditExports} onChange={(event) => patch('auditExports', event.target.checked)} />记录导出操作</label>
+        </div>
         <SettingRow label="日志保留时间" hint="单位：天"><InputNumber min={30} max={3650} value={settings.auditDays} onChange={(value) => patch('auditDays', value ?? 180)} /></SettingRow>
-        <SettingRow label="运行状态" hint="服务端实时读取"><Tag color={runtime.data?.engine_configured ? 'green' : 'orange'}>{runtime.data?.engine_configured ? '服务已就绪' : '等待配置'}</Tag></SettingRow>
+        <Button aria-label="导出审计日志" icon={<DownloadOutlined />} onClick={exportAuditSettings}>导出审计日志</Button>
       </SettingCard>
-      <SettingCard icon={<SafetyCertificateOutlined />} title="访问控制设置" description="限制允许访问管理端的来源地址">
+      <SettingCard className="material-access-control-card" icon={<SafetyCertificateOutlined />} title="访问控制设置" description="限制允许访问管理端的来源地址">
+        <SettingRow label="启用RBAC权限检查" hint="后端路由将进行RBAC权限检查"><Switch checked={settings.rbacEnabled} onChange={(value) => patch('rbacEnabled', value)} /></SettingRow>
+        <SettingRow label="前端基于角色隐藏/禁用操作"><Switch checked={settings.roleGuardEnabled} onChange={(value) => patch('roleGuardEnabled', value)} /></SettingRow>
         <label htmlFor="settings-allow-list">IP 白名单</label>
         <Input.TextArea id="settings-allow-list" rows={5} value={settings.allowList} onChange={(event) => patch('allowList', event.target.value)} />
         <p className="material-settings-help">每行填写一个 IP 或 CIDR 网段；留空表示不启用白名单。</p>
@@ -188,7 +221,7 @@ export function ManagementSettingsPage() {
 
   return (
     <div className="page management-page material-settings-page">
-      <div className="material-page-heading"><div><h2>系统设置</h2><p>配置平台安全策略、AI 模型、扫描场景与业务模块。</p></div><Tag color="blue">本地配置</Tag></div>
+      <div className="material-page-heading"><div><h2>系统设置</h2><p>系统设置 - 管理系统全局配置、高级安全策略与多维权限控制</p></div><div className="material-page-actions"><Button onClick={reset}>重置</Button><Button type="primary" onClick={save}>保存设置</Button></div></div>
       {(organization.isError || runtime.isError) && <Alert type="warning" showIcon message="部分服务端配置读取失败，本地设置仍可使用" />}
       <Tabs
         className="material-settings-tabs"
@@ -200,7 +233,7 @@ export function ManagementSettingsPage() {
           { key: 'modules', label: '模块管理', children: modules },
         ]}
       />
-      <div className="material-settings-actions"><span>修改仅保存到当前浏览器，不会改变服务端敏感配置。</span><div><Button onClick={reset}>恢复默认</Button><Button type="primary" onClick={save}>保存设置</Button></div></div>
+      <div className="material-settings-actions"><span>修改仅保存到当前浏览器，不会改变服务端敏感配置。</span><div><Button onClick={reset}>恢复默认</Button><Button type="primary" onClick={save}>保存当前设置</Button></div></div>
     </div>
   );
 }

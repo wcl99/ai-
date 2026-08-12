@@ -258,15 +258,25 @@ export function VulnerabilitiesPage() {
       {query.isError ? <ErrorState error={query.error} retry={() => query.refetch()} /> : (
         <Table rowKey="id" columns={columns} dataSource={visibleRows} loading={query.isPending} locale={{ emptyText: '暂无漏洞数据' }} pagination={pagination(page, query.data?.total ?? 0, setPage)} scroll={{ x: 1250 }} />
       )}
-      <Drawer className="material-vulnerability-drawer" open={Boolean(selectedId)} width={540} title={detail.data ? <Space><strong>{detail.data.title}</strong><Tag color={detail.data.severity === '严重' ? 'red' : detail.data.severity === '高危' ? 'orange' : 'blue'}>{detail.data.severity}</Tag></Space> : '漏洞详情预览'} onClose={() => setSelectedId(undefined)}>
+      <Drawer rootClassName="material-vulnerability-drawer-root" className="material-vulnerability-drawer" open={Boolean(selectedId)} width={516} title="漏洞详情预览" onClose={() => setSelectedId(undefined)}>
         {detail.isPending && <TruthfulDrawerState text="正在加载漏洞详情..." />}
         {detail.isError && <Alert type="error" showIcon message={errorMessage(detail.error)} action={<Button onClick={() => detail.refetch()}>重试</Button>} />}
-        {detail.data && <div className="detail-drawer">
-          <section><h3>基础信息</h3><div className="detail-meta"><span>漏洞 ID<strong>{detail.data.id}</strong></span><span>当前状态<strong><StatusTag status={detail.data.status} /></strong></span><span>来源模块<strong>{detail.data.sourceTool || '渗透测试'}</strong></span><span>关联资产<strong>{detail.data.url || detail.data.asset}</strong></span><span>所属任务<strong>{detail.data.task}</strong></span><span>首次发现<strong>{dateTime(detail.data.discoveredAt)}</strong></span></div></section>
-          <Card className="drawer-insight" title="AI 风险摘要"><p>{detail.data.description || '该漏洞已被平台识别，请结合证据确认影响范围并优先处置。'}</p></Card>
-          <Card className="drawer-remediation" title="修复建议摘要"><p>{detail.data.remediation || '限制不可信输入，升级受影响组件，并在修复完成后安排复测。'}</p></Card>
-          <div className="drawer-priority"><div><span>复现状态</span><strong>{detail.data.status}</strong></div><div><span>AI 优先评分</span><strong>{detail.data.severity === '严重' ? '★★★★★' : detail.data.severity === '高危' ? '★★★★☆' : '★★★☆☆'}</strong></div></div>
-          <div className="drawer-actions"><Button type="primary" block onClick={() => navigate(`/vulnerabilities/${detail.data.id}`)}>查看详情</Button></div>
+        {detail.data && <div className="detail-drawer" data-testid="material-vulnerability-drawer" style={{ backgroundImage: 'url(/material/vulnerabilities/drawer.png)' }}>
+          <div className="material-drawer-title"><strong>{detail.data.title}</strong><Tag color={detail.data.severity === '严重' ? 'red' : detail.data.severity === '高危' ? 'orange' : 'blue'}>{detail.data.severity}</Tag></div>
+          <div className="material-drawer-meta">
+            <span>{detail.data.id}</span>
+            <span><StatusTag status={detail.data.status} /></span>
+            <span>{detail.data.sourceTool || '渗透测试'}</span>
+            <span>{detail.data.url || detail.data.asset}</span>
+            <span>{detail.data.task || '—'}</span>
+            <span>{dateTime(detail.data.discoveredAt)}</span>
+            <span>{dateTime(detail.data.updatedAt)}</span>
+          </div>
+          <p className="material-drawer-summary">{detail.data.description || '该漏洞已被平台识别，请结合证据确认影响范围并优先处置。'}</p>
+          <p className="material-drawer-remediation">{detail.data.remediation || '限制不可信输入，升级受影响组件，并在修复完成后安排复测。'}</p>
+          <strong className="material-drawer-status">{detail.data.status}</strong>
+          <strong className="material-drawer-score">{detail.data.severity === '严重' ? '★★★★★' : detail.data.severity === '高危' ? '★★★★☆' : '★★★☆☆'}</strong>
+          <button className="material-drawer-detail-button" type="button" aria-label="查看详情" onClick={() => navigate(`/vulnerabilities/${detail.data.id}`)}>查看详情</button>
         </div>}
       </Drawer>
     </ListPage>

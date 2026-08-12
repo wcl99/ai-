@@ -168,6 +168,9 @@ describe('resource list pages', () => {
     await screen.findByText('API 真实漏洞');
 
     await interaction.click(screen.getByRole('button', { name: '查看漏洞详情' }));
+    expect(await screen.findByTestId('material-vulnerability-drawer')).toHaveStyle({
+      backgroundImage: 'url(/material/vulnerabilities/drawer.png)',
+    });
     expect(await screen.findByText('真实描述')).toBeInTheDocument();
     expect(screen.getByText('限制输入并完成复测')).toBeInTheDocument();
     await interaction.click(screen.getByRole('button', { name: '查看详情' }));

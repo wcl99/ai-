@@ -134,14 +134,19 @@ test('shows overview intelligence and task actions', async ({ page }) => {
 });
 
 test('opens the vulnerability drawer and full detail page', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto('/vulnerabilities');
   await page.getByRole('button', { name: '查看漏洞详情' }).click();
-  await expect(page.getByText('AI 风险摘要')).toBeVisible();
+  await expect(page.locator('.material-vulnerability-drawer-root .ant-drawer-content-wrapper')).toHaveCSS('transform', 'none');
+  await expect(page.getByTestId('material-vulnerability-drawer')).toHaveCSS('background-image', /drawer\.png/);
   await expect(page.getByText('Use parameterized queries and retest the endpoint.')).toBeVisible();
+  await page.screenshot({ path: 'test-results/vulnerability-material-drawer-1920x1080.png', fullPage: true });
   await page.getByRole('button', { name: '查看详情' }).click();
   await expect(page).toHaveURL(`/vulnerabilities/${vulnerabilityId}`);
-  await expect(page.getByText('漏洞证据')).toBeVisible();
+  await expect(page.getByTestId('material-vulnerability-detail')).toHaveCSS('background-image', /detail-content\.png/);
+  await page.screenshot({ path: 'test-results/vulnerability-material-detail-1920x1080.png', fullPage: true });
+  await page.getByRole('button', { name: '证据信息' }).click();
   await expect(page.getByText('GET /search?q=test')).toBeVisible();
-  await expect(page.getByText('修复建议')).toBeVisible();
+  await page.getByRole('button', { name: '修复建议' }).click();
+  await expect(page.getByText('Use parameterized queries and retest the endpoint.')).toBeVisible();
 });

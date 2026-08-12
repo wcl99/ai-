@@ -1,7 +1,10 @@
 import {
   ApartmentOutlined,
+  DeleteOutlined,
   DownOutlined,
+  EditOutlined,
   ImportOutlined,
+  InfoCircleOutlined,
   PlusOutlined,
   SearchOutlined,
   TeamOutlined,
@@ -27,6 +30,8 @@ export function TeamPage() {
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState<'all' | 'active' | 'disabled'>('all');
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<TeamUser | null>(null);
+  const [viewing, setViewing] = useState<TeamUser | null>(null);
   const [form] = Form.useForm<CreateUserInput>();
   const users = useQuery({ queryKey: ['users', page], queryFn: () => listUsers({ page, pageSize: 20 }) });
   const addUser = useMutation({
@@ -42,6 +47,14 @@ export function TeamPage() {
     mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) => updateUser(id, { is_active }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
   });
+  const editUser = useMutation({
+    mutationFn: ({ id, name, role }: { id: string; name: string; role: UserRole }) => updateUser(id, { name, role }),
+    onSuccess: async () => {
+      setEditing(null);
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
+      message.success('成员信息已更新');
+    },
+  });
 
   const items = useMemo(() => users.data?.items ?? [], [users.data?.items]);
   const visibleItems = useMemo(() => {
@@ -54,12 +67,14 @@ export function TeamPage() {
   }, [items, keyword, status]);
 
   const columns: ColumnsType<TeamUser> = [
-    { title: '成员', dataIndex: 'name', render: (name, item) => <div className="team-member-cell"><span>{name.slice(0, 1).toUpperCase()}</span><div><strong>{name}</strong><small>@{item.username}</small></div></div> },
-    { title: '所属部门', key: 'department', width: 170, render: (_, item) => item.role === 'admin' ? '平台管理组' : item.is_digital_human ? '智能体账号' : '安全服务组' },
+    { title: '用户名', dataIndex: 'username', render: (username, item) => <div className="team-member-cell"><span>{username.slice(0, 2).toUpperCase()}</span><div><strong>{username}</strong><small>ID: {item.id.slice(0, 8)}</small></div></div> },
+    { title: '姓名', dataIndex: 'name' },
+    { title: '邮箱', key: 'email', render: () => '—' },
     { title: '角色', dataIndex: 'role', width: 150, render: (role: UserRole) => <Tag color={role === 'admin' ? 'blue' : undefined}>{roleLabels[role]}</Tag> },
-    { title: '账号类型', dataIndex: 'is_digital_human', width: 140, render: (digital) => digital ? '数字人' : '平台成员' },
-    { title: '状态', dataIndex: 'is_active', width: 120, render: (active) => <Tag color={active ? 'green' : 'default'}>{active ? '已启用' : '已停用'}</Tag> },
-    { title: '启用', key: 'action', width: 100, render: (_, item) => <Switch checked={item.is_active} loading={toggleUser.isPending} onChange={(checked) => toggleUser.mutate({ id: item.id, is_active: checked })} aria-label={`切换 ${item.name} 状态`} /> },
+    { title: '状态', dataIndex: 'is_active', width: 110, render: (active) => <Tag color={active ? 'green' : 'default'}>{active ? '活跃' : '未激活'}</Tag> },
+    { title: '最后登录', key: 'last_login', width: 120, render: () => '—' },
+    { title: '创建时间', key: 'created_at', width: 120, render: () => '—' },
+    { title: '操作', key: 'action', width: 205, render: (_, item) => <div className="material-team-actions"><Button type="link" aria-label={`编辑 ${item.name}`} icon={<EditOutlined />} onClick={() => setEditing(item)}>编辑</Button><Button type="link" aria-label={`详情 ${item.name}`} icon={<InfoCircleOutlined />} onClick={() => setViewing(item)}>详情</Button><Tooltip title="服务端暂未提供删除接口"><Button disabled type="text" aria-label={`删除 ${item.name}`} icon={<DeleteOutlined />} /></Tooltip><Switch checked={item.is_active} loading={toggleUser.isPending} onChange={(checked) => toggleUser.mutate({ id: item.id, is_active: checked })} aria-label={`切换 ${item.name} 状态`} /></div> },
   ];
 
   return (
@@ -78,11 +93,11 @@ export function TeamPage() {
         </aside>
         <main className="material-team-main">
           <div className="material-team-summary">
-            <div><span>当前部门</span><strong>全部成员</strong><small>组织内所有平台账号</small></div>
-            <div><span>成员数量</span><strong>{users.data?.total ?? '—'}</strong><small>启用 {items.filter((item) => item.is_active).length} 人</small></div>
+            <div><span>当前部门</span><strong>全部组织</strong><small>组织内所有平台账号</small></div>
+            <div><span>部门成员</span><strong>{users.data?.total ?? '—'}</strong><small>启用 {items.filter((item) => item.is_active).length} 人</small></div>
           </div>
           <section className="material-team-table">
-            <header><div><h3>成员列表</h3><p>查看并管理组织成员信息</p></div><div><Input allowClear prefix={<SearchOutlined />} placeholder="搜索姓名、账号或角色" value={keyword} onChange={(event) => setKeyword(event.target.value)} /><Select value={status} onChange={setStatus} options={[{ value: 'all', label: '全部状态' }, { value: 'active', label: '已启用' }, { value: 'disabled', label: '已停用' }]} /></div></header>
+            <header><h3 className="sr-only">成员列表</h3><div><span>用户状态</span><Select value={status} onChange={setStatus} options={[{ value: 'all', label: '全部' }, { value: 'active', label: '活跃' }, { value: 'disabled', label: '未激活' }]} /></div><div><Input allowClear prefix={<SearchOutlined />} placeholder="搜索用户名、姓名或邮箱..." value={keyword} onChange={(event) => setKeyword(event.target.value)} /><Button type="primary">搜索</Button><Button onClick={() => { setKeyword(''); setStatus('all'); }}>重置</Button></div></header>
             {users.isError && <Alert type="error" showIcon message={users.error.message} action={<Button onClick={() => users.refetch()}>重试</Button>} />}
             <Table rowKey="id" columns={columns} dataSource={visibleItems} loading={users.isPending} locale={{ emptyText: '暂无团队成员' }} pagination={{ current: page, pageSize: 20, total: users.data?.total ?? 0, showSizeChanger: false, showTotal: (total) => `共 ${total} 名成员`, onChange: setPage }} scroll={{ x: 1050 }} />
           </section>
@@ -98,6 +113,16 @@ export function TeamPage() {
           {addUser.isError && <Alert className="management-form-error" type="error" showIcon message={addUser.error.message} />}
           <div className="management-form-actions"><Button onClick={() => setOpen(false)}>取消</Button><Button type="primary" htmlType="submit" loading={addUser.isPending}>确认添加</Button></div>
         </Form>
+      </Modal>
+      <Modal title="编辑成员" open={Boolean(editing)} onCancel={() => setEditing(null)} footer={null} destroyOnHidden>
+        {editing && <Form layout="vertical" initialValues={{ name: editing.name, role: editing.role }} onFinish={(values: { name: string; role: UserRole }) => editUser.mutate({ id: editing.id, ...values })}>
+          <Form.Item label="姓名" name="name" rules={[{ required: true, message: '请输入姓名' }]}><Input /></Form.Item>
+          <Form.Item label="角色" name="role"><Select options={Object.entries(roleLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
+          <div className="management-form-actions"><Button onClick={() => setEditing(null)}>取消</Button><Button type="primary" htmlType="submit" loading={editUser.isPending}>保存</Button></div>
+        </Form>}
+      </Modal>
+      <Modal title="成员详情" open={Boolean(viewing)} onCancel={() => setViewing(null)} footer={<Button onClick={() => setViewing(null)}>关闭</Button>}>
+        {viewing && <dl className="material-member-detail"><div><dt>用户名</dt><dd>{viewing.username}</dd></div><div><dt>姓名</dt><dd>{viewing.name}</dd></div><div><dt>角色</dt><dd>{roleLabels[viewing.role]}</dd></div><div><dt>状态</dt><dd>{viewing.is_active ? '活跃' : '未激活'}</dd></div></dl>}
       </Modal>
     </div>
   );
