@@ -100,6 +100,10 @@ const reportSchema = z.object({
   report_level: z.string().nullable(),
   external_url: z.string().nullable(),
   status: z.string(),
+  first_viewed_at: timestamp.nullable().optional(),
+  first_viewed_by: uuid.nullable().optional(),
+  first_exported_at: timestamp.nullable().optional(),
+  first_exported_by: uuid.nullable().optional(),
   created_at: timestamp,
   plan_name: z.string(),
   task_name: z.string().nullable(),
@@ -313,14 +317,32 @@ function mapReport(item: z.infer<typeof reportSchema>): ReportRecord {
     status: item.status,
     externalUrl: item.external_url,
     previewSupported: ['md', 'html', 'txt'].includes(item.format.toLowerCase()),
+    firstViewedAt: item.first_viewed_at ?? null,
+    firstExportedAt: item.first_exported_at ?? null,
   };
 }
 
-export async function listTasks(input: { status?: TaskStatusCode; page: number; pageSize: number }) {
+export async function listTasks(input: { status?: TaskStatusCode; keyword?: string; testType?: string; creator?: string; createdFrom?: string; createdTo?: string; page: number; pageSize: number }) {
   const status = taskStatusFilterSchema.optional().parse(input.status);
-  const query = params([['status', status], ['page', input.page], ['page_size', input.pageSize]]);
+  const query = params([['status', status], ['keyword', input.keyword], ['test_type', input.testType], ['creator', input.creator], ['created_from', input.createdFrom], ['created_to', input.createdTo], ['page', input.page], ['page_size', input.pageSize]]);
   const response = await apiRequest(`/api/v1/tasks?${query}`, pageEnvelope(taskSchema));
   return result(response.data, mapTask);
+}
+
+export async function getVulnerability(id: string) {
+  const response = await apiRequest(`/api/v1/vulnerabilities/${uuid.parse(id)}`, vulnerabilityDetailSchema);
+  const base = mapVulnerability({ ...response, task_name: null, tags: tagsFromData(response.data_json) });
+  const text = (key: string) => typeof response.data_json[key] === 'string' ? response.data_json[key] as string : null;
+  return {
+    ...base,
+    sourceTool: text('source_tool'),
+    url: text('http_url') ?? text('url'),
+    httpMethod: text('http_method'),
+    payload: text('payload'),
+    httpRequest: text('http_request'),
+    httpResponse: text('http_response'),
+    remediation: text('vuln_suggestions') ?? text('remediation') ?? text('recommendation'),
+  };
 }
 
 export async function listAssets(input: { page: number; pageSize: number }) {
@@ -352,6 +374,10 @@ export async function listVulnerabilities(input: {
   status?: VulnerabilityStatusCode;
   taskId?: string;
   planId?: string;
+  keyword?: string;
+  asset?: string;
+  createdFrom?: string;
+  createdTo?: string;
   page: number;
   pageSize: number;
 }) {
@@ -362,6 +388,10 @@ export async function listVulnerabilities(input: {
     ['status', status],
     ['task_id', input.taskId],
     ['plan_id', input.planId],
+    ['keyword', input.keyword],
+    ['asset', input.asset],
+    ['created_from', input.createdFrom],
+    ['created_to', input.createdTo],
     ['page', input.page],
     ['page_size', input.pageSize],
   ]);
@@ -378,9 +408,9 @@ export async function updateVulnerability(id: string, status: VulnerabilityStatu
   return mapVulnerability({ ...response, task_name: null, tags: tagsFromData(response.data_json) });
 }
 
-export async function listReports(input: { taskId?: string; planId?: string; page: number; pageSize: number }) {
+export async function listReports(input: { taskId?: string; planId?: string; keyword?: string; format?: string; status?: string; createdFrom?: string; createdTo?: string; page: number; pageSize: number }) {
   const query = params([
-    ['task_id', input.taskId], ['plan_id', input.planId], ['page', input.page], ['page_size', input.pageSize],
+    ['task_id', input.taskId], ['plan_id', input.planId], ['keyword', input.keyword], ['format', input.format], ['status', input.status], ['created_from', input.createdFrom], ['created_to', input.createdTo], ['page', input.page], ['page_size', input.pageSize],
   ]);
   const response = await apiRequest(`/api/v1/reports?${query}`, pageEnvelope(reportSchema));
   return result(response.data, mapReport);

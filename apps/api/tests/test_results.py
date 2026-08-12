@@ -684,6 +684,31 @@ async def test_vulnerability_list_filters_by_task_and_plan(authenticated_client)
     ]
 
 
+async def test_vulnerability_list_filters_by_keyword_asset_and_time(authenticated_client):
+    plan_id, task_id = await create_task(
+        authenticated_client, "Searchable finding", "searchable-finding"
+    )
+    await authenticated_client.post(
+        "/api/ai/upload-vulnerability",
+        json={
+            "plan_id": plan_id,
+            "task_id": task_id,
+            "asset_key": "search.example.test",
+            "data": {"title": "Unique SQL injection"},
+        },
+    )
+
+    response = await authenticated_client.get(
+        "/api/v1/vulnerabilities?keyword=Unique&asset=search.example.test"
+        "&created_from=2020-01-01T00:00:00Z&created_to=2099-01-01T00:00:00Z"
+    )
+
+    assert response.status_code == 200
+    assert [item["title"] for item in response.json()["data"]["items"]] == [
+        "Unique SQL injection"
+    ]
+
+
 async def test_vulnerability_upload_redacts_nested_credentials(authenticated_client):
     plan_id, task_id = await create_task(
         authenticated_client, "Redacted finding", "redacted-finding-contract"
@@ -777,6 +802,54 @@ async def test_report_list_contract_has_page_and_association_summaries(
     assert page["items"][0]["plan_name"] == "Report list"
     assert page["items"][0]["task_name"] == "Report list"
     assert "local_path" not in response.text
+
+
+async def test_report_list_filters_lifecycle_and_searches_task_or_plan(authenticated_client):
+    plan_id, task_id = await create_task(
+        authenticated_client, "Lifecycle searchable report", "lifecycle-searchable-report"
+    )
+    async with SessionLocal() as session:
+        task = await session.get(Task, uuid.UUID(task_id))
+        exported = Report(
+            org_id=task.org_id,
+            plan_id=uuid.UUID(plan_id),
+            task_id=task.id,
+            filename="delivered.md",
+            format="md",
+            first_viewed_at=task.created_at,
+            first_viewed_by=task.created_by,
+            first_exported_at=task.created_at,
+            first_exported_by=task.created_by,
+        )
+        pending = Report(
+            org_id=task.org_id,
+            plan_id=uuid.UUID(plan_id),
+            task_id=task.id,
+            filename="pending.md",
+            format="md",
+        )
+        session.add_all([exported, pending])
+        await session.commit()
+
+    exported_response = await authenticated_client.get(
+        "/api/v1/reports?keyword=Lifecycle&status=EXPORTED"
+    )
+    pending_confirmation = await authenticated_client.get(
+        "/api/v1/reports?status=PENDING_CONFIRMATION"
+    )
+    pending_export = await authenticated_client.get(
+        "/api/v1/reports?status=PENDING_EXPORT"
+    )
+
+    assert [item["filename"] for item in exported_response.json()["data"]["items"]] == [
+        "delivered.md"
+    ]
+    assert [item["filename"] for item in pending_confirmation.json()["data"]["items"]] == [
+        "pending.md"
+    ]
+    assert [item["filename"] for item in pending_export.json()["data"]["items"]] == [
+        "pending.md"
+    ]
 
 
 async def test_result_list_summaries_do_not_cross_organization_boundaries(

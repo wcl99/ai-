@@ -41,6 +41,16 @@ export interface VulnerabilityRecord {
   description: string | null;
 }
 
+export interface VulnerabilityDetailRecord extends VulnerabilityRecord {
+  sourceTool: string | null;
+  url: string | null;
+  httpMethod: string | null;
+  payload: string | null;
+  httpRequest: string | null;
+  httpResponse: string | null;
+  remediation: string | null;
+}
+
 export interface AssetRecord {
   id: string;
   key: string;
@@ -65,6 +75,8 @@ export interface ReportRecord {
   status: string;
   externalUrl: string | null;
   previewSupported: boolean;
+  firstViewedAt: string | null;
+  firstExportedAt: string | null;
 }
 
 export interface PageResult<T> {

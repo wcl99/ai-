@@ -125,7 +125,7 @@ describe('App', () => {
     expect(taskCenter).toHaveClass('ant-menu-submenu-open');
   });
 
-  it('removes a terminal penetration session from current tasks', async () => {
+  it('keeps a terminal penetration session available for replay', async () => {
     rememberPentestSession(user.id, task.id);
     const finishedFetch = (input: RequestInfo | URL) => {
       const url = new URL(String(input), 'http://localhost');
@@ -137,11 +137,27 @@ describe('App', () => {
     renderRoute(`/pentest/session/${task.id}`, finishedFetch);
 
     await screen.findByText('Test Admin');
-    await waitFor(() => expect(screen.queryByText('当前任务')).not.toBeInTheDocument());
-    expect(localStorage.getItem(`aisec:pentest-session:${user.id}`)).toBeNull();
+    await waitFor(() => expect(screen.getByText('当前任务')).toBeInTheDocument());
+    expect(localStorage.getItem(`aisec:pentest-session:${user.id}`)).toContain(task.id);
     const taskCenter = screen.getByText('任务中心').closest('li');
     expect(within(taskCenter!).getByText('已完成').closest('li'))
       .not.toHaveClass('ant-menu-item-disabled');
+  });
+
+  it('keeps the report export history navigation enabled and selected', async () => {
+    renderRoute('/reports?status=EXPORTED');
+
+    await screen.findByText('Test Admin');
+    const exportHistory = screen.getByText('导出记录').closest('li');
+    expect(exportHistory).not.toHaveClass('ant-menu-item-disabled');
+    expect(exportHistory).toHaveClass('ant-menu-item-selected');
+  });
+
+  it('labels a vulnerability detail route in the app header', async () => {
+    const { container } = renderRoute('/vulnerabilities/vulnerability-1');
+
+    await screen.findByText('Test Admin');
+    expect(container.querySelector('.app-header h2')).toHaveTextContent('漏洞详情');
   });
 
   it('renders the platform overview', async () => {

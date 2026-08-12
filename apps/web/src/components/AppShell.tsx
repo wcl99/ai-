@@ -3,18 +3,15 @@ import {
   SearchOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
 import { Alert, Avatar, Dropdown, Input, Layout, Menu, Space, Typography } from 'antd';
 import type { MenuProps } from 'antd';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import expertAvatar from '../../../../素材/工作 (7) 3.png';
-import { getTask } from '../api/pentest';
 import { useAuth } from '../auth/AuthContext';
 import { forgetPentestSession, readPentestSession } from '../pentestSessionRoute';
 
 const { Header, Sider, Content } = Layout;
-const terminalTaskStatuses = new Set(['SUCCEEDED', 'PARTIAL_SUCCEEDED', 'FAILED', 'CANCELLED']);
 
 type NavigationIcon =
   | 'overview'
@@ -63,8 +60,8 @@ function menuItems(currentTaskRoute: string | null): MenuProps['items'] {
     children: [
       { key: '/tasks', label: '全部任务' },
       ...(currentTaskRoute ? [{ key: currentTaskRoute, label: '当前任务' }] : []),
-      { key: 'task-running', label: '进行中', disabled: true },
-      { key: 'task-queued', label: '排队中', disabled: true },
+      { key: '/tasks?status=RUNNING', label: '进行中' },
+      { key: '/tasks?status=QUEUED', label: '排队中' },
       { key: '/tasks?status=SUCCEEDED', label: '已完成' },
     ],
   },
@@ -85,7 +82,7 @@ function menuItems(currentTaskRoute: string | null): MenuProps['items'] {
     children: [
       { key: '/reports/overview', label: '报告总览' },
       { key: '/reports', label: '报告列表' },
-      { key: 'report-exports', label: '导出记录', disabled: true },
+      { key: '/reports?status=EXPORTED', label: '导出记录' },
     ],
   },
   {
@@ -135,30 +132,18 @@ export function AppShell({ children }: AppShellProps) {
   const currentSessionPath = isPentestSession
     ? location.pathname
     : readPentestSession(user?.id ?? '');
-  const currentTaskId = currentSessionPath?.split('/').at(-1) ?? '';
-  const currentTaskQuery = useQuery({
-    queryKey: ['pentest', 'task', currentTaskId],
-    queryFn: () => getTask(currentTaskId),
-    enabled: Boolean(currentTaskId),
-    retry: false,
-    refetchInterval: (query) => (
-      query.state.data && terminalTaskStatuses.has(query.state.data.status) ? false : 1_500
-    ),
-  });
-  const currentTaskFinished = Boolean(
-    currentTaskQuery.data && terminalTaskStatuses.has(currentTaskQuery.data.status),
-  );
-  const currentTaskRoute = currentTaskFinished ? null : currentSessionPath;
-  useEffect(() => {
-    if (currentTaskFinished) forgetPentestSession(user?.id ?? '');
-  }, [currentTaskFinished, user?.id]);
+  const currentTaskRoute = currentSessionPath;
   const basePath = isPentestSession ? '/pentest' : location.pathname;
   const selectedPath = isPentestSession
     ? location.pathname
-    : basePath === '/tasks' && location.search === '?status=SUCCEEDED'
-      ? '/tasks?status=SUCCEEDED'
+    : basePath === '/tasks' && location.search.startsWith('?status=')
+      ? `/tasks?status=${new URLSearchParams(location.search).get('status')}`
+      : basePath === '/reports' && new URLSearchParams(location.search).get('status') === 'EXPORTED'
+        ? '/reports?status=EXPORTED'
       : basePath;
-  const title = pageTitles[basePath] ?? 'AI 安服平台';
+  const title = basePath.startsWith('/vulnerabilities/')
+    ? '漏洞详情'
+    : pageTitles[basePath] ?? 'AI 安服平台';
   const openSection = isPentestSession
     ? 'tasks'
     : basePath === '/pentest'

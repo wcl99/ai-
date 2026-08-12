@@ -7,11 +7,11 @@ import {
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, Drawer, Dropdown, Input, Select, Space, Table, Tag } from 'antd';
+import { Alert, Button, Card, DatePicker, Drawer, Dropdown, Input, Select, Space, Table, Tag } from 'antd';
 import type { MenuProps } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   listReports,
   listTasks,
@@ -29,6 +29,7 @@ import { MetricCard, ProgressCell, StatusTag } from '../components/Ui';
 import type { Metric, ReportRecord, TaskRecord, VulnerabilityRecord } from '../types';
 
 const PAGE_SIZE = 10;
+const { RangePicker } = DatePicker;
 
 function dateTime(value: string) {
   return value.replace('T', ' ').replace('Z', '').slice(0, 19);
@@ -78,21 +79,23 @@ function pageMetrics(
 }
 
 export function TasksPage() {
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [keyword, setKeyword] = useState('');
+  const [testType, setTestType] = useState<string>();
+  const [creator, setCreator] = useState<string>();
+  const [createdRange, setCreatedRange] = useState<[string, string]>();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedStatus = searchParams.get('status');
   const status = requestedStatus && ['QUEUED', 'RUNNING', 'CANCELLING', 'SUCCEEDED', 'PARTIAL_SUCCEEDED', 'FAILED', 'CANCELLED'].includes(requestedStatus)
     ? requestedStatus as TaskStatusCode
     : undefined;
   const query = useQuery({
-    queryKey: ['tasks', { page, pageSize: PAGE_SIZE, status }],
-    queryFn: () => listTasks({ page, pageSize: PAGE_SIZE, status }),
+    queryKey: ['tasks', { page, pageSize: PAGE_SIZE, status, keyword, testType, creator, createdRange }],
+    queryFn: () => listTasks({ page, pageSize: PAGE_SIZE, status, keyword: keyword.trim() || undefined, testType, creator, createdFrom: createdRange?.[0], createdTo: createdRange?.[1] }),
   });
   const rows = query.data?.items ?? [];
-  const visibleRows = keyword.trim()
-    ? rows.filter((item) => `${item.name} ${item.id} ${item.target}`.toLowerCase().includes(keyword.trim().toLowerCase()))
-    : rows;
+  const visibleRows = rows;
   const metrics = pageMetrics('全部任务', query.data?.total, query.isError, [
     { label: '本页排队', value: rows.filter((item) => item.statusCode === 'QUEUED').length, tone: 'orange', icon: 'metric-task-queued' },
     { label: '本页进行中', value: rows.filter((item) => item.statusCode === 'RUNNING').length, tone: 'blue', icon: 'metric-task-running' },
@@ -109,6 +112,7 @@ export function TasksPage() {
     { title: '当前状态', dataIndex: 'status', width: 110, render: (value) => <StatusTag status={value} /> },
     { title: '进度', dataIndex: 'progress', width: 150, render: (value, row) => <ProgressCell value={value} tone={row.status === '异常' ? 'red' : row.status === '已完成' ? 'green' : 'blue'} /> },
     { title: '阶段', dataIndex: 'phase', width: 120, render: (value) => value || '—' },
+    { title: '回看执行', width: 120, render: (_, row) => <Button type="link" onClick={() => navigate(`/pentest/session/${row.id}`)}>打开执行页</Button> },
   ];
 
   return (
@@ -128,6 +132,9 @@ export function TasksPage() {
             setPage(1);
           }}
         />
+        <Select aria-label="任务类型" value={testType} allowClear placeholder="全部类型" options={[{ value: 'standard', label: '渗透测试' }, { value: 'discovery', label: '资产发现' }]} onChange={(value) => { setTestType(value); setPage(1); }} />
+        <Select aria-label="创建人" value={creator} allowClear showSearch placeholder="全部创建人" options={Array.from(new Set(rows.map((item) => item.creator))).map((value) => ({ value, label: value }))} onChange={(value) => { setCreator(value); setPage(1); }} />
+        <RangePicker aria-label="任务创建时间" onChange={(_, values) => { setCreatedRange(values[0] && values[1] ? [`${values[0]}T00:00:00Z`, `${values[1]}T23:59:59Z`] : undefined); setPage(1); }} />
         <div className="filter-spacer" />
         <Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button>
       </div>
@@ -147,24 +154,23 @@ export function TasksPage() {
 }
 
 export function VulnerabilitiesPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [severity, setSeverity] = useState<VulnerabilitySeverityCode>();
   const [status, setStatus] = useState<VulnerabilityStatusCode>();
-  const [selected, setSelected] = useState<VulnerabilityRecord>();
   const [keyword, setKeyword] = useState('');
+  const [createdRange, setCreatedRange] = useState<[string, string]>();
   const query = useQuery({
-    queryKey: ['vulnerabilities', { page, pageSize: PAGE_SIZE, severity, status }],
-    queryFn: () => listVulnerabilities({ page, pageSize: PAGE_SIZE, severity, status }),
+    queryKey: ['vulnerabilities', { page, pageSize: PAGE_SIZE, severity, status, keyword, createdRange }],
+    queryFn: () => listVulnerabilities({ page, pageSize: PAGE_SIZE, severity, status, keyword: keyword.trim() || undefined, createdFrom: createdRange?.[0], createdTo: createdRange?.[1] }),
   });
   const mutation = useMutation({
     mutationFn: ({ id, nextStatus }: { id: string; nextStatus: VulnerabilityStatusCode }) => updateVulnerability(id, nextStatus),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vulnerabilities'] }),
   });
   const rows = query.data?.items ?? [];
-  const visibleRows = keyword.trim()
-    ? rows.filter((item) => `${item.title} ${item.id} ${item.asset} ${item.task}`.toLowerCase().includes(keyword.trim().toLowerCase()))
-    : rows;
+  const visibleRows = rows;
   const metrics = pageMetrics('漏洞总数', query.data?.total, query.isError, [
     { label: '本页高危', value: rows.filter((item) => ['严重', '高危'].includes(item.severity)).length, tone: 'red', icon: 'metric-vulnerability-high' },
     { label: '本页中危', value: rows.filter((item) => item.severity === '中危').length, tone: 'orange', icon: 'metric-vulnerability-medium' },
@@ -189,7 +195,7 @@ export function VulnerabilitiesPage() {
     { title: '状态', dataIndex: 'status', width: 100, render: (value) => <StatusTag status={value} /> },
     { title: '等级', dataIndex: 'severity', width: 90, render: (value) => <Tag color={value === '严重' ? 'red' : value === '高危' ? 'orange' : 'blue'}>{value}</Tag> },
     { title: '标签', dataIndex: 'tags', render: (tags: string[]) => tags.map((tag) => <Tag key={tag}>{tag}</Tag>) },
-    { title: '操作', width: 190, render: (_, row) => <Space><Button type="link" aria-label="查看漏洞详情" onClick={() => setSelected(row)}>详情</Button><Dropdown menu={statusMenu(row)}><Button type="link" loading={mutation.isPending} aria-label="处置漏洞">处置漏洞</Button></Dropdown></Space> },
+    { title: '操作', width: 240, render: (_, row) => <Space><Button type="link" aria-label="查看漏洞详情" onClick={() => navigate(`/vulnerabilities/${row.id}`)}>详情</Button><Dropdown menu={statusMenu(row)}><Button type="link" loading={mutation.isPending} aria-label="处置漏洞">处置漏洞</Button></Dropdown></Space> },
   ];
 
   return (
@@ -198,6 +204,7 @@ export function VulnerabilitiesPage() {
         <Input allowClear prefix={<SearchOutlined />} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索漏洞名称、ID 或资产" />
         <Select aria-label="漏洞等级" value={severity} allowClear placeholder="全部等级" options={['critical', 'high', 'medium', 'low'].map((value) => ({ value }))} onChange={(value) => { setSeverity(value as VulnerabilitySeverityCode | undefined); setPage(1); }} />
         <Select aria-label="漏洞状态" value={status} allowClear placeholder="全部状态" options={['OPEN', 'FIXING', 'RETESTING', 'FIXED'].map((value) => ({ value }))} onChange={(value) => { setStatus(value as VulnerabilityStatusCode | undefined); setPage(1); }} />
+        <RangePicker aria-label="漏洞发现时间" onChange={(_, values) => { setCreatedRange(values[0] && values[1] ? [`${values[0]}T00:00:00Z`, `${values[1]}T23:59:59Z`] : undefined); setPage(1); }} />
         <div className="filter-spacer" />
         <Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button>
       </div>
@@ -205,27 +212,27 @@ export function VulnerabilitiesPage() {
       {query.isError ? <ErrorState error={query.error} retry={() => query.refetch()} /> : (
         <Table rowKey="id" columns={columns} dataSource={visibleRows} loading={query.isPending} locale={{ emptyText: '暂无漏洞数据' }} pagination={pagination(page, query.data?.total ?? 0, setPage)} scroll={{ x: 1250 }} />
       )}
-      <Drawer open={Boolean(selected)} width={640} title={selected?.title ?? '漏洞详情'} className="material-vulnerability-drawer" onClose={() => setSelected(undefined)}>
-        {selected && <div className="detail-drawer">
-          <section><h3>基础信息</h3><div className="detail-meta"><span>漏洞 ID <strong>{selected.id}</strong></span><span>风险等级 <Tag color={selected.severity === '严重' ? 'red' : 'orange'}>{selected.severity}</Tag></span><span>当前状态 <StatusTag status={selected.status} /></span><span>关联资产 <strong>{selected.asset}</strong></span><span>所属任务 <strong>{selected.task || '—'}</strong></span><span>首次发现 <strong>{dateTime(selected.discoveredAt)}</strong></span><span>最近更新 <strong>{dateTime(selected.updatedAt)}</strong></span></div></section>
-          <Card size="small" className="drawer-insight"><h3><ThunderboltOutlined /> AI 风险研判</h3><p>{selected.description ?? '暂无可验证的风险描述'}</p></Card>
-          <Card size="small" className="drawer-remediation"><h3>修复建议</h3><p>请结合漏洞证据和业务影响制定修复方案；当前接口未提供结构化修复建议。</p></Card>
-        </div>}
-      </Drawer>
     </ListPage>
   );
 }
 
 export function ReportsPage() {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<ReportRecord>();
   const [keyword, setKeyword] = useState('');
   const [format, setFormat] = useState<'md' | 'docx' | 'pdf'>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [status, setStatus] = useState<string>(() => searchParams.get('status') ?? '');
+  const [createdRange, setCreatedRange] = useState<[string, string]>();
   const query = useQuery({
-    queryKey: ['reports', { page, pageSize: PAGE_SIZE }],
-    queryFn: () => listReports({ page, pageSize: PAGE_SIZE }),
+    queryKey: ['reports', { page, pageSize: PAGE_SIZE, keyword, format, status, createdRange }],
+    queryFn: () => listReports({ page, pageSize: PAGE_SIZE, keyword: keyword.trim() || undefined, format, status, createdFrom: createdRange?.[0], createdTo: createdRange?.[1] }),
   });
-  const preview = useMutation({ mutationFn: previewReport });
+  const preview = useMutation({
+    mutationFn: previewReport,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] }),
+  });
   const rows = query.data?.items ?? [];
   const bundles = Array.from(rows.reduce((groups, report) => {
     const key = report.taskId ?? report.id;
@@ -234,17 +241,14 @@ export function ReportsPage() {
     else groups.set(key, { key, task: report.task, plan: report.plan, createdAt: report.createdAt, formats: new Map([[report.format.toLowerCase(), report]]) });
     return groups;
   }, new Map<string, { key: string; task: string; plan: string; createdAt: string; formats: Map<string, ReportRecord> }>()).values());
-  const visibleBundles = bundles.filter((bundle) => {
-    const matchesKeyword = !keyword.trim() || `${bundle.task} ${bundle.plan} ${bundle.key}`.toLowerCase().includes(keyword.trim().toLowerCase());
-    return matchesKeyword && (!format || bundle.formats.has(format));
-  });
+  const visibleBundles = bundles;
   const metricValue = query.data && !query.isError;
   const metrics: Metric[] = [
     { label: '报告总数', value: metricValue ? String(query.data.total) : '—', tone: 'gray', icon: 'metric-report-total' },
     { label: '本页新增', value: metricValue ? String(bundles.length) : '—', tone: 'red' },
-    { label: '待导出', value: metricValue ? String(rows.filter((item) => item.status === 'READY').length) : '—', tone: 'orange' },
-    { label: '已导出', value: '—', tone: 'blue' },
-    { label: '待确认', value: '—', tone: 'purple' },
+    { label: '待导出', value: metricValue ? String(rows.filter((item) => !item.firstExportedAt).length) : '—', tone: 'orange' },
+    { label: '已导出', value: metricValue ? String(rows.filter((item) => item.firstExportedAt).length) : '—', tone: 'blue' },
+    { label: '待确认', value: metricValue ? String(rows.filter((item) => !item.firstViewedAt).length) : '—', tone: 'purple' },
     { label: '本月交付', value: '—', tone: 'green' },
   ];
   const columns: ColumnsType<(typeof bundles)[number]> = [
@@ -256,7 +260,16 @@ export function ReportsPage() {
       return report
         ? <a key={format} aria-label={`下载 ${format.toUpperCase()}`} href={reportDownloadUrl(report.id)} download><Tag color="blue">{format.toUpperCase()}</Tag></a>
         : <Tag key={format}>{format.toUpperCase()} 未生成</Tag>;
-    })}</Space> },
+      })}</Space> },
+    { title: '生命周期', width: 120, render: (_, row) => {
+      const reports = Array.from(row.formats.values());
+      const lifecycle = reports.some((report) => report.firstExportedAt)
+        ? { label: '已导出', color: 'green' }
+        : reports.some((report) => !report.firstViewedAt)
+          ? { label: '待确认', color: 'orange' }
+          : { label: '待导出', color: 'blue' };
+      return <Tag color={lifecycle.color}>{lifecycle.label}</Tag>;
+    } },
     { title: '预览', width: 100, render: (_, row) => {
       const report = row.formats.get('md');
       return <Button type="link" disabled={!report?.previewSupported} onClick={() => { if (report) { setSelected(report); preview.mutate(report.id); } }}>预览</Button>;
@@ -268,6 +281,8 @@ export function ReportsPage() {
       <div className="filter-bar material-filter-bar">
         <Input allowClear prefix={<SearchOutlined />} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索报告、任务或计划" />
         <Select allowClear value={format} onChange={setFormat} placeholder="全部格式" options={['md', 'docx', 'pdf'].map((value) => ({ value, label: value.toUpperCase() }))} />
+        <Select aria-label="报告状态" allowClear value={status || undefined} onChange={(value) => { setStatus(value ?? ''); setSearchParams(value ? { status: value } : {}, { replace: true }); setPage(1); }} placeholder="全部状态" options={[{ value: 'PENDING_EXPORT', label: '待导出' }, { value: 'EXPORTED', label: '已导出' }, { value: 'PENDING_CONFIRMATION', label: '待确认' }]} />
+        <RangePicker aria-label="报告创建时间" onChange={(_, values) => { setCreatedRange(values[0] && values[1] ? [`${values[0]}T00:00:00Z`, `${values[1]}T23:59:59Z`] : undefined); setPage(1); }} />
         <div className="filter-spacer" /><Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button>
       </div>
       {query.isError ? <ErrorState error={query.error} retry={() => query.refetch()} /> : (

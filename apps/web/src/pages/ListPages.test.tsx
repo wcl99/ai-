@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { ReportsPage, TasksPage, VulnerabilitiesPage } from './ListPages';
 
 function json(body: unknown, status = 200) {
@@ -30,7 +30,12 @@ const report = {
   id: '44444444-4444-4444-8444-444444444444', plan_id: '22222222-2222-4222-8222-222222222222', task_id: null,
   filename: 'API 真实报告.md', format: 'md', report_level: null, external_url: null, status: 'READY',
   created_at: '2026-07-23T08:00:00Z', plan_name: '授权计划', task_name: null,
+  first_viewed_at: null, first_viewed_by: null, first_exported_at: null, first_exported_by: null,
 };
+
+function LocationProbe() {
+  return <span data-testid="location-path">{useLocation().pathname}</span>;
+}
 
 function renderPage(page: React.ReactNode, path = '/') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -61,6 +66,14 @@ describe('resource list pages', () => {
     expect(fetchMock.mock.calls[1][0]).toContain('page=2');
   });
 
+  it('opens running and completed tasks in the persisted execution page', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json(envelope([task]))));
+    renderPage(<><TasksPage /><LocationProbe /></>, '/tasks?status=RUNNING');
+    expect(await screen.findByRole('button', { name: '打开执行页' })).toBeEnabled();
+    await userEvent.setup().click(screen.getByRole('button', { name: '打开执行页' }));
+    expect(screen.getByTestId('location-path')).toHaveTextContent(`/pentest/session/${task.id}`);
+  });
+
   it('loads the completed task collection from the navigation filter', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(json(envelope([{ ...task, status: 'SUCCEEDED' }])));
     vi.stubGlobal('fetch', fetchMock);
@@ -76,7 +89,7 @@ describe('resource list pages', () => {
       .mockResolvedValueOnce(json(envelope([])));
     vi.stubGlobal('fetch', fetchMock);
     const interaction = userEvent.setup();
-    renderPage(<VulnerabilitiesPage />);
+    renderPage(<><VulnerabilitiesPage /><LocationProbe /></>);
 
     expect(await screen.findByText('资源暂不可用')).toBeInTheDocument();
     expect(screen.getByText('本页高危')).toBeInTheDocument();
@@ -107,13 +120,11 @@ describe('resource list pages', () => {
       .mockResolvedValueOnce(json(envelope([{ ...vulnerability, status: 'FIXING' }])));
     vi.stubGlobal('fetch', fetchMock);
     const interaction = userEvent.setup();
-    renderPage(<VulnerabilitiesPage />);
+    renderPage(<><VulnerabilitiesPage /><LocationProbe /></>);
     await screen.findByText('API 真实漏洞');
 
     await interaction.click(screen.getByRole('button', { name: '查看漏洞详情' }));
-    expect(screen.getByText('基础信息')).toBeInTheDocument();
-    expect(screen.getByText('AI 风险研判')).toBeInTheDocument();
-    expect(screen.getByText('修复建议')).toBeInTheDocument();
+    expect(screen.getByTestId('location-path')).toHaveTextContent(`/vulnerabilities/${vulnerability.id}`);
 
     await interaction.click(screen.getByRole('button', { name: '处置漏洞' }));
     await interaction.click(await screen.findByText('标记修复中'));
@@ -125,7 +136,11 @@ describe('resource list pages', () => {
   it('previews report as plain text and exposes an authenticated download URL', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(envelope([report])))
-      .mockResolvedValueOnce(new Response('# 安全报告\n正文', { status: 200 }));
+      .mockResolvedValueOnce(new Response('# 安全报告\n正文', { status: 200 }))
+      .mockResolvedValueOnce(json(envelope([{
+        ...report,
+        first_viewed_at: '2026-07-23T08:05:00Z',
+      }])));
     vi.stubGlobal('fetch', fetchMock);
     const interaction = userEvent.setup();
     renderPage(<ReportsPage />);
@@ -134,6 +149,7 @@ describe('resource list pages', () => {
     );
     await interaction.click(screen.getByRole('button', { name: '预览' }));
     expect(await screen.findByText(/# 安全报告/)).toBeInTheDocument();
+    expect(await screen.findByText('待导出', { selector: '.ant-tag' })).toBeInTheDocument();
   });
 
   it('groups three generated formats under one task row', async () => {
@@ -153,5 +169,19 @@ describe('resource list pages', () => {
     );
     expect(screen.getByRole('link', { name: '下载 DOCX' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '下载 PDF' })).toBeInTheDocument();
+  });
+
+  it('loads export history from the URL and shows the report lifecycle', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(envelope([{
+      ...report,
+      first_viewed_at: '2026-07-23T08:05:00Z',
+      first_exported_at: '2026-07-23T08:10:00Z',
+    }])));
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderPage(<ReportsPage />, '/reports?status=EXPORTED');
+
+    expect(await screen.findByText('已导出', { selector: '.ant-tag' })).toBeInTheDocument();
+    expect(fetchMock.mock.calls[0][0]).toContain('status=EXPORTED');
   });
 });

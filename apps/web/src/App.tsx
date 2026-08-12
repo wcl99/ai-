@@ -9,6 +9,7 @@ import { AssetsPage, SettingsPage } from './pages/ManagementPages';
 import { AuthorizationPage } from './pages/AuthorizationPage';
 import { TeamPage } from './pages/TeamPage';
 import { ReportOverviewPage, VulnerabilityOverviewPage } from './pages/OverviewPages';
+import { VulnerabilityDetailPage } from './pages/VulnerabilityDetailPage';
 import { PentestPage, PentestSessionPage } from './pages/PentestPage';
 
 export function App() {
@@ -25,6 +26,7 @@ export function App() {
           <Route path="/assets" element={<AssetsPage />} />
           <Route path="/vulnerabilities/overview" element={<VulnerabilityOverviewPage />} />
           <Route path="/vulnerabilities" element={<VulnerabilitiesPage />} />
+          <Route path="/vulnerabilities/:vulnerabilityId" element={<VulnerabilityDetailPage />} />
           <Route path="/reports/overview" element={<ReportOverviewPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/pentest" element={<PentestPage />} />

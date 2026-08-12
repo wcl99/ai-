@@ -107,14 +107,14 @@ describe('resource API', () => {
       created_by_name: '管理员',
     }]))));
 
-    const result = await listTasks({ status: 'RUNNING', page: 1, pageSize: 20 });
+    const result = await listTasks({ status: 'RUNNING', keyword: '真实', testType: 'standard', creator: '管理员', createdFrom: '2026-07-01T00:00:00Z', createdTo: '2026-07-31T23:59:59Z', page: 1, pageSize: 20 });
 
     expect(result.items[0]).toEqual(expect.objectContaining({
       name: '真实任务', status: '进行中', statusCode: 'RUNNING', target: 'example.com', creator: '管理员',
     }));
     expect(result.items[0]).not.toHaveProperty('priority');
     expect(fetch).toHaveBeenCalledWith(
-      '/api/v1/tasks?status=RUNNING&page=1&page_size=20',
+      '/api/v1/tasks?status=RUNNING&keyword=%E7%9C%9F%E5%AE%9E&test_type=standard&creator=%E7%AE%A1%E7%90%86%E5%91%98&created_from=2026-07-01T00%3A00%3A00Z&created_to=2026-07-31T23%3A59%3A59Z&page=1&page_size=20',
       expect.any(Object),
     );
   });

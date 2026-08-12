@@ -15,7 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import ValidationError
-from sqlalchemy import and_, case, func, select, text, update
+from sqlalchemy import and_, case, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -682,6 +682,11 @@ async def freeze_confirmed_plan(
 @app.get("/api/v1/tasks", response_model=ApiEnvelope[PageData[TaskListRead]])
 async def list_tasks(
     status: str | None = Query(default=None, max_length=32),
+    keyword: str | None = Query(default=None, max_length=200),
+    test_type: str | None = Query(default=None, max_length=32),
+    creator: str | None = Query(default=None, max_length=120),
+    created_from: datetime | None = Query(default=None),
+    created_to: datetime | None = Query(default=None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     user: User = Depends(current_user),
@@ -690,6 +695,17 @@ async def list_tasks(
     criteria = [Task.org_id == user.org_id]
     if status:
         criteria.append(Task.status == status)
+    if keyword:
+        pattern = f"%{keyword.strip()}%"
+        criteria.append(or_(Task.name.ilike(pattern), Task.request_id.ilike(pattern)))
+    if test_type:
+        criteria.append(ScanPlan.test_type == test_type)
+    if creator:
+        criteria.append(User.name == creator)
+    if created_from:
+        criteria.append(Task.created_at >= created_from)
+    if created_to:
+        criteria.append(Task.created_at <= created_to)
     plan_join = and_(Task.plan_id == ScanPlan.id, ScanPlan.org_id == user.org_id)
     creator_join = and_(Task.created_by == User.id, User.org_id == user.org_id)
     total = await session.scalar(
@@ -910,6 +926,10 @@ async def retry_task(task_id: uuid.UUID, user: User = Depends(require_roles("adm
 async def list_vulnerabilities(
     severity: str | None = None,
     status: str | None = None,
+    keyword: str | None = Query(default=None, max_length=200),
+    asset: str | None = Query(default=None, max_length=512),
+    created_from: datetime | None = Query(default=None),
+    created_to: datetime | None = Query(default=None),
     task_id: uuid.UUID | None = None,
     plan_id: uuid.UUID | None = None,
     page: int = Query(1, ge=1),
@@ -922,6 +942,15 @@ async def list_vulnerabilities(
         criteria.append(Vulnerability.severity == severity)
     if status:
         criteria.append(Vulnerability.status == status)
+    if keyword:
+        pattern = f"%{keyword.strip()}%"
+        criteria.append(or_(Vulnerability.title.ilike(pattern), Vulnerability.asset_key.ilike(pattern)))
+    if asset:
+        criteria.append(Vulnerability.asset_key == asset)
+    if created_from:
+        criteria.append(Vulnerability.created_at >= created_from)
+    if created_to:
+        criteria.append(Vulnerability.created_at <= created_to)
     if task_id:
         criteria.append(Vulnerability.task_id == task_id)
     if plan_id:
@@ -1093,6 +1122,11 @@ async def update_vulnerability(vulnerability_id: uuid.UUID, payload: Vulnerabili
 async def list_reports(
     task_id: uuid.UUID | None = None,
     plan_id: uuid.UUID | None = None,
+    keyword: str | None = Query(default=None, max_length=200),
+    report_format: str | None = Query(default=None, alias="format", max_length=16),
+    status: str | None = Query(default=None, max_length=32),
+    created_from: datetime | None = Query(default=None),
+    created_to: datetime | None = Query(default=None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     user: User = Depends(current_user),
@@ -1103,21 +1137,43 @@ async def list_reports(
         criteria.append(Report.task_id == task_id)
     if plan_id:
         criteria.append(Report.plan_id == plan_id)
+    if keyword:
+        pattern = f"%{keyword.strip()}%"
+        criteria.append(
+            or_(
+                Report.filename.ilike(pattern),
+                ScanPlan.name.ilike(pattern),
+                Task.name.ilike(pattern),
+            )
+        )
+    if report_format:
+        criteria.append(Report.format == report_format)
+    if status == "EXPORTED":
+        criteria.append(Report.first_exported_at.is_not(None))
+    elif status == "PENDING_CONFIRMATION":
+        criteria.append(Report.first_viewed_at.is_(None))
+    elif status == "PENDING_EXPORT":
+        criteria.append(Report.first_exported_at.is_(None))
+    elif status:
+        criteria.append(Report.status == status)
+    if created_from:
+        criteria.append(Report.created_at >= created_from)
+    if created_to:
+        criteria.append(Report.created_at <= created_to)
     plan_join = and_(Report.plan_id == ScanPlan.id, ScanPlan.org_id == user.org_id)
+    task_join = and_(Report.task_id == Task.id, Task.org_id == user.org_id)
     total = await session.scalar(
         select(func.count())
         .select_from(Report)
         .join(ScanPlan, plan_join)
+        .outerjoin(Task, task_join)
         .where(*criteria)
     )
     rows = (
         await session.execute(
             select(Report, ScanPlan.name, Task.name)
             .join(ScanPlan, plan_join)
-            .outerjoin(
-                Task,
-                and_(Report.task_id == Task.id, Task.org_id == user.org_id),
-            )
+            .outerjoin(Task, task_join)
             .where(*criteria)
             .order_by(Report.created_at.desc(), Report.id.desc())
             .offset((page - 1) * page_size)

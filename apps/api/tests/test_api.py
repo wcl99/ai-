@@ -1040,6 +1040,31 @@ async def test_task_list_contract_includes_plan_and_creator_summaries(
     assert item["created_by_name"] == "Test Admin"
 
 
+async def test_task_list_supports_combined_center_filters(authenticated_client):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": "Filtered task plan",
+            "test_type": "standard",
+            "targets": ["filtered.example.test"],
+            "authorization_confirmed": True,
+        },
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+    created = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": plan.json()["id"], "request_id": "center-filter-request"},
+    )
+
+    response = await authenticated_client.get(
+        "/api/v1/tasks?keyword=Filtered&test_type=standard&creator=Test%20Admin"
+        "&created_from=2020-01-01T00:00:00Z&created_to=2099-01-01T00:00:00Z"
+    )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["data"]["items"]] == [created.json()["id"]]
+
+
 async def test_task_qa_messages_are_scoped_and_persisted(authenticated_client, monkeypatch):
     async def fake_task_expert(*_args, **_kwargs):
         return "The task has not returned findings yet."
