@@ -9,7 +9,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #root { min-width: 1920px; min-height: 100%; margin: 0; }
+html, body, #root { min-width: 0; min-height: 100%; margin: 0; }
 body { background: radial-gradient(circle at 30% 0%, #eaf0ff, #f7f9ff 45%, #f2f6ff); }
 a { color: var(--primary); cursor: pointer; }
 .app-shell { min-height: 100vh; background: transparent; }
@@ -302,7 +302,7 @@ a { color: var(--primary); cursor: pointer; }
 .material-vulnerability-drawer .drawer-remediation{margin:18px 0!important}
 
 /* The login export is a centered product mark and card, not a split marketing page. */
-.login-page{position:relative;min-width:1920px;min-height:100vh;display:grid;grid-template-columns:1fr;place-items:center;padding:150px 24px 72px;background:radial-gradient(circle at 50% 38%,#fff 0,#f4f7ff 42%,#e8effd 100%);overflow:auto}
+.login-page{position:relative;min-width:0;min-height:100vh;display:grid;grid-template-columns:1fr;place-items:center;padding:150px 24px 72px;background:radial-gradient(circle at 50% 38%,#fff 0,#f4f7ff 42%,#e8effd 100%);overflow:auto}
 .login-page>.login-visual-panel{display:none}
 .material-login-brand{position:absolute;top:68px;left:50%;display:flex;align-items:center;gap:14px;transform:translateX(-50%);text-align:left}
 .material-login-brand .brand-mark{width:46px;height:46px}
@@ -334,4 +334,56 @@ a { color: var(--primary); cursor: pointer; }
   .material-dashboard .dashboard-main-grid>.ant-card{min-height:390px}
   .material-dashboard .dashboard-bottom-grid>.ant-card{min-height:340px}
   .material-login-brand{top:132px}.login-card.material-login-card{width:700px;padding:68px 76px 50px}
+}
+
+/* Material component system: fluid desktop layout (1366px through 4K). */
+html,body,#root{min-width:0;overflow-x:auto}
+.app-shell:not(.pentest-shell){width:100%;min-width:0;overflow-x:hidden}
+.pentest-shell{min-width:1920px}
+.app-shell:not(.pentest-shell) .app-sider{width:clamp(220px,13.55vw,300px)!important;min-width:clamp(220px,13.55vw,300px)!important;max-width:clamp(220px,13.55vw,300px)!important;flex-basis:clamp(220px,13.55vw,300px)!important}
+.app-shell:not(.pentest-shell) .app-sider+.ant-layout{min-width:0;margin-left:clamp(220px,13.55vw,300px)}
+.app-shell:not(.pentest-shell) .app-header{height:clamp(64px,3.5vw,76px);padding-inline:clamp(20px,1.6vw,40px);gap:clamp(18px,1.8vw,36px)}
+.app-shell:not(.pentest-shell) .app-header h2{min-width:clamp(130px,8.2vw,178px);font-size:clamp(24px,1.45vw,30px)!important;white-space:nowrap}
+.app-shell:not(.pentest-shell) .global-search{width:clamp(300px,22vw,520px)}
+.app-content:not(.pentest-content){min-width:0;padding:clamp(18px,1.4vw,34px) clamp(18px,1.65vw,42px) clamp(28px,2vw,48px)}
+.app-content:not(.pentest-content) .app-content-frame{width:100%;max-width:min(100%,2800px);margin-inline:auto;min-width:0}
+.app-content:not(.pentest-content) .page,.app-content:not(.pentest-content) .management-page{width:100%;max-width:none;min-width:0}
+.app-content:not(.pentest-content) .metric-grid{grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:clamp(14px,1.15vw,24px)}
+.app-content:not(.pentest-content) .metric-grid-five{grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr))}
+.app-content:not(.pentest-content) .metric-grid-six{grid-template-columns:repeat(auto-fit,minmax(min(210px,100%),1fr))}
+.app-content:not(.pentest-content) .metric-card{min-width:0;min-height:clamp(112px,6.6vw,144px)}
+.app-content:not(.pentest-content) .metric-card .ant-card-body{padding:clamp(18px,1.25vw,28px)}
+.app-content:not(.pentest-content) .feature-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(14px,1.15vw,24px)}
+.app-content:not(.pentest-content) .feature-card .ant-card-body{grid-template-columns:44px minmax(0,1fr) max-content;min-width:0;padding-inline:clamp(16px,1.25vw,26px)}
+.app-content:not(.pentest-content) .feature-card .ant-card-body>div{min-width:0}.app-content:not(.pentest-content) .feature-card strong,.app-content:not(.pentest-content) .feature-card p{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app-content:not(.pentest-content) .dashboard-main-grid,.app-content:not(.pentest-content) .dashboard-bottom-grid,.app-content:not(.pentest-content) .overview-grid-three,.app-content:not(.pentest-content) .report-material-chart-grid{gap:clamp(16px,1.25vw,26px)}
+.app-content:not(.pentest-content) .data-card{min-width:0;overflow:hidden}.app-content:not(.pentest-content) .data-card .ant-table-wrapper{width:100%;overflow-x:auto}.app-content:not(.pentest-content) .data-card .ant-table{min-width:980px}
+.app-content:not(.pentest-content) .filter-bar,.app-content:not(.pentest-content) .material-filter-bar{flex-wrap:wrap}.app-content:not(.pentest-content) .filter-spacer{min-width:12px}
+.app-content:not(.pentest-content) .material-filter-bar .ant-input-affix-wrapper{width:clamp(260px,19vw,360px);max-width:100%}
+.app-content:not(.pentest-content) .report-lifecycle-grid{grid-template-columns:repeat(auto-fit,minmax(min(210px,100%),1fr));gap:clamp(14px,1.15vw,24px)}
+.app-content:not(.pentest-content) .recent-material-reports{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:clamp(14px,1.15vw,22px)}
+.app-content:not(.pentest-content) .recent-material-reports>.material-next-button{justify-self:center}
+.app-content:not(.pentest-content) .material-settings-page,.app-content:not(.pentest-content) .material-team-page,.app-content:not(.pentest-content) .material-authorization-page{max-width:none}
+.app-content:not(.pentest-content) .management-page-header,.app-content:not(.pentest-content) .material-page-heading{min-width:0}
+.login-page{width:100%;min-width:0;min-height:100dvh;padding:clamp(118px,9vw,160px) 20px clamp(42px,4vw,72px);overflow-x:hidden}
+.login-card.material-login-card{width:min(520px,calc(100vw - 40px));padding:clamp(32px,3vw,52px)}
+.material-login-brand{top:clamp(42px,4vw,84px);width:max-content;max-width:calc(100vw - 40px)}
+
+@media (max-width:1600px){
+  .app-shell:not(.pentest-shell) .app-sider{width:220px!important;min-width:220px!important;max-width:220px!important;flex-basis:220px!important}
+  .app-shell:not(.pentest-shell) .app-sider+.ant-layout{margin-left:220px}.app-shell:not(.pentest-shell) .brand{height:76px;padding-inline:18px}.app-shell:not(.pentest-shell) .brand-mark{width:38px;height:38px}.app-shell:not(.pentest-shell) .brand h4{font-size:17px!important}.app-shell:not(.pentest-shell) .brand span{font-size:11px}
+  .app-shell:not(.pentest-shell) .app-sider .ant-menu{padding-inline:10px}.app-shell:not(.pentest-shell) .app-header{padding-inline:20px}.app-shell:not(.pentest-shell) .header-actions{gap:10px!important}.app-shell:not(.pentest-shell) .profile-copy{display:none}
+  .app-content:not(.pentest-content){padding:18px 20px 30px}.app-content:not(.pentest-content) .metric-grid-five,.app-content:not(.pentest-content) .metric-grid-six{grid-template-columns:repeat(3,minmax(0,1fr))}.app-content:not(.pentest-content) .metric-card{min-height:108px}.app-content:not(.pentest-content) .metric-card strong{font-size:30px}
+  .app-content:not(.pentest-content) .feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.app-content:not(.pentest-content) .dashboard-main-grid,.app-content:not(.pentest-content) .dashboard-bottom-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.app-content:not(.pentest-content) .dashboard-main-grid>.risk-card,.app-content:not(.pentest-content) .dashboard-bottom-grid>:last-child{grid-column:1/-1}
+  .app-content:not(.pentest-content) .overview-grid-three,.app-content:not(.pentest-content) .report-material-chart-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.app-content:not(.pentest-content) .overview-grid-three>:last-child,.app-content:not(.pentest-content) .report-material-chart-grid>:last-child{grid-column:1/-1}
+  .app-content:not(.pentest-content) .overview-with-aside{grid-template-columns:minmax(0,1fr)}.app-content:not(.pentest-content) .risk-insight{position:static}.app-content:not(.pentest-content) .report-material-bottom{grid-template-columns:minmax(0,1fr)}
+  .app-content:not(.pentest-content) .material-team-layout{grid-template-columns:250px minmax(0,1fr)}.app-content:not(.pentest-content) .material-settings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .app-content:not(.pentest-content) .material-settings-card:first-child{grid-column:1/-1}.app-content:not(.pentest-content) .material-authorization-summary{grid-template-columns:minmax(0,1fr)}
+}
+
+@media (min-width:2400px){
+  .app-shell:not(.pentest-shell) .app-sider{width:clamp(288px,11vw,340px)!important;min-width:clamp(288px,11vw,340px)!important;max-width:clamp(288px,11vw,340px)!important;flex-basis:clamp(288px,11vw,340px)!important}
+  .app-shell:not(.pentest-shell) .app-sider+.ant-layout{margin-left:clamp(288px,11vw,340px)}
+  .app-content:not(.pentest-content) .page,.app-content:not(.pentest-content) .management-page,.app-content:not(.pentest-content) .material-settings-page,.app-content:not(.pentest-content) .material-team-page,.app-content:not(.pentest-content) .material-authorization-page{max-width:none}
+  .login-card.material-login-card{width:clamp(590px,18vw,700px)}
 }

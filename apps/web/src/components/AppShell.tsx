@@ -188,7 +188,7 @@ export function AppShell({ children }: AppShellProps) {
   };
 
   return (
-    <Layout className="app-shell">
+    <Layout className={basePath === '/pentest' ? 'app-shell pentest-shell' : 'app-shell'}>
       <Sider width={260} theme="light" className="app-sider">
         <div className="brand">
           <div className="brand-mark"><SafetyCertificateOutlined /></div>
