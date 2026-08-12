@@ -12,7 +12,7 @@ import {
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Progress, Tag } from 'antd';
+import { Alert, Button, Card, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { getDashboardSummary, listAssets, listReports, listTasks, listVulnerabilities } from '../api/resources';
 import { MetricCard, SectionTitle } from '../components/Ui';
@@ -79,15 +79,16 @@ export function DashboardPage() {
       </div>
 
       <div className="dashboard-main-grid">
-        <Card variant="borderless" className="summary-card"><SectionTitle icon={<RobotOutlined />} title="AI 今日摘要" />
+        <Card variant="borderless" className="summary-card overview-material-card"><SectionTitle icon={<RobotOutlined />} title="AI 今日摘要" />
           {dashboard.isPending ? <TruthfulEmpty text="正在生成摘要..." /> : dashboard.data ? <div className="dashboard-ai-summary">
             <SummaryBlock tone="danger" title="高危风险预警" items={dashboard.data.aiSummary.warnings} />
             <SummaryBlock tone="warning" title="重点发现" items={dashboard.data.aiSummary.priorityFindings} />
             <SummaryBlock tone="safe" title="处置建议" items={dashboard.data.aiSummary.remediation} />
             <span className="ai-source">{dashboard.data.aiSummary.source === 'deepseek' ? 'DeepSeek 分析' : '基于平台数据生成'}</span>
+            <RobotOutlined className="dashboard-summary-watermark" aria-hidden />
           </div> : <TruthfulEmpty text="摘要暂不可用" />}
         </Card>
-        <Card variant="borderless" className="trend-card"><SectionTitle icon={<BarChartOutlined />} title="风险趋势" />
+        <Card variant="borderless" className="trend-card overview-material-card"><SectionTitle icon={<BarChartOutlined />} title="风险趋势" />
           {dashboard.isPending ? <TruthfulEmpty text="正在加载风险趋势..." /> : dashboard.data ? <RiskTrend values={dashboard.data.riskTrend} /> : <TruthfulEmpty text="趋势暂不可用" />}
         </Card>
         <Card variant="borderless" className="risk-card">
@@ -97,13 +98,13 @@ export function DashboardPage() {
       </div>
 
       <div className="dashboard-bottom-grid">
-        <Card variant="borderless">
+        <Card variant="borderless" className="recent-tasks-card overview-material-card">
           <SectionTitle icon={<FileTextOutlined />} title="近期任务" action={<Button type="link" onClick={() => navigate('/tasks')}>查看全部</Button>} />
-          {tasks.isPending ? <TruthfulEmpty text="正在加载任务..." /> : tasks.isError ? <TruthfulEmpty text="任务数据不可用" /> : tasks.data.items.length === 0 ? <TruthfulEmpty text="暂无任务数据" /> : tasks.data.items.map((task) => <div className="recent-task" key={task.id}><div><strong>{task.name}</strong><span>{task.createdAt.slice(5, 16).replace('T', ' ')}</span></div><Progress percent={task.progress} size="small" /></div>)}
+          {tasks.isPending ? <TruthfulEmpty text="正在加载任务..." /> : tasks.isError ? <TruthfulEmpty text="任务数据不可用" /> : tasks.data.items.length === 0 ? <TruthfulEmpty text="暂无任务数据" /> : <div className="recent-task-list">{tasks.data.items.map((task, index) => <button className={`recent-task recent-task-tone-${index % 3}`} key={task.id} type="button" onClick={() => navigate(`/pentest/session/${task.id}`)}><i aria-hidden /><div className="recent-task-copy"><strong>{task.name}</strong><span>{formatDashboardTime(task.createdAt)}</span></div><div className="recent-task-progress"><span>进度 <b>{task.progress}%</b></span><div role="progressbar" aria-label={`${task.name}执行进度`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={task.progress}><i style={{ width: `${task.progress}%` }} /></div></div></button>)}</div>}
         </Card>
-        <Card variant="borderless">
+        <Card variant="borderless" className="latest-activity-card overview-material-card">
           <SectionTitle icon={<ThunderboltOutlined />} title="最新动态" />
-          {tasks.isPending ? <TruthfulEmpty text="正在加载动态..." /> : tasks.isError ? <TruthfulEmpty text="任务动态不可用" /> : tasks.data.items.length === 0 ? <TruthfulEmpty text="暂无任务动态" /> : tasks.data.items.map((task) => <div className="activity" key={task.id}><i className={task.statusCode === 'FAILED' ? 'orange' : task.statusCode === 'SUCCEEDED' ? 'green' : 'blue'} /><div><Tag>{task.status}</Tag><strong>{task.name}</strong><p>当前阶段：{task.phase || '—'}，进度 {task.progress}%</p></div></div>)}
+          {tasks.isPending ? <TruthfulEmpty text="正在加载动态..." /> : tasks.isError ? <TruthfulEmpty text="任务动态不可用" /> : tasks.data.items.length === 0 ? <TruthfulEmpty text="暂无任务动态" /> : <div className="activity-timeline">{tasks.data.items.map((task) => { const tone = task.statusCode === 'FAILED' ? 'orange' : task.statusCode === 'SUCCEEDED' ? 'green' : 'blue'; return <button className={`activity activity-${tone}`} key={task.id} type="button" onClick={() => navigate(`/pentest/session/${task.id}`)}><i className="activity-node" aria-hidden /><div className="activity-copy"><div><Tag color={tone === 'green' ? 'success' : tone === 'orange' ? 'warning' : 'processing'}>{task.status}</Tag><strong>{task.name}</strong><time>{formatDashboardTime(task.createdAt)}</time></div><p>当前阶段：{task.phase || '暂无阶段信息'}，执行进度 {task.progress}%</p></div></button>; })}</div>}
         </Card>
         <Card variant="borderless"><SectionTitle icon={<BugOutlined />} title="快捷入口" /><div className="quick-grid">{quickLinks.map(([label, icon]) => <Button key={label} icon={icon}>{label}</Button>)}</div><p className="muted">报告总数：{totalValue(reports.data?.total, reports.isError)}</p></Card>
       </div>
@@ -116,13 +117,51 @@ function TruthfulEmpty({ text }: { text: string }) {
 }
 
 function SummaryBlock({ tone, title, items }: { tone: 'danger' | 'warning' | 'safe'; title: string; items: string[] }) {
-  return <div className={`dashboard-summary-block ${tone}`}><strong>{title}</strong><ul>{items.map((item) => <li key={item}>{item}</li>)}</ul></div>;
+  return <section className={`dashboard-summary-block ${tone}`}><span className="dashboard-summary-symbol" aria-hidden>{tone === 'danger' ? '!' : tone === 'warning' ? '△' : '✓'}</span><div><strong>{title}</strong><ul>{items.map((item) => <li key={item}>{item}</li>)}</ul></div></section>;
 }
 
 function RiskTrend({ values }: { values: Array<{ start: string; critical: number; high: number; medium: number; low: number }> }) {
-  const max = Math.max(1, ...values.map((item) => item.critical + item.high + item.medium + item.low));
+  const series = [
+    { key: 'critical', label: '严重', color: '#c92f39' },
+    { key: 'high', label: '高危', color: '#ff8b32' },
+    { key: 'medium', label: '中危', color: '#075bcc' },
+    { key: 'low', label: '低危', color: '#087b5b' },
+  ] as const;
+  const width = 620;
+  const height = 245;
+  const plot = { left: 40, right: 12, top: 14, bottom: 32 };
+  const maxValue = Math.max(1, ...values.flatMap((item) => series.map(({ key }) => item[key])));
+  const ceiling = Math.max(4, Math.ceil(maxValue / 4) * 4);
+  const x = (index: number) => plot.left + (values.length <= 1 ? (width - plot.left - plot.right) / 2 : index * (width - plot.left - plot.right) / (values.length - 1));
+  const y = (value: number) => plot.top + (ceiling - value) / ceiling * (height - plot.top - plot.bottom);
   return <div className="dashboard-risk-trend" aria-label="风险趋势图">
-    <div className="dashboard-risk-bars">{values.map((item) => <div className="dashboard-risk-bar" key={item.start} title={`${item.start}: ${item.critical + item.high + item.medium + item.low}`}><i className="critical" style={{ height: `${item.critical / max * 100}%` }} /><i className="high" style={{ height: `${item.high / max * 100}%` }} /><i className="medium" style={{ height: `${item.medium / max * 100}%` }} /><i className="low" style={{ height: `${item.low / max * 100}%` }} /><span>{item.start.slice(5)}</span></div>)}</div>
-    <div className="dashboard-risk-legend"><span><i className="critical" />严重</span><span><i className="high" />高危</span><span><i className="medium" />中危</span><span><i className="low" />低危</span></div>
+    <svg className="dashboard-risk-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-labelledby="risk-trend-title risk-trend-description">
+      <title id="risk-trend-title">近七日风险趋势</title>
+      <desc id="risk-trend-description">按严重、高危、中危和低危展示每日漏洞数量变化</desc>
+      {[0, 1, 2, 3, 4].map((tick) => { const value = ceiling - ceiling / 4 * tick; const lineY = y(value); return <g key={tick}><line className="risk-grid-line" x1={plot.left} x2={width - plot.right} y1={lineY} y2={lineY} /><text className="risk-axis-label" x={plot.left - 9} y={lineY + 4} textAnchor="end">{value}</text></g>; })}
+      {values.map((item, index) => <text className="risk-axis-label" key={item.start} x={x(index)} y={height - 7} textAnchor="middle">{item.start.slice(5)}</text>)}
+      {series.map(({ key, label, color }) => { const points = values.map((item, index) => ({ x: x(index), y: y(item[key]), value: item[key], date: item.start })); return <g className={`risk-series risk-series-${key}`} key={key}><path d={smoothLine(points)} stroke={color} /><g>{points.map((point) => <circle key={point.date} cx={point.x} cy={point.y} r="3.5" fill={color} tabIndex={0}><title>{`${point.date} ${label}：${point.value}`}</title></circle>)}</g></g>; })}
+    </svg>
+    <div className="dashboard-risk-legend">{series.map((item) => <span key={item.key}><i style={{ background: item.color }} />{item.label}</span>)}</div>
   </div>;
+}
+
+function smoothLine(points: Array<{ x: number; y: number }>) {
+  if (points.length === 0) return '';
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  return points.slice(1).reduce((path, point, index) => {
+    const previous = points[index];
+    const middle = (previous.x + point.x) / 2;
+    return `${path} C ${middle} ${previous.y}, ${middle} ${point.y}, ${point.x} ${point.y}`;
+  }, `M ${points[0].x} ${points[0].y}`);
+}
+
+function formatDashboardTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(5, 16).replace('T', ' ');
+  const now = new Date();
+  const elapsed = now.getTime() - date.getTime();
+  if (elapsed >= 0 && elapsed < 60 * 60 * 1000) return `${Math.max(1, Math.floor(elapsed / 60000))}分钟前`;
+  if (elapsed >= 0 && elapsed < 24 * 60 * 60 * 1000) return `${Math.floor(elapsed / 3600000)}小时前`;
+  return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }

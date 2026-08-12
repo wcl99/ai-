@@ -104,11 +104,18 @@ test.beforeEach(async ({ page }, testInfo) => {
 });
 
 test('shows overview intelligence and task actions', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.setViewportSize({ width: 1196, height: 912 });
   await page.goto('/overview');
   await expect(page.getByText('AI 今日摘要')).toBeVisible();
   await expect(page.getByText('DeepSeek 分析')).toBeVisible();
   await expect(page.getByLabel('风险趋势图')).toBeVisible();
+  await expect(page.locator('.dashboard-risk-chart .risk-series path')).toHaveCount(4);
+  await expect(page.locator('.dashboard-summary-block')).toHaveCount(3);
+  await expect(page.getByRole('progressbar', { name: `${task.name}执行进度` })).toHaveAttribute('aria-valuenow', '42');
+  await expect(page.locator('.activity-timeline .activity-node')).toHaveCount(1);
+  await page.screenshot({ path: 'test-results/overview-material-1196x912.png', fullPage: true });
+  await page.locator('.recent-task').click();
+  await expect(page).toHaveURL(`/pentest/session/${taskId}`);
 
   await page.goto('/tasks?status=RUNNING');
   await page.getByRole('button', { name: '摘要' }).click();
