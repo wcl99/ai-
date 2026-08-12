@@ -16,9 +16,26 @@ from app.db import SessionLocal
 from app.models import Organization, Report, ScanPlan, Task, User, Vulnerability, XiaoyiPlanMapping
 from app.schemas import DomainPrecheckRequest, PortPrecheckRequest
 from app.services import plan_for_update_query
-
 from app.sync import sync_once
+from conftest import captcha_login
 
+
+async def test_dashboard_summary_contains_risk_trend_and_deterministic_ai_fallback(
+    authenticated_client,
+):
+    response = await authenticated_client.get("/api/v1/dashboard/summary")
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert {"tasks", "running_tasks", "failed_tasks", "high_risk", "assets", "vulnerabilities"} <= set(
+        data["metrics"]
+    )
+    assert {"warnings", "priority_findings", "remediation", "source"} <= set(
+        data["ai_summary"]
+    )
+    assert data["ai_summary"]["source"] == "fallback"
+    assert len(data["risk_trend"]) == 7
+    assert {"start", "critical", "high", "medium", "low"} <= set(data["risk_trend"][0])
 
 async def test_liveness_is_independent_and_keeps_compatibility_alias(client):
     live = await client.get("/health/live")
@@ -744,9 +761,8 @@ async def test_reconfirmation_keeps_the_original_xiaoyi_actor(authenticated_clie
         },
     )
     assert created.status_code == 201
-    login = await authenticated_client.post(
-        "/api/v1/auth/login",
-        json={"username": "second-expert", "password": "second-expert-password"},
+    login = await captcha_login(
+        authenticated_client, "second-expert", "second-expert-password"
     )
     second = await authenticated_client.post(
         f"/api/v1/scan-plans/{plan.json()['id']}/confirm",
@@ -942,9 +958,8 @@ async def test_operator_cannot_bypass_separate_plan_authorization(authenticated_
         },
     )
     assert created.status_code == 201
-    login = await authenticated_client.post(
-        "/api/v1/auth/login",
-        json={"username": "operator", "password": "operator-password-is-long-enough"},
+    login = await captcha_login(
+        authenticated_client, "operator", "operator-password-is-long-enough"
     )
     assert login.status_code == 200
     headers = {"Authorization": f"Bearer {login.json()['token']}"}
@@ -1040,6 +1055,33 @@ async def test_task_list_contract_includes_plan_and_creator_summaries(
     assert item["created_by_name"] == "Test Admin"
 
 
+async def test_only_terminal_tasks_can_be_deleted(authenticated_client):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={"name": "Delete task", "targets": ["delete.example.test"]},
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+    task = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": plan.json()["id"], "request_id": "delete-terminal-task"},
+    )
+    task_id = task.json()["id"]
+
+    active = await authenticated_client.delete(f"/api/v1/tasks/{task_id}")
+    assert active.status_code == 409
+    assert active.json()["code"] == "TASK_NOT_DELETABLE"
+
+    async with SessionLocal() as session:
+        stored = await session.get(Task, uuid.UUID(task_id))
+        stored.status = "SUCCEEDED"
+        await session.commit()
+
+    deleted = await authenticated_client.delete(f"/api/v1/tasks/{task_id}")
+    assert deleted.status_code == 200
+    assert deleted.json()["data"] is None
+    assert (await authenticated_client.get(f"/api/v1/tasks/{task_id}")).status_code == 404
+
+
 async def test_task_list_supports_combined_center_filters(authenticated_client):
     plan = await authenticated_client.post(
         "/api/v1/scan-plans",
@@ -1063,6 +1105,44 @@ async def test_task_list_supports_combined_center_filters(authenticated_client):
 
     assert response.status_code == 200
     assert [item["id"] for item in response.json()["data"]["items"]] == [created.json()["id"]]
+
+
+async def test_vulnerability_can_be_deleted_within_the_current_organization(
+    authenticated_client,
+):
+    async with SessionLocal() as session:
+        user = await session.scalar(select(User).where(User.username == "admin"))
+        plan = ScanPlan(
+            org_id=user.org_id,
+            created_by=user.id,
+            name="Delete vulnerability",
+            test_type="standard",
+            status="READY",
+            snapshot={},
+        )
+        session.add(plan)
+        await session.flush()
+        vulnerability = Vulnerability(
+            org_id=user.org_id,
+            plan_id=plan.id,
+            title="Disposable vulnerability",
+            severity="high",
+            status="OPEN",
+            data_json={},
+        )
+        session.add(vulnerability)
+        await session.commit()
+        vulnerability_id = vulnerability.id
+
+    deleted = await authenticated_client.delete(
+        f"/api/v1/vulnerabilities/{vulnerability_id}"
+    )
+
+    assert deleted.status_code == 200
+    assert deleted.json()["data"] is None
+    assert (
+        await authenticated_client.get(f"/api/v1/vulnerabilities/{vulnerability_id}")
+    ).status_code == 404
 
 
 async def test_task_qa_messages_are_scoped_and_persisted(authenticated_client, monkeypatch):
@@ -1196,3 +1276,22 @@ async def test_platform_http_errors_use_the_documented_contract(client):
         "message": "Not Found",
         "details": None,
     }
+async def test_login_requires_a_valid_captcha(client):
+    challenge = await client.get("/api/v1/auth/captcha")
+    assert challenge.status_code == 200
+    assert challenge.json()["data"]["question"].endswith("=?")
+
+    rejected = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "username": "admin",
+            "password": "correct-horse-battery-staple",
+            "captcha_token": challenge.json()["data"]["token"],
+            "captcha_answer": "999",
+        },
+    )
+    accepted = await captcha_login(client, "admin", "correct-horse-battery-staple")
+
+    assert rejected.status_code == 400
+    assert rejected.json()["code"] == "CAPTCHA_INVALID"
+    assert accepted.status_code == 200

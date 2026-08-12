@@ -28,7 +28,7 @@ function Harness() {
     <div>
       <span>{auth.user?.name ?? 'signed-out'}</span>
       <span>{auth.error?.message ?? 'no-error'}</span>
-      <button type="button" onClick={() => void auth.login({ username: 'admin', password: 'password123' })}>login</button>
+      <button type="button" onClick={() => void auth.login({ username: 'admin', password: 'password123', captcha_token: 'captcha-token', captcha_answer: '7' })}>login</button>
       <button type="button" onClick={() => void auth.logout()}>logout</button>
     </div>
   );

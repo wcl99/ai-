@@ -73,6 +73,11 @@ function appFetch(input: RequestInfo | URL) {
     }],
     insights: ['平台累计生成 6 份报告，本月新增 3 份。', '当前有 2 份待导出，1 份尚未查看。'],
   } }));
+  if (url.pathname === '/api/v1/dashboard/summary') return Promise.resolve(json({ success: true, message: 'ok', data: {
+    metrics: { assets: 4, tasks: 7, running_tasks: 2, high_risk: 1, vulnerabilities: 5, open_vulnerabilities: 3, reports: 6 },
+    ai_summary: { warnings: ['存在未关闭漏洞'], priority_findings: ['优先检查高风险任务'], remediation: ['完成修复后安排复测'], source: 'fallback' },
+    risk_trend: Array.from({ length: 7 }, (_, index) => ({ start: `2026-08-${String(index + 5).padStart(2, '0')}`, critical: index === 6 ? 1 : 0, high: 1, medium: 1, low: 0 })),
+  } }));
   if (url.pathname === '/api/v1/settings/organization') return Promise.resolve(json({
     id: user.org_id, name: 'Cloud Shield Lab', created_at: '2026-08-10T08:00:00Z', updated_at: '2026-08-10T08:00:00Z',
   }));
@@ -165,7 +170,8 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: '平台总览' })).toBeInTheDocument();
     expect(screen.getByText('AI 今日摘要')).toBeInTheDocument();
     expect(await screen.findAllByText('API 近期任务')).not.toHaveLength(0);
-    expect(screen.getByText('暂无历史趋势数据')).toBeInTheDocument();
+    expect(await screen.findByText('存在未关闭漏洞')).toBeInTheDocument();
+    expect(screen.getByLabelText('风险趋势图')).toBeInTheDocument();
     expect(container.querySelector('.material-dashboard')).toBeInTheDocument();
     expect(container.querySelectorAll('.feature-card')).toHaveLength(4);
     expect(

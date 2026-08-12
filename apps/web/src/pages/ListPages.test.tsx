@@ -1,8 +1,18 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { ReportsPage, TasksPage, VulnerabilitiesPage } from './ListPages';
+
+vi.mock('antd', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('antd')>();
+  return {
+    ...actual,
+    Popconfirm: ({ children, onConfirm }: { children: React.ReactNode; onConfirm?: () => void }) => (
+      <span onClick={() => onConfirm?.()}>{children}</span>
+    ),
+  };
+});
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -74,6 +84,39 @@ describe('resource list pages', () => {
     expect(screen.getByTestId('location-path')).toHaveTextContent(`/pentest/session/${task.id}`);
   });
 
+  it('shows a task summary and submits a pause request', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(envelope([task])))
+      .mockResolvedValueOnce(json({ ...task, status: 'CANCELLING' }))
+      .mockResolvedValueOnce(json(envelope([{ ...task, status: 'CANCELLING' }])));
+    vi.stubGlobal('fetch', fetchMock);
+    const interaction = userEvent.setup();
+    renderPage(<TasksPage />);
+    await screen.findByText('API 真实任务');
+
+    await interaction.click(screen.getByRole('button', { name: '摘要' }));
+    expect(await screen.findByText(/执行进度 42%/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '暂停' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(fetchMock.mock.calls[1][0]).toBe(`/api/v1/tasks/${task.id}/stop`);
+  });
+
+  it('deletes a terminal task after confirmation', async () => {
+    const terminal = { ...task, status: 'SUCCEEDED', progress: 100 };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(envelope([terminal])))
+      .mockResolvedValueOnce(json({ success: true, message: 'Task deleted', data: null }))
+      .mockResolvedValueOnce(json(envelope([])));
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage(<TasksPage />);
+    await screen.findByText('API 真实任务');
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(fetchMock.mock.calls[1][0]).toBe(`/api/v1/tasks/${task.id}`);
+    expect((fetchMock.mock.calls[1][1] as RequestInit).method).toBe('DELETE');
+  });
+
   it('loads the completed task collection from the navigation filter', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(json(envelope([{ ...task, status: 'SUCCEEDED' }])));
     vi.stubGlobal('fetch', fetchMock);
@@ -116,6 +159,7 @@ describe('resource list pages', () => {
   it('updates vulnerability status through the API', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(envelope([vulnerability])))
+      .mockResolvedValueOnce(json({ ...vulnerability, data_json: { source_tool: 'scanner', http_url: 'https://example.com', vuln_suggestions: '限制输入并完成复测' } }))
       .mockResolvedValueOnce(json({ ...vulnerability, status: 'FIXING', data_json: {} }))
       .mockResolvedValueOnce(json(envelope([{ ...vulnerability, status: 'FIXING' }])));
     vi.stubGlobal('fetch', fetchMock);
@@ -124,13 +168,31 @@ describe('resource list pages', () => {
     await screen.findByText('API 真实漏洞');
 
     await interaction.click(screen.getByRole('button', { name: '查看漏洞详情' }));
+    expect(await screen.findByText('真实描述')).toBeInTheDocument();
+    expect(screen.getByText('限制输入并完成复测')).toBeInTheDocument();
+    await interaction.click(screen.getByRole('button', { name: '查看详情' }));
     expect(screen.getByTestId('location-path')).toHaveTextContent(`/vulnerabilities/${vulnerability.id}`);
 
     await interaction.click(screen.getByRole('button', { name: '处置漏洞' }));
     await interaction.click(await screen.findByText('标记修复中'));
 
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    expect(JSON.parse((fetchMock.mock.calls[2][1] as RequestInit).body as string)).toEqual({ status: 'FIXING' });
+  });
+
+  it('deletes a vulnerability after confirmation', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(envelope([vulnerability])))
+      .mockResolvedValueOnce(json({ success: true, message: 'Vulnerability deleted', data: null }))
+      .mockResolvedValueOnce(json(envelope([])));
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage(<VulnerabilitiesPage />);
+    await screen.findByText('API 真实漏洞');
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toEqual({ status: 'FIXING' });
+    expect(fetchMock.mock.calls[1][0]).toBe(`/api/v1/vulnerabilities/${vulnerability.id}`);
+    expect((fetchMock.mock.calls[1][1] as RequestInit).method).toBe('DELETE');
   });
 
   it('previews report as plain text and exposes an authenticated download URL', async () => {

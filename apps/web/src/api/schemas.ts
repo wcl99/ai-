@@ -20,6 +20,16 @@ export const loginResponseSchema = z.object({
   user: userSchema,
 });
 
+export const captchaChallengeSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    question: z.string(),
+    token: z.string(),
+    expires_in: z.number(),
+  }),
+});
+
 export const emptyEnvelopeSchema = z.object({
   success: z.literal(true),
   message: z.string(),

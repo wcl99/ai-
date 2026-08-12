@@ -113,6 +113,26 @@ const trendPointSchema = z.object({ start: z.string(), count: z.number().int().n
 const distributionItemSchema = z.object({
   key: z.string(), label: z.string(), count: z.number().int().nonnegative(),
 });
+const dashboardSummarySchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    metrics: z.record(z.string(), z.number().int().nonnegative()),
+    ai_summary: z.object({
+      warnings: z.array(z.string()),
+      priority_findings: z.array(z.string()),
+      remediation: z.array(z.string()),
+      source: z.enum(['deepseek', 'fallback']),
+    }),
+    risk_trend: z.array(z.object({
+      start: z.string(),
+      critical: z.number().int().nonnegative(),
+      high: z.number().int().nonnegative(),
+      medium: z.number().int().nonnegative(),
+      low: z.number().int().nonnegative(),
+    })),
+  }),
+});
 const vulnerabilityOverviewSchema = z.object({
   success: z.literal(true),
   message: z.string(),
@@ -329,6 +349,16 @@ export async function listTasks(input: { status?: TaskStatusCode; keyword?: stri
   return result(response.data, mapTask);
 }
 
+export async function stopTask(id: string) {
+  return apiRequest(`/api/v1/tasks/${uuid.parse(id)}/stop`, taskSchema, { method: 'POST' });
+}
+
+export async function deleteTask(id: string) {
+  return apiRequest(`/api/v1/tasks/${uuid.parse(id)}`, z.object({
+    success: z.literal(true), message: z.string(), data: z.null(),
+  }), { method: 'DELETE' });
+}
+
 export async function getVulnerability(id: string) {
   const response = await apiRequest(`/api/v1/vulnerabilities/${uuid.parse(id)}`, vulnerabilityDetailSchema);
   const base = mapVulnerability({ ...response, task_name: null, tags: tagsFromData(response.data_json) });
@@ -399,6 +429,20 @@ export async function listVulnerabilities(input: {
   return result(response.data, mapVulnerability);
 }
 
+export async function getDashboardSummary() {
+  const response = await apiRequest('/api/v1/dashboard/summary', dashboardSummarySchema);
+  return {
+    metrics: response.data.metrics,
+    aiSummary: {
+      warnings: response.data.ai_summary.warnings,
+      priorityFindings: response.data.ai_summary.priority_findings,
+      remediation: response.data.ai_summary.remediation,
+      source: response.data.ai_summary.source,
+    },
+    riskTrend: response.data.risk_trend,
+  };
+}
+
 export async function updateVulnerability(id: string, status: VulnerabilityStatusCode) {
   const payload = z.object({ status: vulnerabilityStatusSchema }).parse({ status });
   const response = await apiRequest(`/api/v1/vulnerabilities/${id}`, vulnerabilityDetailSchema, {
@@ -406,6 +450,12 @@ export async function updateVulnerability(id: string, status: VulnerabilityStatu
     body: payload,
   });
   return mapVulnerability({ ...response, task_name: null, tags: tagsFromData(response.data_json) });
+}
+
+export function deleteVulnerability(id: string) {
+  return apiRequest(`/api/v1/vulnerabilities/${uuid.parse(id)}`, z.object({
+    success: z.literal(true), message: z.string(), data: z.null(),
+  }), { method: 'DELETE' });
 }
 
 export async function listReports(input: { taskId?: string; planId?: string; keyword?: string; format?: string; status?: string; createdFrom?: string; createdTo?: string; page: number; pageSize: number }) {

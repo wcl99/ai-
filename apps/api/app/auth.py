@@ -2,6 +2,9 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
+from hmac import compare_digest
+from secrets import randbelow, token_urlsafe
 
 import jwt
 from fastapi import Cookie, Depends
@@ -50,6 +53,43 @@ def decode_token(token: str, settings: Settings) -> dict:
         )
     except InvalidTokenError as exc:
         raise AuthenticationError from exc
+
+
+def create_captcha(settings: Settings) -> tuple[str, str]:
+    left = randbelow(8) + 1
+    right = randbelow(8) + 1
+    now = datetime.now(UTC)
+    token = jwt.encode(
+        {
+            "type": "captcha",
+            "answer_hash": sha256(
+                f"{left + right}:{settings.jwt_secret}".encode()
+            ).hexdigest(),
+            "nonce": token_urlsafe(8),
+            "iss": settings.jwt_issuer,
+            "iat": now,
+            "exp": now + timedelta(minutes=2),
+        },
+        settings.jwt_secret,
+        algorithm="HS256",
+    )
+    return f"{left} + {right} =?", token
+
+
+def verify_captcha(token: str, answer: str, settings: Settings) -> bool:
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret,
+            algorithms=["HS256"],
+            issuer=settings.jwt_issuer,
+        )
+        expected = sha256(f"{int(answer.strip())}:{settings.jwt_secret}".encode()).hexdigest()
+        return payload.get("type") == "captcha" and compare_digest(
+            expected, str(payload.get("answer_hash", ""))
+        )
+    except (InvalidTokenError, TypeError, ValueError):
+        return False
 
 
 async def current_user(

@@ -15,17 +15,19 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import ValidationError
-from sqlalchemy import and_, case, func, or_, select, text, update
+from sqlalchemy import and_, case, delete, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .auth import (
     AuthenticationError,
+    create_captcha,
     create_token,
     current_user,
     decode_token,
     password_hash,
     require_roles,
+    verify_captcha,
 )
 from .config import Settings, get_settings
 from .cdn import assess_targets
@@ -53,6 +55,7 @@ from .schemas import (
     AuditLogRead,
     AssetRead,
     AssetUpdate,
+    CaptchaChallengeRead,
     ConsultationMessageCreate,
     ConsultationResponse,
     LoginRequest,
@@ -61,6 +64,7 @@ from .schemas import (
     OrganizationUpdate,
     PageData,
     DomainPrecheckRequest,
+    DashboardSummaryRead,
     PortPrecheckRequest,
     QAMessageCreate,
     QAMessageRead,
@@ -258,11 +262,23 @@ async def health_ready():
     return {"status": "ready"}
 
 
+@app.get("/api/v1/auth/captcha", response_model=ApiEnvelope[CaptchaChallengeRead])
+async def captcha(settings: Settings = Depends(get_settings)):
+    question, token = create_captcha(settings)
+    return envelope(CaptchaChallengeRead(question=question, token=token))
+
+
 @app.post("/api/v1/auth/login", response_model=LoginResponse)
 @app.post("/api/auth/login", response_model=LoginResponse)
-async def login(payload: LoginRequest, response: Response, session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+async def login(payload: LoginRequest, request: Request, response: Response, session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
     # Before this body runs, FastAPI validates LoginRequest and resolves both dependencies.
     # A valid password becomes a signed JWT returned in JSON and an HTTP-only cookie.
+    if request.url.path == "/api/v1/auth/login" and not (
+        payload.captcha_token
+        and payload.captcha_answer
+        and verify_captcha(payload.captcha_token, payload.captcha_answer, settings)
+    ):
+        raise AppError(400, "CAPTCHA_INVALID", "验证码错误或已过期")
     username = payload.username.strip().lower()
     query = select(User).where(User.username == username, User.is_active.is_(True))
     if isinstance(payload.org_id, uuid.UUID):
@@ -919,6 +935,26 @@ async def retry_task(task_id: uuid.UUID, user: User = Depends(require_roles("adm
     return retried
 
 
+@app.delete("/api/v1/tasks/{task_id}", response_model=ApiEnvelope[None])
+async def delete_task(
+    task_id: uuid.UUID,
+    user: User = Depends(require_roles("admin", "operator", "security_expert")),
+    session: AsyncSession = Depends(get_session),
+):
+    task = await scoped_task(session, task_id, user)
+    if task.status not in {"SUCCEEDED", "PARTIAL_SUCCEEDED", "FAILED", "CANCELLED"}:
+        raise AppError(409, "TASK_NOT_DELETABLE", "Only terminal tasks can be deleted")
+    await session.execute(update(Task).where(Task.parent_id == task.id).values(parent_id=None))
+    await session.execute(update(Vulnerability).where(Vulnerability.task_id == task.id).values(task_id=None))
+    await session.execute(update(Report).where(Report.task_id == task.id).values(task_id=None))
+    await session.execute(delete(TaskEvent).where(TaskEvent.task_id == task.id))
+    await session.execute(delete(QAMessage).where(QAMessage.task_id == task.id))
+    await add_audit(session, user, "task.delete", "task", task.id)
+    await session.delete(task)
+    await session.commit()
+    return envelope(None, message="Task deleted")
+
+
 @app.get(
     "/api/v1/vulnerabilities",
     response_model=ApiEnvelope[PageData[VulnerabilityListRead]],
@@ -1116,6 +1152,19 @@ async def update_vulnerability(vulnerability_id: uuid.UUID, payload: Vulnerabili
     await session.commit()
     await session.refresh(item)
     return item
+
+
+@app.delete("/api/v1/vulnerabilities/{vulnerability_id}", response_model=ApiEnvelope[None])
+async def delete_vulnerability(
+    vulnerability_id: uuid.UUID,
+    user: User = Depends(require_roles("admin", "operator", "security_expert")),
+    session: AsyncSession = Depends(get_session),
+):
+    item = await read_vulnerability(vulnerability_id, user, session)
+    await add_audit(session, user, "vulnerability.delete", "vulnerability", item.id)
+    await session.delete(item)
+    await session.commit()
+    return envelope(None, message="Vulnerability deleted")
 
 
 @app.get("/api/v1/reports", response_model=ApiEnvelope[PageData[ReportListRead]])
@@ -1525,11 +1574,50 @@ async def list_ai_logs(plan_id: uuid.UUID | None = None, level: str | None = Que
     return envelope(page_data([AiLogRead.model_validate(item) for item in items], total or 0, page, page_size))
 
 
-@app.get("/api/v1/dashboard/summary")
+@app.get("/api/v1/dashboard/summary", response_model=ApiEnvelope[DashboardSummaryRead])
 async def dashboard_summary(user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
     async def count(model, *criteria):
         return await session.scalar(select(func.count()).select_from(model).where(model.org_id == user.org_id, *criteria)) or 0
-    return envelope({"assets": await count(Asset), "running_tasks": await count(Task, Task.status.in_(["QUEUED", "RUNNING", "CANCELLING"])), "open_vulnerabilities": await count(Vulnerability, Vulnerability.status != "FIXED"), "reports": await count(Report)})
+    metrics = {
+        "assets": await count(Asset),
+        "tasks": await count(Task),
+        "running_tasks": await count(Task, Task.status.in_(["QUEUED", "RUNNING", "CANCELLING"])),
+        "failed_tasks": await count(Task, Task.status == "FAILED"),
+        "high_risk": await count(Vulnerability, Vulnerability.severity.in_(["critical", "high"])),
+        "vulnerabilities": await count(Vulnerability),
+        "open_vulnerabilities": await count(Vulnerability, Vulnerability.status != "FIXED"),
+        "reports": await count(Report),
+    }
+    today = datetime.now(UTC).date()
+    starts = [today - timedelta(days=offset) for offset in range(6, -1, -1)]
+    since = datetime.combine(starts[0], datetime.min.time(), tzinfo=UTC)
+    rows = (await session.scalars(select(Vulnerability).where(
+        Vulnerability.org_id == user.org_id,
+        Vulnerability.created_at >= since,
+    ))).all()
+    trend = [{"start": item.isoformat(), "critical": 0, "high": 0, "medium": 0, "low": 0} for item in starts]
+    index = {item["start"]: item for item in trend}
+    for vulnerability in rows:
+        key = vulnerability.created_at.astimezone(UTC).date().isoformat()
+        if key in index and vulnerability.severity in {"critical", "high", "medium", "low"}:
+            index[key][vulnerability.severity] += 1
+    ai_summary = {
+        "warnings": ([f"当前有 {metrics['open_vulnerabilities']} 个未关闭漏洞。"] if metrics["open_vulnerabilities"] else ["当前没有未关闭漏洞。"]),
+        "priority_findings": ([f"优先检查 {metrics['failed_tasks']} 个异常任务及 {metrics['high_risk']} 个严重或高危漏洞。"] if metrics["failed_tasks"] or metrics["high_risk"] else ["当前没有异常任务或高危漏洞，需要保持常规巡检。"]),
+        "remediation": (["优先处置高危漏洞，完成修复后安排复测。"] if metrics["open_vulnerabilities"] else ["继续保持资产盘点和定期验证。"]),
+        "source": "fallback",
+    }
+    settings = get_settings()
+    if settings.openai_api_key and settings.openai_api_key.get_secret_value():
+        try:
+            message = await asyncio.wait_for(
+                run_task_expert_agent(settings, "请用一句话总结当前平台风险并给出修复建议。", metrics),
+                timeout=min(settings.agent_timeout_seconds, 8),
+            )
+            ai_summary = {**ai_summary, "priority_findings": [message], "source": "deepseek"}
+        except Exception:
+            pass
+    return envelope({"metrics": metrics, "ai_summary": ai_summary, "risk_trend": trend})
 
 
 async def websocket_user(websocket: WebSocket, settings: Settings) -> User | None:

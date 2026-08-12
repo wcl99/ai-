@@ -59,6 +59,8 @@ function ReauthenticationHarness() {
       <button type="button" onClick={() => void login({
         username: 'admin',
         password: 'correct-password',
+        captcha_token: 'captcha-token',
+        captcha_answer: '7',
       })}
       >
         reauthenticate
@@ -163,19 +165,25 @@ describe('authenticated routes', () => {
   });
 
   it('shows the API message for invalid credentials', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(response({
-        success: false,
-        code: 'UNAUTHORIZED',
-        message: 'Authentication required',
-        details: null,
-      }, 401))
-      .mockResolvedValueOnce(response({
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === '/api/v1/auth/captcha') return response({
+        success: true,
+        message: 'ok',
+        data: { question: '4 + 3 =?', token: 'captcha-token', expires_in: 120 },
+      });
+      if (String(input) === '/api/v1/auth/login') return response({
         success: false,
         code: 'UNAUTHORIZED',
         message: '用户名或密码错误',
         details: null,
-      }, 401));
+      }, 401);
+      return response({
+        success: false,
+        code: 'UNAUTHORIZED',
+        message: 'Authentication required',
+        details: null,
+      }, 401);
+    });
     vi.stubGlobal('fetch', fetchMock);
     const interaction = userEvent.setup();
     renderRoute('/login');
@@ -183,6 +191,7 @@ describe('authenticated routes', () => {
 
     await interaction.type(screen.getByPlaceholderText('请输入用户名'), 'admin');
     await interaction.type(screen.getByPlaceholderText('请输入密码'), 'wrong-password');
+    await interaction.type(screen.getByPlaceholderText('请输入验证码'), '7');
     await interaction.click(screen.getByRole('button', { name: /登\s*录/ }));
 
     expect(await screen.findByText('用户名或密码错误')).toBeInTheDocument();
@@ -205,20 +214,29 @@ describe('authenticated routes', () => {
   });
 
   it('restores the complete requested destination after login', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(response({
-        success: false,
-        code: 'UNAUTHORIZED',
-        message: 'Authentication required',
-        details: null,
-      }, 401))
-      .mockResolvedValueOnce(response({
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/v1/auth/captcha') return response({
+        success: true,
+        message: 'ok',
+        data: { question: '2 + 5 =?', token: 'captcha-token', expires_in: 120 },
+      });
+      if (String(input) === '/api/v1/auth/login') {
+        expect(init?.method).toBe('POST');
+        return response({
         success: true,
         token: 'not-persisted',
         token_type: 'bearer',
         expires_in: 3600,
         user,
-      }));
+        });
+      }
+      return response({
+        success: false,
+        code: 'UNAUTHORIZED',
+        message: 'Authentication required',
+        details: null,
+      }, 401);
+    });
     vi.stubGlobal('fetch', fetchMock);
     const interaction = userEvent.setup();
     renderRoute('/tasks?status=running#latest');
@@ -226,9 +244,16 @@ describe('authenticated routes', () => {
 
     await interaction.type(screen.getByPlaceholderText('请输入用户名'), 'admin');
     await interaction.type(screen.getByPlaceholderText('请输入密码'), 'correct-password');
+    await interaction.type(screen.getByPlaceholderText('请输入验证码'), '7');
     await interaction.click(screen.getByRole('button', { name: /登\s*录/ }));
 
     expect(await screen.findByTestId('location')).toHaveTextContent('/tasks?status=running#latest');
+    const loginCall = fetchMock.mock.calls.find(([input]) => input === '/api/v1/auth/login');
+    expect(loginCall).toBeDefined();
+    expect(JSON.parse(String(loginCall?.[1]?.body))).toEqual(expect.objectContaining({
+      captcha_token: 'captcha-token',
+      captcha_answer: '7',
+    }));
   });
 
   it('keeps the session and shows an error when logout fails', async () => {

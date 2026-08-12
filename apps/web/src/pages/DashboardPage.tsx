@@ -11,10 +11,10 @@ import {
   TeamOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { Alert, Button, Card, Progress, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { listAssets, listReports, listTasks, listVulnerabilities } from '../api/resources';
+import { getDashboardSummary, listAssets, listReports, listTasks, listVulnerabilities } from '../api/resources';
 import { MetricCard, SectionTitle } from '../components/Ui';
 import type { Metric } from '../types';
 
@@ -50,8 +50,9 @@ export function DashboardPage() {
       { queryKey: ['reports', 'dashboard-total'], queryFn: () => listReports({ page: 1, pageSize: 1 }) },
     ],
   });
+  const dashboard = useQuery({ queryKey: ['dashboard', 'summary'], queryFn: getDashboardSummary });
   const queries = [tasks, running, assets, vulnerabilities, high, reports];
-  const firstError = queries.find((query) => query.isError)?.error;
+  const firstError = [...queries, dashboard].find((query) => query.isError)?.error;
   const metrics: Metric[] = [
     { label: '任务总数', value: totalValue(tasks.data?.total, tasks.isError), tone: 'blue' },
     { label: '进行中任务', value: totalValue(running.data?.total, running.isError), tone: 'blue' },
@@ -78,8 +79,17 @@ export function DashboardPage() {
       </div>
 
       <div className="dashboard-main-grid">
-        <Card variant="borderless" className="summary-card"><SectionTitle icon={<RobotOutlined />} title="AI 今日摘要" /><TruthfulEmpty text="暂无可验证的 AI 摘要数据" /></Card>
-        <Card variant="borderless" className="trend-card"><SectionTitle icon={<BarChartOutlined />} title="风险趋势" /><TruthfulEmpty text="暂无历史趋势数据" /></Card>
+        <Card variant="borderless" className="summary-card"><SectionTitle icon={<RobotOutlined />} title="AI 今日摘要" />
+          {dashboard.isPending ? <TruthfulEmpty text="正在生成摘要..." /> : dashboard.data ? <div className="dashboard-ai-summary">
+            <SummaryBlock tone="danger" title="高危风险预警" items={dashboard.data.aiSummary.warnings} />
+            <SummaryBlock tone="warning" title="重点发现" items={dashboard.data.aiSummary.priorityFindings} />
+            <SummaryBlock tone="safe" title="处置建议" items={dashboard.data.aiSummary.remediation} />
+            <span className="ai-source">{dashboard.data.aiSummary.source === 'deepseek' ? 'DeepSeek 分析' : '基于平台数据生成'}</span>
+          </div> : <TruthfulEmpty text="摘要暂不可用" />}
+        </Card>
+        <Card variant="borderless" className="trend-card"><SectionTitle icon={<BarChartOutlined />} title="风险趋势" />
+          {dashboard.isPending ? <TruthfulEmpty text="正在加载风险趋势..." /> : dashboard.data ? <RiskTrend values={dashboard.data.riskTrend} /> : <TruthfulEmpty text="趋势暂不可用" />}
+        </Card>
         <Card variant="borderless" className="risk-card">
           <SectionTitle icon={<BugOutlined />} title="风险概况" />
           <div className="risk-content"><div className="risk-donut"><div><span>漏洞总数</span><strong>{totalValue(vulnerabilities.data?.total, vulnerabilities.isError)}</strong></div></div><ul><li><i className="dot high" />高危 <strong>{totalValue(high.data?.total, high.isError)}</strong></li><li><i className="dot low" />其他 <strong>{otherRisk}</strong></li></ul></div>
@@ -103,4 +113,16 @@ export function DashboardPage() {
 
 function TruthfulEmpty({ text }: { text: string }) {
   return <div className="truthful-empty">{text}</div>;
+}
+
+function SummaryBlock({ tone, title, items }: { tone: 'danger' | 'warning' | 'safe'; title: string; items: string[] }) {
+  return <div className={`dashboard-summary-block ${tone}`}><strong>{title}</strong><ul>{items.map((item) => <li key={item}>{item}</li>)}</ul></div>;
+}
+
+function RiskTrend({ values }: { values: Array<{ start: string; critical: number; high: number; medium: number; low: number }> }) {
+  const max = Math.max(1, ...values.map((item) => item.critical + item.high + item.medium + item.low));
+  return <div className="dashboard-risk-trend" aria-label="风险趋势图">
+    <div className="dashboard-risk-bars">{values.map((item) => <div className="dashboard-risk-bar" key={item.start} title={`${item.start}: ${item.critical + item.high + item.medium + item.low}`}><i className="critical" style={{ height: `${item.critical / max * 100}%` }} /><i className="high" style={{ height: `${item.high / max * 100}%` }} /><i className="medium" style={{ height: `${item.medium / max * 100}%` }} /><i className="low" style={{ height: `${item.low / max * 100}%` }} /><span>{item.start.slice(5)}</span></div>)}</div>
+    <div className="dashboard-risk-legend"><span><i className="critical" />严重</span><span><i className="high" />高危</span><span><i className="medium" />中危</span><span><i className="low" />低危</span></div>
+  </div>;
 }

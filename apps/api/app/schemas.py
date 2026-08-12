@@ -30,6 +30,35 @@ class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=80)
     password: str = Field(min_length=8, max_length=256)
     org_id: uuid.UUID | int | None = None
+    captcha_token: str | None = Field(default=None, max_length=1000)
+    captcha_answer: str | None = Field(default=None, max_length=16)
+
+
+class CaptchaChallengeRead(BaseModel):
+    question: str
+    token: str
+    expires_in: int = 120
+
+
+class DashboardRiskTrendRead(BaseModel):
+    start: str
+    critical: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+
+
+class DashboardAISummaryRead(BaseModel):
+    warnings: list[str]
+    priority_findings: list[str]
+    remediation: list[str]
+    source: Literal["deepseek", "fallback"]
+
+
+class DashboardSummaryRead(BaseModel):
+    metrics: dict[str, int]
+    ai_summary: DashboardAISummaryRead
+    risk_trend: list[DashboardRiskTrendRead]
 
 
 class UserRead(ORMModel):

@@ -7,7 +7,7 @@ import {
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, DatePicker, Drawer, Dropdown, Input, Select, Space, Table, Tag } from 'antd';
+import { Alert, Button, Card, DatePicker, Descriptions, Drawer, Dropdown, Input, Popconfirm, Select, Space, Table, Tag, message } from 'antd';
 import type { MenuProps } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { useState } from 'react';
@@ -16,9 +16,13 @@ import {
   listReports,
   listTasks,
   listVulnerabilities,
+  getVulnerability,
   previewReport,
   reportDownloadUrl,
   updateVulnerability,
+  deleteTask,
+  deleteVulnerability,
+  stopTask,
 } from '../api/resources';
 import type {
   TaskStatusCode,
@@ -80,6 +84,8 @@ function pageMetrics(
 
 export function TasksPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [selected, setSelected] = useState<TaskRecord>();
   const [page, setPage] = useState(1);
   const [keyword, setKeyword] = useState('');
   const [testType, setTestType] = useState<string>();
@@ -96,6 +102,14 @@ export function TasksPage() {
   });
   const rows = query.data?.items ?? [];
   const visibleRows = rows;
+  const stopMutation = useMutation({
+    mutationFn: stopTask,
+    onSuccess: () => { message.success('暂停请求已提交'); void queryClient.invalidateQueries({ queryKey: ['tasks'] }); },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: deleteTask,
+    onSuccess: () => { message.success('任务已删除'); void queryClient.invalidateQueries({ queryKey: ['tasks'] }); },
+  });
   const metrics = pageMetrics('全部任务', query.data?.total, query.isError, [
     { label: '本页排队', value: rows.filter((item) => item.statusCode === 'QUEUED').length, tone: 'orange', icon: 'metric-task-queued' },
     { label: '本页进行中', value: rows.filter((item) => item.statusCode === 'RUNNING').length, tone: 'blue', icon: 'metric-task-running' },
@@ -112,7 +126,12 @@ export function TasksPage() {
     { title: '当前状态', dataIndex: 'status', width: 110, render: (value) => <StatusTag status={value} /> },
     { title: '进度', dataIndex: 'progress', width: 150, render: (value, row) => <ProgressCell value={value} tone={row.status === '异常' ? 'red' : row.status === '已完成' ? 'green' : 'blue'} /> },
     { title: '阶段', dataIndex: 'phase', width: 120, render: (value) => value || '—' },
-    { title: '回看执行', width: 120, render: (_, row) => <Button type="link" onClick={() => navigate(`/pentest/session/${row.id}`)}>打开执行页</Button> },
+    { title: '操作', width: 250, fixed: 'right', render: (_, row) => <Space size={2}>
+      <Button type="link" onClick={() => setSelected(row)}>摘要</Button>
+      <Button type="link" aria-label="打开执行页" onClick={() => navigate(`/pentest/session/${row.id}`)}>详情</Button>
+      {['QUEUED', 'RUNNING'].includes(row.statusCode) && <Popconfirm title="确认暂停该任务？" description="暂停请求将提交到执行引擎。" onConfirm={() => stopMutation.mutate(row.id)}><Button type="link" loading={stopMutation.isPending}>暂停</Button></Popconfirm>}
+      {['SUCCEEDED', 'PARTIAL_SUCCEEDED', 'FAILED', 'CANCELLED'].includes(row.statusCode) && <Popconfirm title="确认删除该任务？" description="执行记录将删除，漏洞和报告仍会保留。" okButtonProps={{ danger: true }} onConfirm={() => deleteMutation.mutate(row.id)}><Button type="link" danger loading={deleteMutation.isPending}>删除</Button></Popconfirm>}
+    </Space> },
   ];
 
   return (
@@ -149,6 +168,22 @@ export function TasksPage() {
           scroll={{ x: 1200 }}
         />
       )}
+      <Drawer open={Boolean(selected)} width={520} title="任务摘要" onClose={() => setSelected(undefined)}>
+        {selected && <div className="task-summary-drawer">
+          <Descriptions column={1} size="small" bordered items={[
+            { key: 'name', label: '任务名称', children: selected.name },
+            { key: 'id', label: '任务 ID', children: selected.id },
+            { key: 'target', label: '目标/资产', children: selected.target },
+            { key: 'type', label: '任务类型', children: selected.type },
+            { key: 'creator', label: '创建人', children: selected.creator },
+            { key: 'status', label: '当前状态', children: <StatusTag status={selected.status} /> },
+            { key: 'progress', label: '执行进度', children: <ProgressCell value={selected.progress} tone={selected.statusCode === 'FAILED' ? 'red' : selected.statusCode === 'SUCCEEDED' ? 'green' : 'blue'} /> },
+            { key: 'phase', label: '当前阶段', children: selected.phase || '暂无阶段信息' },
+          ]} />
+          <Card size="small" title="摘要" className="task-summary-copy"><p>{selected.errorMessage || `${selected.name} 当前处于${selected.status}，执行进度 ${selected.progress}%，目标为 ${selected.target}。`}</p></Card>
+          <Button type="primary" block onClick={() => navigate(`/pentest/session/${selected.id}`)}>查看任务详情</Button>
+        </div>}
+      </Drawer>
     </ListPage>
   );
 }
@@ -161,6 +196,7 @@ export function VulnerabilitiesPage() {
   const [status, setStatus] = useState<VulnerabilityStatusCode>();
   const [keyword, setKeyword] = useState('');
   const [createdRange, setCreatedRange] = useState<[string, string]>();
+  const [selectedId, setSelectedId] = useState<string>();
   const query = useQuery({
     queryKey: ['vulnerabilities', { page, pageSize: PAGE_SIZE, severity, status, keyword, createdRange }],
     queryFn: () => listVulnerabilities({ page, pageSize: PAGE_SIZE, severity, status, keyword: keyword.trim() || undefined, createdFrom: createdRange?.[0], createdTo: createdRange?.[1] }),
@@ -168,6 +204,16 @@ export function VulnerabilitiesPage() {
   const mutation = useMutation({
     mutationFn: ({ id, nextStatus }: { id: string; nextStatus: VulnerabilityStatusCode }) => updateVulnerability(id, nextStatus),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vulnerabilities'] }),
+  });
+  const detail = useQuery({
+    queryKey: ['vulnerability', selectedId],
+    queryFn: () => getVulnerability(selectedId!),
+    enabled: Boolean(selectedId),
+    retry: false,
+  });
+  const remove = useMutation({
+    mutationFn: deleteVulnerability,
+    onSuccess: () => { message.success('漏洞已删除'); setSelectedId(undefined); void queryClient.invalidateQueries({ queryKey: ['vulnerabilities'] }); },
   });
   const rows = query.data?.items ?? [];
   const visibleRows = rows;
@@ -195,7 +241,7 @@ export function VulnerabilitiesPage() {
     { title: '状态', dataIndex: 'status', width: 100, render: (value) => <StatusTag status={value} /> },
     { title: '等级', dataIndex: 'severity', width: 90, render: (value) => <Tag color={value === '严重' ? 'red' : value === '高危' ? 'orange' : 'blue'}>{value}</Tag> },
     { title: '标签', dataIndex: 'tags', render: (tags: string[]) => tags.map((tag) => <Tag key={tag}>{tag}</Tag>) },
-    { title: '操作', width: 240, render: (_, row) => <Space><Button type="link" aria-label="查看漏洞详情" onClick={() => navigate(`/vulnerabilities/${row.id}`)}>详情</Button><Dropdown menu={statusMenu(row)}><Button type="link" loading={mutation.isPending} aria-label="处置漏洞">处置漏洞</Button></Dropdown></Space> },
+    { title: '操作', width: 250, fixed: 'right', render: (_, row) => <Space size={2}><Button type="link" aria-label="查看漏洞详情" onClick={() => setSelectedId(row.id)}>详情</Button><Dropdown menu={statusMenu(row)}><Button type="link" loading={mutation.isPending} aria-label="处置漏洞">处置</Button></Dropdown><Popconfirm title="确认删除该漏洞？" description="删除后无法恢复。" okButtonProps={{ danger: true }} onConfirm={() => remove.mutate(row.id)}><Button type="link" danger loading={remove.isPending}>删除</Button></Popconfirm></Space> },
   ];
 
   return (
@@ -212,8 +258,23 @@ export function VulnerabilitiesPage() {
       {query.isError ? <ErrorState error={query.error} retry={() => query.refetch()} /> : (
         <Table rowKey="id" columns={columns} dataSource={visibleRows} loading={query.isPending} locale={{ emptyText: '暂无漏洞数据' }} pagination={pagination(page, query.data?.total ?? 0, setPage)} scroll={{ x: 1250 }} />
       )}
+      <Drawer className="material-vulnerability-drawer" open={Boolean(selectedId)} width={540} title={detail.data ? <Space><strong>{detail.data.title}</strong><Tag color={detail.data.severity === '严重' ? 'red' : detail.data.severity === '高危' ? 'orange' : 'blue'}>{detail.data.severity}</Tag></Space> : '漏洞详情预览'} onClose={() => setSelectedId(undefined)}>
+        {detail.isPending && <TruthfulDrawerState text="正在加载漏洞详情..." />}
+        {detail.isError && <Alert type="error" showIcon message={errorMessage(detail.error)} action={<Button onClick={() => detail.refetch()}>重试</Button>} />}
+        {detail.data && <div className="detail-drawer">
+          <section><h3>基础信息</h3><div className="detail-meta"><span>漏洞 ID<strong>{detail.data.id}</strong></span><span>当前状态<strong><StatusTag status={detail.data.status} /></strong></span><span>来源模块<strong>{detail.data.sourceTool || '渗透测试'}</strong></span><span>关联资产<strong>{detail.data.url || detail.data.asset}</strong></span><span>所属任务<strong>{detail.data.task}</strong></span><span>首次发现<strong>{dateTime(detail.data.discoveredAt)}</strong></span></div></section>
+          <Card className="drawer-insight" title="AI 风险摘要"><p>{detail.data.description || '该漏洞已被平台识别，请结合证据确认影响范围并优先处置。'}</p></Card>
+          <Card className="drawer-remediation" title="修复建议摘要"><p>{detail.data.remediation || '限制不可信输入，升级受影响组件，并在修复完成后安排复测。'}</p></Card>
+          <div className="drawer-priority"><div><span>复现状态</span><strong>{detail.data.status}</strong></div><div><span>AI 优先评分</span><strong>{detail.data.severity === '严重' ? '★★★★★' : detail.data.severity === '高危' ? '★★★★☆' : '★★★☆☆'}</strong></div></div>
+          <div className="drawer-actions"><Button type="primary" block onClick={() => navigate(`/vulnerabilities/${detail.data.id}`)}>查看详情</Button></div>
+        </div>}
+      </Drawer>
     </ListPage>
   );
+}
+
+function TruthfulDrawerState({ text }: { text: string }) {
+  return <div className="truthful-empty">{text}</div>;
 }
 
 export function ReportsPage() {

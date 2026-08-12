@@ -1,17 +1,31 @@
-import { LockOutlined, SafetyCertificateOutlined, UserOutlined } from '@ant-design/icons';
+import {
+  LockOutlined,
+  ReloadOutlined,
+  SafetyCertificateOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import { Alert, Button, Checkbox, Form, Input } from 'antd';
+import { useQuery } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { getCaptcha } from '../auth/api';
 
 interface LoginValues {
   username: string;
   password: string;
-  captcha?: string;
+  captcha: string;
   remember?: boolean;
 }
 
 export function LoginPage() {
   const { login, isLoading, error } = useAuth();
+  const [form] = Form.useForm<LoginValues>();
+  const captcha = useQuery({
+    queryKey: ['auth', 'captcha'],
+    queryFn: getCaptcha,
+    staleTime: 0,
+    retry: false,
+  });
   const location = useLocation();
   const navigate = useNavigate();
   const requestedLocation = (location.state as {
@@ -22,12 +36,24 @@ export function LoginPage() {
     : '/overview';
 
   const handleLogin = async (values: LoginValues) => {
+    if (!captcha.data) return;
     try {
-      await login(values);
+      await login({
+        username: values.username,
+        password: values.password,
+        captcha_token: captcha.data.token,
+        captcha_answer: values.captcha,
+      });
       navigate(destination, { replace: true });
     } catch {
-      // AuthProvider exposes the sanitized API error for the alert below.
+      form.setFieldValue('captcha', '');
+      void captcha.refetch();
     }
+  };
+
+  const refreshCaptcha = () => {
+    form.setFieldValue('captcha', '');
+    void captcha.refetch();
   };
 
   return (
@@ -40,24 +66,36 @@ export function LoginPage() {
         <div className="login-card material-login-card">
           <div className="login-card-heading"><h2>系统登录</h2><p>欢迎使用 AI 安服平台</p></div>
           {error && <Alert className="login-error" type="error" showIcon message={error.message} />}
-          <Form layout="vertical" onFinish={handleLogin} initialValues={{ remember: true }}>
+          <Form form={form} layout="vertical" onFinish={handleLogin} initialValues={{ remember: true }}>
             <Form.Item label="用户名" name="username" rules={[{ required: true, message: '请输入用户名' }]}>
               <Input size="large" prefix={<UserOutlined />} placeholder="请输入用户名" autoComplete="username" />
             </Form.Item>
             <Form.Item label="密码" name="password" rules={[{ required: true, message: '请输入密码' }]}>
               <Input.Password size="large" prefix={<LockOutlined />} placeholder="请输入密码" autoComplete="current-password" />
             </Form.Item>
-            <Form.Item label="验证码" className="material-captcha-field">
+            <Form.Item label="验证码" className="material-captcha-field" required>
               <div className="material-captcha-row">
-                <Form.Item name="captcha" noStyle><Input size="large" aria-label="验证码" placeholder="请输入验证码" /></Form.Item>
-                <span aria-label="演示验证码">4 A 7 D</span>
+                <Form.Item name="captcha" noStyle rules={[{ required: true, message: '请输入验证码' }]}>
+                  <Input size="large" aria-label="验证码" placeholder="请输入验证码" inputMode="numeric" autoComplete="off" />
+                </Form.Item>
+                <button
+                  className="material-captcha-challenge"
+                  type="button"
+                  aria-label="刷新验证码"
+                  title="刷新验证码"
+                  onClick={refreshCaptcha}
+                  disabled={captcha.isFetching}
+                >
+                  <span>{captcha.data?.question ?? '加载中'}</span>
+                  <ReloadOutlined spin={captcha.isFetching} />
+                </button>
               </div>
             </Form.Item>
             <div className="material-login-options">
               <Form.Item name="remember" valuePropName="checked" noStyle><Checkbox>记住登录状态</Checkbox></Form.Item>
               <button type="button" disabled>忘记密码？</button>
             </div>
-            <Button type="primary" size="large" htmlType="submit" block loading={isLoading}>登 录</Button>
+            <Button type="primary" size="large" htmlType="submit" block loading={isLoading} disabled={!captcha.data}>登 录</Button>
           </Form>
           <footer>© 2026 云盾智意 · 智能化渗透测试系统</footer>
         </div>

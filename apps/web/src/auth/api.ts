@@ -1,9 +1,21 @@
 import { apiRequest } from '../api/client';
-import { emptyEnvelopeSchema, loginResponseSchema, userSchema } from '../api/schemas';
+import {
+  captchaChallengeSchema,
+  emptyEnvelopeSchema,
+  loginResponseSchema,
+  userSchema,
+} from '../api/schemas';
 
 export interface LoginCredentials {
   username: string;
   password: string;
+  captcha_token: string;
+  captcha_answer: string;
+}
+
+export async function getCaptcha() {
+  const response = await apiRequest('/api/v1/auth/captcha', captchaChallengeSchema);
+  return response.data;
 }
 
 export function getCurrentUser() {

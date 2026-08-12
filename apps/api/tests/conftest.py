@@ -1,4 +1,5 @@
 import os
+import re
 
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["DATABASE_PASSWORD"] = ""
@@ -15,6 +16,24 @@ from app.auth import password_hash
 from app.db import Base, SessionLocal, engine
 from app.main import app
 from app.models import Organization, User
+
+
+async def captcha_login(client, username: str, password: str, **extra):
+    challenge = await client.get("/api/v1/auth/captcha")
+    assert challenge.status_code == 200
+    payload = challenge.json()["data"]
+    operands = [int(value) for value in re.findall(r"\d+", payload["question"])]
+    assert len(operands) == 2
+    return await client.post(
+        "/api/v1/auth/login",
+        json={
+            "username": username,
+            "password": password,
+            "captcha_token": payload["token"],
+            "captcha_answer": str(sum(operands)),
+            **extra,
+        },
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -48,9 +67,6 @@ async def client():
 
 @pytest.fixture
 async def authenticated_client(client):
-    response = await client.post(
-        "/api/v1/auth/login",
-        json={"username": "admin", "password": "correct-horse-battery-staple"},
-    )
+    response = await captcha_login(client, "admin", "correct-horse-battery-staple")
     assert response.status_code == 200
     return client

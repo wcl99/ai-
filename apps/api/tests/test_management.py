@@ -2,6 +2,7 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.main import app
 from app.models import User
+from conftest import captcha_login
 
 from sqlalchemy import select
 
@@ -10,13 +11,7 @@ async def test_login_cookie_uses_configured_security_attributes(client):
     settings = get_settings().model_copy(update={"cookie_secure": True})
     app.dependency_overrides[get_settings] = lambda: settings
     try:
-        response = await client.post(
-            "/api/v1/auth/login",
-            json={
-                "username": "admin",
-                "password": "correct-horse-battery-staple",
-            },
-        )
+        response = await captcha_login(client, "admin", "correct-horse-battery-staple")
     finally:
         app.dependency_overrides.pop(get_settings, None)
 
@@ -75,9 +70,8 @@ async def test_admin_creates_digital_human_and_it_can_use_ai_api(authenticated_c
     assert audits.status_code == 200
     assert audits.json()["data"]["total"] == 1
 
-    login = await authenticated_client.post(
-        "/api/v1/auth/login",
-        json={"username": "DIGITAL.AGENT", "password": "digital-agent-password"},
+    login = await captcha_login(
+        authenticated_client, "DIGITAL.AGENT", "digital-agent-password"
     )
     assert login.status_code == 200
     headers = {"Authorization": f"Bearer {login.json()['token']}"}
