@@ -31,4 +31,10 @@ describe('material responsive layout', () => {
     expect(styles).toMatch(/\.app-shell:not\(\.pentest-shell\) \.app-sider\s*\{/s);
     expect(styles).toMatch(/\.app-content:not\(\.pentest-content\) \.metric-grid\s*\{/s);
   });
+
+  it('keeps the vulnerability drawer inside the visible viewport', () => {
+    expect(styles).toMatch(/\.material-vulnerability-drawer \.ant-drawer-content\{[^}]*height\s*:\s*100dvh[^}]*max-height\s*:\s*100dvh/s);
+    expect(styles).toMatch(/\.material-vulnerability-drawer \.detail-drawer\{[^}]*height\s*:\s*100%[^}]*min-height\s*:\s*0/s);
+    expect(styles).not.toMatch(/\.material-vulnerability-drawer \.detail-drawer\{[^}]*min-height\s*:\s*720px/s);
+  });
 });

@@ -30,7 +30,7 @@ const task = {
   created_by_name: '管理员',
 };
 
-const vulnerability = {
+  const vulnerability = {
   id: '33333333-3333-4333-8333-333333333333', plan_id: '22222222-2222-4222-8222-222222222222', task_id: null,
   asset_key: 'example.com', title: 'API 真实漏洞', severity: 'high', status: 'OPEN', description: '真实描述',
   created_at: '2026-07-23T08:00:00Z', updated_at: '2026-07-23T08:01:00Z', task_name: null, tags: ['Web'],
@@ -171,6 +171,7 @@ describe('resource list pages', () => {
     expect(await screen.findByTestId('material-vulnerability-drawer')).toHaveStyle({
       backgroundImage: 'url(/material/vulnerabilities/drawer.png)',
     });
+    expect(screen.getByTestId('material-vulnerability-drawer')).toHaveClass('detail-drawer');
     expect(await screen.findByText('真实描述')).toBeInTheDocument();
     expect(screen.getByText('限制输入并完成复测')).toBeInTheDocument();
     await interaction.click(screen.getByRole('button', { name: '查看详情' }));

@@ -49,6 +49,13 @@ export interface VulnerabilityDetailRecord extends VulnerabilityRecord {
   httpRequest: string | null;
   httpResponse: string | null;
   remediation: string | null;
+  assigneeName: string | null;
+  dueDate: string | null;
+  teamName: string | null;
+  businessName: string | null;
+  reportStatus: string | null;
+  manualRetest: boolean | null;
+  cvssScore: number | null;
 }
 
 export interface AssetRecord {

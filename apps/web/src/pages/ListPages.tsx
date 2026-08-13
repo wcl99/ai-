@@ -266,14 +266,14 @@ export function VulnerabilitiesPage() {
           <div className="material-drawer-meta">
             <span>{detail.data.id}</span>
             <span><StatusTag status={detail.data.status} /></span>
-            <span>{detail.data.sourceTool || '渗透测试'}</span>
+            <span>{detail.data.sourceTool || '—'}</span>
             <span>{detail.data.url || detail.data.asset}</span>
             <span>{detail.data.task || '—'}</span>
             <span>{dateTime(detail.data.discoveredAt)}</span>
             <span>{dateTime(detail.data.updatedAt)}</span>
           </div>
-          <p className="material-drawer-summary">{detail.data.description || '该漏洞已被平台识别，请结合证据确认影响范围并优先处置。'}</p>
-          <p className="material-drawer-remediation">{detail.data.remediation || '限制不可信输入，升级受影响组件，并在修复完成后安排复测。'}</p>
+          <p className="material-drawer-summary">{detail.data.description || '暂无漏洞描述。'}</p>
+          <p className="material-drawer-remediation">{detail.data.remediation || '暂无修复建议。'}</p>
           <strong className="material-drawer-status">{detail.data.status}</strong>
           <strong className="material-drawer-score">{detail.data.severity === '严重' ? '★★★★★' : detail.data.severity === '高危' ? '★★★★☆' : '★★★☆☆'}</strong>
           <button className="material-drawer-detail-button" type="button" aria-label="查看详情" onClick={() => navigate(`/vulnerabilities/${detail.data.id}`)}>查看详情</button>

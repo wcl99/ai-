@@ -363,6 +363,15 @@ export async function getVulnerability(id: string) {
   const response = await apiRequest(`/api/v1/vulnerabilities/${uuid.parse(id)}`, vulnerabilityDetailSchema);
   const base = mapVulnerability({ ...response, task_name: null, tags: tagsFromData(response.data_json) });
   const text = (key: string) => typeof response.data_json[key] === 'string' ? response.data_json[key] as string : null;
+  const textFrom = (...keys: string[]) => keys.map(text).find((value): value is string => Boolean(value)) ?? null;
+  const booleanFrom = (...keys: string[]) => {
+    const value = keys.map((key) => response.data_json[key]).find((entry) => typeof entry === 'boolean');
+    return typeof value === 'boolean' ? value : null;
+  };
+  const numberFrom = (...keys: string[]) => {
+    const value = keys.map((key) => response.data_json[key]).find((entry) => typeof entry === 'number');
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  };
   return {
     ...base,
     sourceTool: text('source_tool'),
@@ -372,6 +381,13 @@ export async function getVulnerability(id: string) {
     httpRequest: text('http_request') ?? text('request_example'),
     httpResponse: text('http_response') ?? text('response_example'),
     remediation: text('vuln_suggestions') ?? text('remediation') ?? text('recommendation'),
+    assigneeName: textFrom('assignee_name', 'assignee', 'owner_name', 'responsible_person'),
+    dueDate: textFrom('due_date', 'deadline', 'repair_deadline', 'fix_deadline'),
+    teamName: textFrom('team_name', 'team', 'owner_team'),
+    businessName: textFrom('business_name', 'business', 'business_line'),
+    reportStatus: textFrom('report_status', 'report_link_status'),
+    manualRetest: booleanFrom('manual_retest', 'requires_manual_retest'),
+    cvssScore: numberFrom('cvss_score', 'cvss'),
   };
 }
 
