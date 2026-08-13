@@ -81,7 +81,7 @@ export function DashboardPage() {
       </div>
 
       <div className="dashboard-main-grid">
-        <MaterialPanel className="summary-card" image="ai-summary.png" label="AI 今日摘要">
+        <MaterialPanel className="summary-card dashboard-material-height" image="ai-summary.png" label="AI 今日摘要">
           {dashboard.isPending ? <TruthfulEmpty text="正在生成摘要..." /> : dashboard.data ? <div className="dashboard-ai-summary material-panel-data">
             <SummaryBlock tone="danger" title="高危风险预警" items={dashboard.data.aiSummary.warnings.map(sanitizeDisplayText)} />
             <SummaryBlock tone="warning" title="重点发现" items={dashboard.data.aiSummary.priorityFindings.map(sanitizeDisplayText)} />
@@ -89,10 +89,10 @@ export function DashboardPage() {
             <span className="ai-source">{dashboard.data.aiSummary.source === 'deepseek' ? 'DeepSeek 分析' : '基于平台数据生成'}</span>
           </div> : <TruthfulEmpty text="摘要暂不可用" />}
         </MaterialPanel>
-        <MaterialPanel className="trend-card" image="risk-trend.png" label="风险趋势">
+        <MaterialPanel className="trend-card dashboard-material-height" image="risk-trend.png" label="风险趋势">
           {dashboard.isPending ? <TruthfulEmpty text="正在加载风险趋势..." /> : dashboard.data ? <div className="material-panel-data"><RiskTrend values={dashboard.data.riskTrend} /></div> : <TruthfulEmpty text="趋势暂不可用" />}
         </MaterialPanel>
-        <Card variant="borderless" className="risk-card">
+        <Card variant="borderless" className="risk-card dashboard-material-height">
           <SectionTitle icon={<BugOutlined />} title="风险概况" />
           <div className="risk-content"><RiskDonut total={Number(totalValue(vulnerabilities.data?.total, vulnerabilities.isError)) || 0} segments={[{ key: 'high', value: Number(totalValue(high.data?.total, high.isError)) || 0, color: '#ff8b2b' }, { key: 'other', value: Number(otherRisk) || 0, color: '#e9edf5' }]} /><ul><li><i className="dot high" />高危 <strong>{totalValue(high.data?.total, high.isError)}</strong></li><li><i className="dot low" />其他 <strong>{otherRisk}</strong></li></ul></div>
         </Card>

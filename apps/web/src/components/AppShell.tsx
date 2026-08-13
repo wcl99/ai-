@@ -179,7 +179,13 @@ export function AppShell({ children }: AppShellProps) {
           selectedKeys={[selectedPath]}
           defaultOpenKeys={openSection ? [openSection] : []}
           items={menuItems(currentTaskRoute)}
-          onClick={({ key }) => key.startsWith('/') && navigate(key)}
+          onClick={({ key }) => {
+            if (key === '/pentest' && currentTaskRoute) {
+              navigate(currentTaskRoute);
+              return;
+            }
+            if (key.startsWith('/')) navigate(key);
+          }}
         />
       </Sider>
       <Layout>

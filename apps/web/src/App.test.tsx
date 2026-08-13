@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { App } from './App';
 import { AuthProvider } from './auth/AuthProvider';
 import { rememberPentestSession } from './pentestSessionRoute';
@@ -91,6 +91,11 @@ function appFetch(input: RequestInfo | URL) {
 }
 
 describe('App', () => {
+  function LocationProbe() {
+    const location = useLocation();
+    return <output data-testid="location-path">{location.pathname}{location.search}</output>;
+  }
+
   function renderRoute(path: string, fetchImplementation = appFetch) {
     vi.stubGlobal('fetch', vi.fn(fetchImplementation));
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -128,6 +133,33 @@ describe('App', () => {
     expect(within(workbench!).queryByText('当前任务')).not.toBeInTheDocument();
     expect(within(taskCenter!).getByText('当前任务')).toBeInTheDocument();
     expect(taskCenter).toHaveClass('ant-menu-submenu-open');
+  });
+
+  it('restores the active penetration session from the workbench entry', async () => {
+    const interaction = userEvent.setup();
+    rememberPentestSession(user.id, task.id);
+    vi.stubGlobal('fetch', vi.fn(appFetch));
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <AuthProvider>
+          <MemoryRouter
+            initialEntries={['/overview']}
+            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          >
+            <LocationProbe />
+            <App />
+          </MemoryRouter>
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('Test Admin');
+    await interaction.click(screen.getByText('工作台'));
+    await interaction.click(screen.getByRole('menuitem', { name: /\u6e17\u900f/ }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location-path')).toHaveTextContent(`/pentest/session/${task.id}`);
+    });
   });
 
   it('uses the shared material shell for penetration testing routes', async () => {
@@ -265,6 +297,15 @@ describe('App', () => {
     expect(container.querySelectorAll('.recent-material-report')).toHaveLength(5);
     expect(screen.getByRole('columnheader', { name: '导出人' })).toBeInTheDocument();
     expect(screen.getByText('平台累计生成 6 份报告，本月新增 3 份。')).toBeInTheDocument();
+  });
+
+  it('keeps the three overview risk panels on a shared material height contract', async () => {
+    const { container } = renderRoute('/overview');
+
+    await screen.findByText('AI 今日摘要');
+    const panels = container.querySelectorAll('.dashboard-main-grid > *');
+    expect(panels).toHaveLength(3);
+    panels.forEach((panel) => expect(panel).toHaveClass('dashboard-material-height'));
   });
 
   it.each([
