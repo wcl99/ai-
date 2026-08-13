@@ -29,6 +29,14 @@ from .result_aggregation import (
 logger = logging.getLogger(__name__)
 RETRYABLE_ENGINE_CODES = {"ENGINE_UNAVAILABLE"}
 ACTIVE_STATUS_RANK = {"QUEUED": 0, "RUNNING": 1}
+PHASE_RANK = {
+    "INIT": 0,
+    "INFO_COLLECTING": 1,
+    "SCANNING": 2,
+    "EXPLOITING": 3,
+    "REPORT_GENERATING": 4,
+    "FINISHED": 5,
+}
 
 
 def apply_engine_state(task: Task, result: EngineTask) -> None:
@@ -43,7 +51,26 @@ def apply_engine_state(task: Task, result: EngineTask) -> None:
         phase = task.phase
     task.status = status
     task.phase = phase
-    task.progress = max(task.progress, result.progress)
+    task.progress = 100 if status in TERMINAL_STATUSES else max(task.progress, result.progress)
+
+
+def aggregate_child_progress(parent: Task, children: list[Task]) -> None:
+    """Use persisted child state when Xiaoyi's parent progress lags behind."""
+    if not children:
+        return
+    progress = sum(child.progress for child in children) / len(children)
+    if parent.status not in TERMINAL_STATUSES:
+        progress = min(progress, 99)
+    parent.progress = max(parent.progress, progress)
+    active_children = [child for child in children if child.status not in TERMINAL_STATUSES]
+    phase_children = active_children or (
+        children if parent.status in TERMINAL_STATUSES else []
+    )
+    if not phase_children:
+        return
+    child_phase = max(phase_children, key=lambda child: PHASE_RANK.get(child.phase, -1)).phase
+    if PHASE_RANK.get(child_phase, -1) > PHASE_RANK.get(parent.phase, -1):
+        parent.phase = child_phase
 
 
 def engine_report_url(raw: dict) -> str | None:
@@ -156,6 +183,7 @@ async def sync_report(session, task: Task, raw: dict) -> None:
 async def sync_children(session, client, parent: Task) -> tuple[list[dict], list[str]]:
     all_tools: list[dict] = []
     child_errors: list[str] = []
+    synced_children: list[Task] = []
     try:
         results = await client.get_children(parent.external_task_id)
     except AppError as exc:
@@ -186,6 +214,7 @@ async def sync_children(session, client, parent: Task) -> tuple[list[dict], list
             existing[result.external_task_id] = child
         previous = (child.status, child.phase, child.progress)
         apply_engine_state(child, result)
+        synced_children.append(child)
         child.raw_external = redact_sensitive(result.raw)
         error_message = result.error_message
         tools: list[dict] = []
@@ -219,6 +248,7 @@ async def sync_children(session, client, parent: Task) -> tuple[list[dict], list
                     },
                 )
             )
+    aggregate_child_progress(parent, synced_children)
     return all_tools, list(dict.fromkeys(child_errors))
 
 

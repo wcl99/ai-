@@ -168,9 +168,9 @@ describe('App', () => {
   it('uses the exported material brand outside penetration testing', async () => {
     const { container } = renderRoute('/overview');
     await screen.findByRole('button', { name: '用户菜单' });
-    expect(container.querySelector('.material-brand-crop img')).toHaveAttribute(
+    expect(container.querySelector('.material-brand img')).toHaveAttribute(
       'src',
-      '/material/pages/vulnerabilityDetail.png',
+      '/material/source/brand/sidebar-brand.png',
     );
   });
 

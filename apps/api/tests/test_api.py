@@ -1055,6 +1055,49 @@ async def test_task_list_contract_includes_plan_and_creator_summaries(
     assert item["created_by_name"] == "Test Admin"
 
 
+async def test_task_list_metrics_are_global_when_rows_are_filtered(
+    authenticated_client,
+):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": "Task metric scope",
+            "test_type": "standard",
+            "targets": ["metrics.example.test"],
+            "authorization_confirmed": True,
+        },
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+    first = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": plan.json()["id"], "request_id": "metric-running-task"},
+    )
+    second = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": plan.json()["id"], "request_id": "metric-failed-task"},
+    )
+    async with SessionLocal() as session:
+        running = await session.get(Task, uuid.UUID(first.json()["id"]))
+        failed = await session.get(Task, uuid.UUID(second.json()["id"]))
+        running.status = "RUNNING"
+        failed.status = "FAILED"
+        await session.commit()
+
+    response = await authenticated_client.get("/api/v1/tasks?status=RUNNING")
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert {item["id"] for item in data["items"]} == {first.json()["id"]}
+    assert data["metrics"] == {
+        "total": 2,
+        "queued": 0,
+        "running": 1,
+        "completed": 0,
+        "failed": 1,
+        "cancelled": 0,
+    }
+
+
 async def test_only_terminal_tasks_can_be_deleted(authenticated_client):
     plan = await authenticated_client.post(
         "/api/v1/scan-plans",

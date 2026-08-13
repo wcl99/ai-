@@ -19,7 +19,17 @@ function json(body: unknown, status = 200) {
 }
 
 function envelope(items: unknown[], total = items.length, page = 1) {
-  return { success: true, message: 'ok', data: { items, total, page, page_size: 10 } };
+  return {
+    success: true,
+    message: 'ok',
+    data: {
+      items,
+      total,
+      page,
+      page_size: 10,
+      metrics: { total: 21, queued: 4, running: 8, completed: 17, failed: 3, cancelled: 2 },
+    },
+  };
 }
 
 const task = {
@@ -69,11 +79,12 @@ describe('resource list pages', () => {
 
     expect(await screen.findByText('API 真实任务')).toBeInTheDocument();
     expect(screen.getByText('管理员')).toHaveClass('table-nowrap');
-    expect(screen.getByText('本页进行中')).toBeInTheDocument();
-    expect(screen.queryByText('进行中', { selector: '.metric-top span' })).not.toBeInTheDocument();
+    expect(screen.getByText('进行中', { selector: '.metric-top span' })).toBeInTheDocument();
+    expect(screen.queryByText('本页进行中')).not.toBeInTheDocument();
+    expect(screen.getByText('异常', { selector: '.metric-top span' }).closest('.metric-card')?.querySelector('strong')).toHaveTextContent('3');
     await interaction.click(screen.getByTitle('2'));
     expect(await screen.findByText('第二页任务')).toBeInTheDocument();
-    expect(fetchMock.mock.calls[1][0]).toContain('page=2');
+    expect(fetchMock.mock.calls.at(-1)?.[0]).toContain('page=2');
   });
 
   it('opens running and completed tasks in the persisted execution page', async () => {
@@ -168,12 +179,15 @@ describe('resource list pages', () => {
     await screen.findByText('API 真实漏洞');
 
     await interaction.click(screen.getByRole('button', { name: '查看漏洞详情' }));
-    expect(await screen.findByTestId('material-vulnerability-drawer')).toHaveStyle({
+    expect(await screen.findByTestId('material-vulnerability-drawer')).toHaveClass('detail-drawer');
+    expect(screen.getByTestId('material-vulnerability-drawer')).not.toHaveStyle({
       backgroundImage: 'url(/material/vulnerabilities/drawer.png)',
     });
-    expect(screen.getByTestId('material-vulnerability-drawer')).toHaveClass('detail-drawer');
+    expect(screen.getByTestId('material-vulnerability-drawer-content')).toBeInTheDocument();
+    expect(screen.getByTestId('material-vulnerability-drawer-footer')).toBeInTheDocument();
     expect(await screen.findByText('真实描述')).toBeInTheDocument();
     expect(screen.getByText('限制输入并完成复测')).toBeInTheDocument();
+    expect(screen.getByText('暂无评分')).toBeInTheDocument();
     await interaction.click(screen.getByRole('button', { name: '查看详情' }));
     expect(screen.getByTestId('location-path')).toHaveTextContent(`/vulnerabilities/${vulnerability.id}`);
 

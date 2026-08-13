@@ -110,12 +110,13 @@ export function TasksPage() {
     mutationFn: deleteTask,
     onSuccess: () => { message.success('任务已删除'); void queryClient.invalidateQueries({ queryKey: ['tasks'] }); },
   });
-  const metrics = pageMetrics('全部任务', query.data?.total, query.isError, [
-    { label: '本页排队', value: rows.filter((item) => item.statusCode === 'QUEUED').length, tone: 'orange', icon: 'metric-task-queued' },
-    { label: '本页进行中', value: rows.filter((item) => item.statusCode === 'RUNNING').length, tone: 'blue', icon: 'metric-task-running' },
-    { label: '本页已完成', value: rows.filter((item) => item.statusCode === 'SUCCEEDED').length, tone: 'green', icon: 'metric-task-completed' },
-    { label: '本页异常', value: rows.filter((item) => item.statusCode === 'FAILED').length, tone: 'red', icon: 'metric-task-abnormal' },
-    { label: '本页已停止', value: rows.filter((item) => item.statusCode === 'CANCELLED').length, tone: 'gray', icon: 'metric-task-all' },
+  const taskMetrics = query.data?.metrics;
+  const metrics = pageMetrics('全部任务', taskMetrics?.total, query.isError, [
+    { label: '排队中', value: taskMetrics?.queued ?? 0, tone: 'orange', icon: 'metric-task-queued' },
+    { label: '进行中', value: taskMetrics?.running ?? 0, tone: 'blue', icon: 'metric-task-running' },
+    { label: '已完成', value: taskMetrics?.completed ?? 0, tone: 'green', icon: 'metric-task-completed' },
+    { label: '异常', value: taskMetrics?.failed ?? 0, tone: 'red', icon: 'metric-task-abnormal' },
+    { label: '已停止', value: taskMetrics?.cancelled ?? 0, tone: 'gray', icon: 'metric-task-all' },
   ]);
   const columns: ColumnsType<TaskRecord> = [
     { title: '任务名称/ID', dataIndex: 'name', width: 220, render: (name, row) => <div className="primary-cell"><strong>{name}</strong><span>{row.id}</span></div> },
@@ -261,22 +262,38 @@ export function VulnerabilitiesPage() {
       <Drawer rootClassName="material-vulnerability-drawer-root" className="material-vulnerability-drawer" open={Boolean(selectedId)} width={516} title="漏洞详情预览" onClose={() => setSelectedId(undefined)}>
         {detail.isPending && <TruthfulDrawerState text="正在加载漏洞详情..." />}
         {detail.isError && <Alert type="error" showIcon message={errorMessage(detail.error)} action={<Button onClick={() => detail.refetch()}>重试</Button>} />}
-        {detail.data && <div className="detail-drawer" data-testid="material-vulnerability-drawer" style={{ backgroundImage: 'url(/material/vulnerabilities/drawer.png)' }}>
-          <div className="material-drawer-title"><strong>{detail.data.title}</strong><Tag color={detail.data.severity === '严重' ? 'red' : detail.data.severity === '高危' ? 'orange' : 'blue'}>{detail.data.severity}</Tag></div>
-          <div className="material-drawer-meta">
-            <span>{detail.data.id}</span>
-            <span><StatusTag status={detail.data.status} /></span>
-            <span>{detail.data.sourceTool || '—'}</span>
-            <span>{detail.data.url || detail.data.asset}</span>
-            <span>{detail.data.task || '—'}</span>
-            <span>{dateTime(detail.data.discoveredAt)}</span>
-            <span>{dateTime(detail.data.updatedAt)}</span>
+        {detail.data && <div className="detail-drawer" data-testid="material-vulnerability-drawer">
+          <header className="material-drawer-title">
+            <div><strong>{detail.data.title}</strong><span>漏洞详情预览</span></div>
+            <Tag color={detail.data.severity === '严重' ? 'red' : detail.data.severity === '高危' ? 'orange' : 'blue'}>{detail.data.severity}</Tag>
+          </header>
+          <div className="material-drawer-scroll" data-testid="material-vulnerability-drawer-content">
+            <dl className="material-drawer-meta">
+              <div><dt>#</dt><dd><span>漏洞ID</span><strong>{detail.data.id}</strong></dd></div>
+              <div><dt><img src="/ui-icons/status-success.png" alt="" /></dt><dd><span>当前状态</span><StatusTag status={detail.data.status} /></dd></div>
+              <div><dt><img src="/ui-icons/nav-workbench.png" alt="" /></dt><dd><span>来源模块</span><strong>{detail.data.sourceTool || '—'}</strong></dd></div>
+              <div><dt><img src="/ui-icons/nav-assets.png" alt="" /></dt><dd><span>关联资产</span><strong>{detail.data.url || detail.data.asset || '—'}</strong></dd></div>
+              <div><dt><img src="/ui-icons/nav-tasks.png" alt="" /></dt><dd><span>所属任务</span><strong>{detail.data.task || '—'}</strong></dd></div>
+              <div><dt><img src="/ui-icons/metric-task-clock.png" alt="" /></dt><dd><span>首次发现</span><strong>{dateTime(detail.data.discoveredAt)}</strong></dd></div>
+              <div><dt><img src="/ui-icons/metric-task-running.png" alt="" /></dt><dd><span>最近更新</span><strong>{dateTime(detail.data.updatedAt)}</strong></dd></div>
+            </dl>
+            <section className="material-drawer-insight material-drawer-insight--summary">
+              <h3><img src="/ui-icons/header-ai.png" alt="" />AI风险摘要</h3>
+              <p>{detail.data.description || '暂无漏洞描述。'}</p>
+            </section>
+            <section className="material-drawer-insight material-drawer-insight--remediation">
+              <h3><img src="/ui-icons/nav-settings-active.png" alt="" />修复建议摘要</h3>
+              <p>{detail.data.remediation || '暂无修复建议。'}</p>
+            </section>
+            <div className="material-drawer-status-grid">
+              <section><span>复现状态</span><strong>{detail.data.status}</strong></section>
+              <section><span>优先级评分</span><strong aria-label="优先级评分">{detail.data.cvssScore === null ? '暂无评分' : `${detail.data.cvssScore}/10`}</strong></section>
+            </div>
           </div>
-          <p className="material-drawer-summary">{detail.data.description || '暂无漏洞描述。'}</p>
-          <p className="material-drawer-remediation">{detail.data.remediation || '暂无修复建议。'}</p>
-          <strong className="material-drawer-status">{detail.data.status}</strong>
-          <strong className="material-drawer-score">{detail.data.severity === '严重' ? '★★★★★' : detail.data.severity === '高危' ? '★★★★☆' : '★★★☆☆'}</strong>
-          <button className="material-drawer-detail-button" type="button" aria-label="查看详情" onClick={() => navigate(`/vulnerabilities/${detail.data.id}`)}>查看详情</button>
+          <footer className="material-drawer-footer" data-testid="material-vulnerability-drawer-footer">
+            <button className="material-drawer-detail-button" type="button" aria-label="查看详情" onClick={() => navigate(`/vulnerabilities/${detail.data.id}`)}>查看详情</button>
+            <button className="material-drawer-more-button" type="button" aria-label="更多操作">•••</button>
+          </footer>
         </div>}
       </Drawer>
     </ListPage>

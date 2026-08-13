@@ -96,6 +96,67 @@ async def test_sync_persists_child_tasks_and_redacts_engine_payload(authenticate
     assert unavailable.status_code == 404
 
 
+async def test_parent_progress_aggregates_child_progress(authenticated_client, monkeypatch):
+    class ProgressEngine:
+        async def create_task(self, payload: dict, request_id: str) -> EngineTask:
+            return EngineTask("progress-parent", "RUNNING", "INIT", 0, {})
+
+        async def get_task(
+            self, external_task_id: str, current_progress: float = 0
+        ) -> EngineTask:
+            return EngineTask(external_task_id, "RUNNING", "SCANNING", 0, {})
+
+        async def get_children(self, external_task_id: str) -> list[EngineTask]:
+            return [
+                EngineTask("progress-child-1", "RUNNING", "SCANNING", 80, {}),
+                EngineTask("progress-child-2", "RUNNING", "SCANNING", 40, {}),
+            ]
+
+    task_id = await create_queued_task(
+        authenticated_client, "Aggregated progress", "aggregated-progress-request"
+    )
+    monkeypatch.setattr(sync, "get_engine_client", lambda settings: ProgressEngine())
+
+    await sync.sync_once(get_settings())
+    await sync.sync_once(get_settings())
+
+    task = await authenticated_client.get(f"/api/v1/tasks/{task_id}")
+    assert task.json()["progress"] == 60
+
+
+async def test_terminal_progress_is_100_and_never_regresses(authenticated_client, monkeypatch):
+    task = Task(status="RUNNING", phase="SCANNING", progress=70)
+
+    sync.apply_engine_state(task, EngineTask("task", "RUNNING", "SCANNING", 20, {}))
+    assert task.progress == 70
+
+    sync.apply_engine_state(task, EngineTask("task", "FAILED", "FINISHED", 87, {}))
+    assert task.progress == 100
+
+
+def test_parent_phase_uses_active_child_instead_of_finished_sibling():
+    parent = Task(status="RUNNING", phase="INIT", progress=0)
+    children = [
+        Task(status="SUCCEEDED", phase="FINISHED", progress=100),
+        Task(status="RUNNING", phase="SCANNING", progress=60),
+    ]
+
+    sync.aggregate_child_progress(parent, children)
+
+    assert parent.phase == "SCANNING"
+    assert parent.progress == 80
+
+
+def test_running_parent_does_not_claim_finished_phase_before_upstream_finishes():
+    parent = Task(status="RUNNING", phase="SCANNING", progress=80)
+    children = [Task(status="SUCCEEDED", phase="FINISHED", progress=100)]
+
+    sync.aggregate_child_progress(parent, children)
+
+    assert parent.phase == "SCANNING"
+    assert parent.progress == 99
+
+
 async def test_active_child_tools_persist_findings_without_duplicates(
     authenticated_client, monkeypatch
 ):

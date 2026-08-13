@@ -113,6 +113,18 @@ const trendPointSchema = z.object({ start: z.string(), count: z.number().int().n
 const distributionItemSchema = z.object({
   key: z.string(), label: z.string(), count: z.number().int().nonnegative(),
 });
+const taskListEnvelope = pageEnvelope(taskSchema).extend({
+  data: pageEnvelope(taskSchema).shape.data.extend({
+    metrics: z.object({
+      total: z.number().int().nonnegative(),
+      queued: z.number().int().nonnegative(),
+      running: z.number().int().nonnegative(),
+      completed: z.number().int().nonnegative(),
+      failed: z.number().int().nonnegative(),
+      cancelled: z.number().int().nonnegative(),
+    }).optional(),
+  }),
+});
 const dashboardSummarySchema = z.object({
   success: z.literal(true),
   message: z.string(),
@@ -345,8 +357,8 @@ function mapReport(item: z.infer<typeof reportSchema>): ReportRecord {
 export async function listTasks(input: { status?: TaskStatusCode; keyword?: string; testType?: string; creator?: string; createdFrom?: string; createdTo?: string; page: number; pageSize: number }) {
   const status = taskStatusFilterSchema.optional().parse(input.status);
   const query = params([['status', status], ['keyword', input.keyword], ['test_type', input.testType], ['creator', input.creator], ['created_from', input.createdFrom], ['created_to', input.createdTo], ['page', input.page], ['page_size', input.pageSize]]);
-  const response = await apiRequest(`/api/v1/tasks?${query}`, pageEnvelope(taskSchema));
-  return result(response.data, mapTask);
+  const response = await apiRequest(`/api/v1/tasks?${query}`, taskListEnvelope);
+  return { ...result(response.data, mapTask), metrics: response.data.metrics };
 }
 
 export async function stopTask(id: string) {

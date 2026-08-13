@@ -34,7 +34,9 @@ describe('material responsive layout', () => {
 
   it('keeps the vulnerability drawer inside the visible viewport', () => {
     expect(styles).toMatch(/\.material-vulnerability-drawer \.ant-drawer-content\{[^}]*height\s*:\s*100dvh[^}]*max-height\s*:\s*100dvh/s);
-    expect(styles).toMatch(/\.material-vulnerability-drawer \.detail-drawer\{[^}]*height\s*:\s*100%[^}]*min-height\s*:\s*0/s);
+    expect(styles).toMatch(/\.material-vulnerability-drawer \.detail-drawer\{[^}]*height\s*:\s*100%[^}]*min-height\s*:\s*0[^}]*grid-template-rows\s*:\s*auto minmax\(0,1fr\) auto/s);
+    expect(styles).toMatch(/\.material-drawer-scroll\{[^}]*overflow-y\s*:\s*auto/s);
+    expect(styles).toMatch(/\.material-drawer-footer\{[^}]*position\s*:\s*relative/s);
     expect(styles).not.toMatch(/\.material-vulnerability-drawer \.detail-drawer\{[^}]*min-height\s*:\s*720px/s);
   });
 });

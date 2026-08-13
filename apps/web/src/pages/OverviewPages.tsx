@@ -137,7 +137,12 @@ export function VulnerabilityOverviewPage() {
 
 function VulnerabilityRows({ rows }: { rows: VulnerabilityRecord[] }) {
   if (rows.length === 0) return <TruthfulEmpty text="暂无漏洞数据" />;
-  return <div className="simple-rows">{rows.map((row) => <div key={row.id}><span>{row.title}</span><Tag color={row.severity === '严重' ? 'red' : row.severity === '高危' ? 'orange' : 'blue'}>{row.severity}</Tag><StatusTag status={row.status} /><time>{row.discoveredAt.slice(0, 10)}</time></div>)}</div>;
+  return <div className="simple-rows">{rows.map((row) => <div key={row.id}>
+    <span className="overview-vulnerability-title">{row.title}</span>
+    <span className="overview-vulnerability-severity-cell"><Tag className="overview-vulnerability-severity" color={row.severity === '严重' ? 'red' : row.severity === '高危' ? 'orange' : 'blue'}>{row.severity}</Tag></span>
+    <span className="overview-vulnerability-status-cell"><StatusTag status={row.status} /></span>
+    <time>{row.discoveredAt.slice(0, 10)}</time>
+  </div>)}</div>;
 }
 
 export function ReportOverviewPage() {

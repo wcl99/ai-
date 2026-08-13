@@ -79,6 +79,7 @@ from .schemas import (
     TaskCreate,
     TaskEventRead,
     TaskListRead,
+    TaskListPageData,
     TaskRead,
     UserCreate,
     UserRead,
@@ -695,7 +696,7 @@ async def freeze_confirmed_plan(
     return plan
 
 
-@app.get("/api/v1/tasks", response_model=ApiEnvelope[PageData[TaskListRead]])
+@app.get("/api/v1/tasks", response_model=ApiEnvelope[TaskListPageData])
 async def list_tasks(
     status: str | None = Query(default=None, max_length=32),
     keyword: str | None = Query(default=None, max_length=200),
@@ -731,6 +732,19 @@ async def list_tasks(
         .join(User, creator_join)
         .where(*criteria)
     )
+    metric_row = (
+        await session.execute(
+            select(
+                func.count(Task.id).label("total"),
+                func.coalesce(func.sum(case((Task.status == "QUEUED", 1), else_=0)), 0).label("queued"),
+                func.coalesce(func.sum(case((Task.status.in_(["RUNNING", "CANCELLING"]), 1), else_=0)), 0).label("running"),
+                func.coalesce(func.sum(case((Task.status.in_(["SUCCEEDED", "PARTIAL_SUCCEEDED"]), 1), else_=0)), 0).label("completed"),
+                func.coalesce(func.sum(case((Task.status == "FAILED", 1), else_=0)), 0).label("failed"),
+                func.coalesce(func.sum(case((Task.status == "CANCELLED", 1), else_=0)), 0).label("cancelled"),
+            )
+            .where(Task.org_id == user.org_id)
+        )
+    ).one()
     rows = (
         await session.execute(
             select(Task, ScanPlan, User.name)
@@ -754,7 +768,19 @@ async def list_tasks(
         )
         for task, plan, creator_name in rows
     ]
-    return envelope(page_data(items, total or 0, page, page_size))
+    return envelope(
+        {
+            **page_data(items, total or 0, page, page_size),
+            "metrics": {
+                "total": metric_row.total,
+                "queued": metric_row.queued,
+                "running": metric_row.running,
+                "completed": metric_row.completed,
+                "failed": metric_row.failed,
+                "cancelled": metric_row.cancelled,
+            },
+        }
+    )
 
 
 @app.post("/api/v1/tasks", response_model=TaskRead, status_code=201)

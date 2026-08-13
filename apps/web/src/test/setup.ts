@@ -1,4 +1,10 @@
 import '@testing-library/jest-dom/vitest';
+import { message } from 'antd';
+import { afterEach } from 'vitest';
+
+afterEach(() => {
+  message.destroy();
+});
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

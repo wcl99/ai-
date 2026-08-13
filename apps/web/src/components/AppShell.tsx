@@ -7,7 +7,6 @@ import { Alert, Avatar, Dropdown, Input, Layout, Menu, Space, Typography } from 
 import type { MenuProps } from 'antd';
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import expertAvatar from '../../../../素材/工作 (7) 3.png';
 import { useAuth } from '../auth/AuthContext';
 import { forgetPentestSession, readPentestSession } from '../pentestSessionRoute';
 
@@ -181,7 +180,7 @@ export function AppShell({ children }: AppShellProps) {
             <Typography.Title level={4}>AI 安服平台</Typography.Title>
             <span>下一代安全服务平台</span>
           </div>
-        </div> : <div className="brand material-brand-crop" aria-label="AI 安服平台"><img src="/material/pages/vulnerabilityDetail.png" alt="AI 安服平台 下一代安全服务平台" /></div>}
+        </div> : <div className="brand material-brand" aria-label="AI 安服平台"><img src="/material/source/brand/sidebar-brand.png" alt="AI 安服平台 下一代安全服务平台" /></div>}
         <Menu
           mode="inline"
           selectedKeys={[selectedPath]}
@@ -208,7 +207,7 @@ export function AppShell({ children }: AppShellProps) {
                   <strong>{user?.name ?? user?.username}</strong>
                   <span>{roleLabels[user?.role ?? ''] ?? user?.role}</span>
                 </span>
-                <Avatar size={42} src={expertAvatar} />
+                <Avatar size={42} src="/material/source/avatar/expert.svg" />
                 <img className="profile-chevron" src="/ui-icons/arrow-down.png" alt="" />
                 <i />
               </button>

@@ -300,6 +300,19 @@ class TaskListRead(TaskRead):
     created_by_name: str
 
 
+class TaskOverviewMetrics(BaseModel):
+    total: int
+    queued: int
+    running: int
+    completed: int
+    failed: int
+    cancelled: int
+
+
+class TaskListPageData(PageData[TaskListRead]):
+    metrics: TaskOverviewMetrics
+
+
 class TaskEventRead(ORMModel):
     id: uuid.UUID
     event_type: str
