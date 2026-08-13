@@ -16,7 +16,6 @@ import {
   listReports,
   listTasks,
   listVulnerabilities,
-  getVulnerability,
   previewReport,
   reportDownloadUrl,
   updateVulnerability,
@@ -30,6 +29,7 @@ import type {
   VulnerabilityStatusCode,
 } from '../api/resources';
 import { MetricCard, ProgressCell, StatusTag } from '../components/Ui';
+import { VulnerabilityPreviewDrawer } from '../components/VulnerabilityPreviewDrawer';
 import type { Metric, ReportRecord, TaskRecord, VulnerabilityRecord } from '../types';
 import { displayPhase } from '../vendorDisplay';
 
@@ -191,7 +191,6 @@ export function TasksPage() {
 }
 
 export function VulnerabilitiesPage() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [severity, setSeverity] = useState<VulnerabilitySeverityCode>();
@@ -206,12 +205,6 @@ export function VulnerabilitiesPage() {
   const mutation = useMutation({
     mutationFn: ({ id, nextStatus }: { id: string; nextStatus: VulnerabilityStatusCode }) => updateVulnerability(id, nextStatus),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vulnerabilities'] }),
-  });
-  const detail = useQuery({
-    queryKey: ['vulnerability', selectedId],
-    queryFn: () => getVulnerability(selectedId!),
-    enabled: Boolean(selectedId),
-    retry: false,
   });
   const remove = useMutation({
     mutationFn: deleteVulnerability,
@@ -260,49 +253,9 @@ export function VulnerabilitiesPage() {
       {query.isError ? <ErrorState error={query.error} retry={() => query.refetch()} /> : (
         <Table rowKey="id" columns={columns} dataSource={visibleRows} loading={query.isPending} locale={{ emptyText: '暂无漏洞数据' }} pagination={pagination(page, query.data?.total ?? 0, setPage)} scroll={{ x: 1250 }} />
       )}
-      <Drawer rootClassName="material-vulnerability-drawer-root" className="material-vulnerability-drawer" open={Boolean(selectedId)} width={516} title="漏洞详情预览" onClose={() => setSelectedId(undefined)}>
-        {detail.isPending && <TruthfulDrawerState text="正在加载漏洞详情..." />}
-        {detail.isError && <Alert type="error" showIcon message={errorMessage(detail.error)} action={<Button onClick={() => detail.refetch()}>重试</Button>} />}
-        {detail.data && <div className="detail-drawer" data-testid="material-vulnerability-drawer">
-          <header className="material-drawer-title">
-            <div><strong>{detail.data.title}</strong><span>漏洞详情预览</span></div>
-            <Tag color={detail.data.severity === '严重' ? 'red' : detail.data.severity === '高危' ? 'orange' : 'blue'}>{detail.data.severity}</Tag>
-          </header>
-          <div className="material-drawer-scroll" data-testid="material-vulnerability-drawer-content">
-            <dl className="material-drawer-meta">
-              <div><dt>#</dt><dd><span>漏洞ID</span><strong>{detail.data.id}</strong></dd></div>
-              <div><dt><img src="/ui-icons/status-success.png" alt="" /></dt><dd><span>当前状态</span><StatusTag status={detail.data.status} /></dd></div>
-              <div><dt><img src="/ui-icons/nav-workbench.png" alt="" /></dt><dd><span>来源模块</span><strong>{detail.data.sourceTool || '—'}</strong></dd></div>
-              <div><dt><img src="/ui-icons/nav-assets.png" alt="" /></dt><dd><span>关联资产</span><strong>{detail.data.url || detail.data.asset || '—'}</strong></dd></div>
-              <div><dt><img src="/ui-icons/nav-tasks.png" alt="" /></dt><dd><span>所属任务</span><strong>{detail.data.task || '—'}</strong></dd></div>
-              <div><dt><img src="/ui-icons/metric-task-clock.png" alt="" /></dt><dd><span>首次发现</span><strong>{dateTime(detail.data.discoveredAt)}</strong></dd></div>
-              <div><dt><img src="/ui-icons/metric-task-running.png" alt="" /></dt><dd><span>最近更新</span><strong>{dateTime(detail.data.updatedAt)}</strong></dd></div>
-            </dl>
-            <section className="material-drawer-insight material-drawer-insight--summary">
-              <h3><img src="/ui-icons/header-ai.png" alt="" />AI风险摘要</h3>
-              <p>{detail.data.description || '暂无漏洞描述。'}</p>
-            </section>
-            <section className="material-drawer-insight material-drawer-insight--remediation">
-              <h3><img src="/ui-icons/nav-settings-active.png" alt="" />修复建议摘要</h3>
-              <p>{detail.data.remediation || '暂无修复建议。'}</p>
-            </section>
-            <div className="material-drawer-status-grid">
-              <section><span>复现状态</span><strong>{detail.data.status}</strong></section>
-              <section><span>优先级评分</span><strong aria-label="优先级评分">{detail.data.cvssScore === null ? '暂无评分' : `${detail.data.cvssScore}/10`}</strong></section>
-            </div>
-          </div>
-          <footer className="material-drawer-footer" data-testid="material-vulnerability-drawer-footer">
-            <button className="material-drawer-detail-button" type="button" aria-label="查看详情" onClick={() => navigate(`/vulnerabilities/${detail.data.id}`)}>查看详情</button>
-            <button className="material-drawer-more-button" type="button" aria-label="更多操作">•••</button>
-          </footer>
-        </div>}
-      </Drawer>
+      <VulnerabilityPreviewDrawer vulnerabilityId={selectedId} onClose={() => setSelectedId(undefined)} />
     </ListPage>
   );
-}
-
-function TruthfulDrawerState({ text }: { text: string }) {
-  return <div className="truthful-empty">{text}</div>;
 }
 
 export function ReportsPage() {

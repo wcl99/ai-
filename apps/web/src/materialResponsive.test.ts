@@ -48,4 +48,10 @@ describe('material responsive layout', () => {
     expect(styles).toMatch(/\.overview-material-panel \.activity-timeline::before\{[^}]*left\s*:\s*var\(--timeline-axis-x\)[^}]*transform\s*:\s*translateX\(-50%\)/s);
     expect(styles).toMatch(/\.overview-material-panel \.dashboard-summary-block ul\{font-size\s*:\s*11px/s);
   });
+
+  it('fits the desktop overview within one viewport without page scrolling', () => {
+    expect(styles).toContain('@media (min-width:1024px) and (max-height:1000px)');
+    expect(styles).toMatch(/\.dashboard-page\.material-dashboard\{[^}]*height\s*:\s*calc\(100dvh - 102px\)[^}]*overflow\s*:\s*hidden/s);
+    expect(styles).toMatch(/\.material-dashboard \.overview-material-panel\{[^}]*height\s*:\s*100%[^}]*aspect-ratio\s*:\s*auto/s);
+  });
 });
