@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { RiskDonut } from '../components/DashboardVisuals';
 import { smoothLine } from '../components/dashboardVisualGeometry';
-import { riskOverviewMetrics } from './DashboardPage';
+import { DashboardAiSummary, riskOverviewMetrics } from './DashboardPage';
 
 describe('dashboard visual contracts', () => {
   it('uses a continuous cubic curve with no hard line joins', () => {
@@ -38,5 +38,18 @@ describe('dashboard visual contracts', () => {
       medium: undefined,
       low: undefined,
     });
+  });
+
+  it('does not expose the AI provider name in the summary card', () => {
+    const markup = renderToStaticMarkup(
+      <DashboardAiSummary
+        summary={{
+          warnings: ['当前有 2 个未关闭漏洞'],
+          priorityFindings: ['发现 1 个高危漏洞'],
+          remediation: ['优先处理高危漏洞'],
+        }}
+      />,
+    );
+    expect(markup).not.toContain('DeepSeek');
   });
 });

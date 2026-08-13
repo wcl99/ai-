@@ -118,12 +118,7 @@ export function DashboardPage() {
 
       <div className="dashboard-main-grid">
         <MaterialPanel className="summary-card dashboard-material-height" image="ai-summary.png" label="AI 今日摘要">
-          {dashboard.isPending ? <TruthfulEmpty text="正在生成摘要..." /> : dashboard.data ? <div className="dashboard-ai-summary material-panel-data">
-            <SummaryBlock tone="danger" title="高危风险预警" items={dashboard.data.aiSummary.warnings.map(sanitizeDisplayText)} />
-            <SummaryBlock tone="warning" title="重点发现" items={dashboard.data.aiSummary.priorityFindings.map(sanitizeDisplayText)} />
-            <SummaryBlock tone="safe" title="处置建议" items={dashboard.data.aiSummary.remediation.map(sanitizeDisplayText)} />
-            <span className="ai-source">{dashboard.data.aiSummary.source === 'deepseek' ? 'DeepSeek 分析' : '基于平台数据生成'}</span>
-          </div> : <TruthfulEmpty text="摘要暂不可用" />}
+          {dashboard.isPending ? <TruthfulEmpty text="正在生成摘要..." /> : dashboard.data ? <DashboardAiSummary summary={dashboard.data.aiSummary} /> : <TruthfulEmpty text="摘要暂不可用" />}
         </MaterialPanel>
         <MaterialPanel className="trend-card dashboard-material-height" image="risk-trend.png" label="风险趋势">
           {dashboard.isPending ? <TruthfulEmpty text="正在加载风险趋势..." /> : dashboard.data ? <div className="material-panel-data"><RiskTrend values={dashboard.data.riskTrend} /></div> : <TruthfulEmpty text="趋势暂不可用" />}
@@ -150,6 +145,14 @@ export function DashboardPage() {
 
 function TruthfulEmpty({ text }: { text: string }) {
   return <div className="truthful-empty">{text}</div>;
+}
+
+export function DashboardAiSummary({ summary }: { summary: { warnings: string[]; priorityFindings: string[]; remediation: string[] } }) {
+  return <div className="dashboard-ai-summary material-panel-data">
+    <SummaryBlock tone="danger" title="高危风险预警" items={summary.warnings.map(sanitizeDisplayText)} />
+    <SummaryBlock tone="warning" title="重点发现" items={summary.priorityFindings.map(sanitizeDisplayText)} />
+    <SummaryBlock tone="safe" title="处置建议" items={summary.remediation.map(sanitizeDisplayText)} />
+  </div>;
 }
 
 function MaterialPanel({ className, image, label, children }: { className: string; image: string; label: string; children: ReactNode }) {

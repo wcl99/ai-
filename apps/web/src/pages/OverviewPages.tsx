@@ -1,10 +1,7 @@
 import {
   ArrowRightOutlined,
   BarChartOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
   ExportOutlined,
-  EyeInvisibleOutlined,
   FileTextOutlined,
   PieChartOutlined,
   RobotOutlined,
@@ -154,12 +151,12 @@ export function ReportOverviewPage() {
   });
   const data = overview.data;
   const metricItems = [
-    { label: '报告总数', metric: data?.metrics.total, icon: <FileTextOutlined />, tone: 'neutral' },
-    { label: '本月新增', metric: data?.metrics.monthlyNew, icon: <BarChartOutlined />, tone: 'rose' },
-    { label: '待导出', metric: data?.metrics.pendingExport, icon: <ClockCircleOutlined />, tone: 'orange' },
-    { label: '已导出', metric: data?.metrics.exported, icon: <CheckCircleOutlined />, tone: 'blue' },
-    { label: '待确认', metric: data?.metrics.pendingConfirmation, icon: <EyeInvisibleOutlined />, tone: 'purple' },
-    { label: '本月交付', metric: data?.metrics.monthlyDelivered, icon: <ExportOutlined />, tone: 'green' },
+    { label: '报告总数', metric: data?.metrics.total, icon: 'metric-report-total.png', tone: 'neutral' },
+    { label: '本月新增', metric: data?.metrics.monthlyNew, icon: 'metric-report-weekly.png', tone: 'rose' },
+    { label: '待导出', metric: data?.metrics.pendingExport, icon: 'metric-report-pending-export.png', tone: 'orange' },
+    { label: '已导出', metric: data?.metrics.exported, icon: 'metric-report-exported.png', tone: 'blue' },
+    { label: '待确认', metric: data?.metrics.pendingConfirmation, icon: 'metric-report-pending-confirm.png', tone: 'purple' },
+    { label: '本月交付', metric: data?.metrics.monthlyDelivered, icon: 'metric-report-delivered.png', tone: 'green' },
   ];
   const sourceColors = ['#c52c32', '#ff9138', '#075bcc', '#c8cddd', '#7357e8'];
   const riskColors = ['#c52c32', '#ff9138', '#075bcc', '#c8cddd', '#e9ebf4'];
@@ -172,7 +169,7 @@ export function ReportOverviewPage() {
             <span>{item.label}</span>
             <strong>{overview.isPending || overview.isError ? '—' : item.metric?.value}</strong>
             <small>{comparisonText(item.metric?.changePercent, overview.isPending || overview.isError)}</small>
-            <i aria-hidden="true">{item.icon}</i>
+            <i aria-hidden="true"><img src={`/ui-icons/${item.icon}`} alt="" /></i>
           </Card>
         ))}
       </div>
