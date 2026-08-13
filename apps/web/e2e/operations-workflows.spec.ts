@@ -143,7 +143,14 @@ test('opens the vulnerability drawer and full detail page', async ({ page }) => 
   await page.screenshot({ path: 'test-results/vulnerability-material-drawer-1920x1080.png', fullPage: true });
   await page.getByRole('button', { name: '查看详情' }).click();
   await expect(page).toHaveURL(`/vulnerabilities/${vulnerabilityId}`);
-  await expect(page.getByTestId('material-vulnerability-detail')).toHaveCSS('background-image', /detail-content\.png/);
+  await expect(page.getByTestId('material-vulnerability-detail')).toHaveCSS('background-image', 'none');
+  for (const selector of ['.detail-identity-card', '.detail-ai-summary', '.detail-risk-card', '.detail-info-card', '.detail-content-card', '.detail-actions-card']) {
+    await expect(page.locator(selector)).toHaveCount(1);
+  }
+  for (const action of ['指派负责人', '进入复测', '加入报告', '导出漏洞', '生成工单', '忽略漏洞', '标记误报', '更多操作']) {
+    await expect(page.getByRole('button', { name: action })).toBeVisible();
+  }
+  await expect(page.locator('.material-brand-crop img')).toHaveAttribute('src', '/material/pages/vulnerabilityDetail.png');
   await page.screenshot({ path: 'test-results/vulnerability-material-detail-1920x1080.png', fullPage: true });
   await page.getByRole('button', { name: '证据信息' }).click();
   await expect(page.getByText('GET /search?q=test')).toBeVisible();
