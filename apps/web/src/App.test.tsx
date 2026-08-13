@@ -118,7 +118,7 @@ describe('App', () => {
     localStorage.clear();
   });
 
-  it('places penetration testing under the workbench and the active session under task center', async () => {
+  it('places penetration testing under the workbench without a task-center current-task entry', async () => {
     const interaction = userEvent.setup();
     rememberPentestSession(user.id, task.id);
     renderRoute(`/pentest/session/${task.id}`);
@@ -131,7 +131,7 @@ describe('App', () => {
     await interaction.click(screen.getByText('工作台'));
     expect(within(workbench!).getByText('渗透测试')).toBeInTheDocument();
     expect(within(workbench!).queryByText('当前任务')).not.toBeInTheDocument();
-    expect(within(taskCenter!).getByText('当前任务')).toBeInTheDocument();
+    expect(within(taskCenter!).queryByText('当前任务')).not.toBeInTheDocument();
     expect(taskCenter).toHaveClass('ant-menu-submenu-open');
   });
 
@@ -186,7 +186,7 @@ describe('App', () => {
     renderRoute(`/pentest/session/${task.id}`, finishedFetch);
 
     await screen.findByText('Test Admin');
-    await waitFor(() => expect(screen.getByText('当前任务')).toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('当前任务')).not.toBeInTheDocument());
     expect(localStorage.getItem(`aisec:pentest-session:${user.id}`)).toContain(task.id);
     const taskCenter = screen.getByText('任务中心').closest('li');
     expect(within(taskCenter!).getByText('已完成').closest('li'))

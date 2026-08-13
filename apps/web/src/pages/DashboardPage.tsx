@@ -40,6 +40,20 @@ function totalValue(total: number | undefined, isError = false) {
   return total === undefined || isError ? '—' : String(total);
 }
 
+export function riskOverviewMetrics(
+  summary: Record<string, number> | undefined,
+  fallbackTotal: number | undefined,
+  fallbackHighRisk: number | undefined,
+) {
+  const total = summary?.vulnerabilities ?? fallbackTotal;
+  const highRisk = summary?.high_risk ?? fallbackHighRisk;
+  return {
+    total,
+    highRisk,
+    other: total !== undefined && highRisk !== undefined ? Math.max(0, total - highRisk) : undefined,
+  };
+}
+
 export function DashboardPage() {
   const navigate = useNavigate();
   const [tasks, running, assets, vulnerabilities, high, reports] = useQueries({
@@ -55,16 +69,24 @@ export function DashboardPage() {
   const dashboard = useQuery({ queryKey: ['dashboard', 'summary'], queryFn: getDashboardSummary });
   const queries = [tasks, running, assets, vulnerabilities, high, reports];
   const firstError = [...queries, dashboard].find((query) => query.isError)?.error;
+  // The dashboard summary is the authoritative all-time aggregate. The paged
+  // list queries remain useful for the recent-task and fallback states, but
+  // must not define the risk-card totals.
+  const riskMetrics = riskOverviewMetrics(
+    dashboard.data?.metrics,
+    vulnerabilities.data?.total,
+    high.data?.total,
+  );
+  const vulnerabilityTotal = riskMetrics.total;
+  const highRiskTotal = riskMetrics.highRisk;
   const metrics: Metric[] = [
     { label: '任务总数', value: totalValue(tasks.data?.total, tasks.isError), tone: 'blue' },
     { label: '进行中任务', value: totalValue(running.data?.total, running.isError), tone: 'blue' },
-    { label: '高危风险', value: totalValue(high.data?.total, high.isError), tone: 'red' },
+    { label: '高危风险', value: totalValue(highRiskTotal, dashboard.isError && high.isError), tone: 'red' },
     { label: '资产总数', value: totalValue(assets.data?.total, assets.isError), tone: 'purple' },
-    { label: '漏洞总数', value: totalValue(vulnerabilities.data?.total, vulnerabilities.isError), tone: 'green' },
+    { label: '漏洞总数', value: totalValue(vulnerabilityTotal, dashboard.isError && vulnerabilities.isError), tone: 'green' },
   ];
-  const otherRisk = vulnerabilities.data && high.data && !vulnerabilities.isError && !high.isError
-    ? String(Math.max(0, vulnerabilities.data.total - high.data.total))
-    : '—';
+  const otherRisk = riskMetrics.other === undefined ? '—' : String(riskMetrics.other);
 
   return (
     <div className="page dashboard-page material-dashboard">
@@ -94,7 +116,7 @@ export function DashboardPage() {
         </MaterialPanel>
         <Card variant="borderless" className="risk-card dashboard-material-height">
           <SectionTitle icon={<BugOutlined />} title="风险概况" />
-          <div className="risk-content"><RiskDonut total={Number(totalValue(vulnerabilities.data?.total, vulnerabilities.isError)) || 0} segments={[{ key: 'high', value: Number(totalValue(high.data?.total, high.isError)) || 0, color: '#ff8b2b' }, { key: 'other', value: Number(otherRisk) || 0, color: '#e9edf5' }]} /><ul><li><i className="dot high" />高危 <strong>{totalValue(high.data?.total, high.isError)}</strong></li><li><i className="dot low" />其他 <strong>{otherRisk}</strong></li></ul></div>
+          <div className="risk-content"><RiskDonut total={Number(vulnerabilityTotal) || 0} segments={[{ key: 'high', value: Number(highRiskTotal) || 0, color: '#ff8b2b' }, { key: 'other', value: Number(otherRisk) || 0, color: '#e9edf5' }]} /><ul><li><i className="dot high" />严重及高危 <strong>{totalValue(highRiskTotal, dashboard.isError && high.isError)}</strong></li><li><i className="dot low" />其他 <strong>{otherRisk}</strong></li></ul></div>
         </Card>
       </div>
 

@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { RiskDonut } from '../components/DashboardVisuals';
 import { smoothLine } from '../components/dashboardVisualGeometry';
+import { riskOverviewMetrics } from './DashboardPage';
 
 describe('dashboard visual contracts', () => {
   it('uses a continuous cubic curve with no hard line joins', () => {
@@ -17,5 +18,17 @@ describe('dashboard visual contracts', () => {
     );
     expect(document.querySelectorAll('.risk-donut-segment')).toHaveLength(2);
     expect(document.querySelector('.risk-donut-segment')?.getAttribute('stroke-linecap')).toBe('round');
+  });
+
+  it('uses all-time summary totals instead of paged-list totals when available', () => {
+    expect(riskOverviewMetrics({ vulnerabilities: 132, high_risk: 28 }, 243, 37)).toEqual({
+      total: 132,
+      highRisk: 28,
+      other: 104,
+    });
+  });
+
+  it('falls back to list totals while the summary request is unavailable', () => {
+    expect(riskOverviewMetrics(undefined, 12, 4)).toEqual({ total: 12, highRisk: 4, other: 8 });
   });
 });

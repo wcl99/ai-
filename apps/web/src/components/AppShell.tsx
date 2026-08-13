@@ -37,7 +37,7 @@ function HeaderIcon({ name, label }: { name: string; label: string }) {
   );
 }
 
-function menuItems(currentTaskRoute: string | null): MenuProps['items'] {
+function menuItems(): MenuProps['items'] {
   return [
   { key: '/overview', icon: <NavIcon name="overview" />, label: '总览' },
   {
@@ -57,7 +57,6 @@ function menuItems(currentTaskRoute: string | null): MenuProps['items'] {
     label: '任务中心',
     children: [
       { key: '/tasks', label: '全部任务' },
-      ...(currentTaskRoute ? [{ key: currentTaskRoute, label: '当前任务' }] : []),
       { key: '/tasks?status=RUNNING', label: '进行中' },
       { key: '/tasks?status=QUEUED', label: '排队中' },
       { key: '/tasks?status=SUCCEEDED', label: '已完成' },
@@ -178,7 +177,7 @@ export function AppShell({ children }: AppShellProps) {
           mode="inline"
           selectedKeys={[selectedPath]}
           defaultOpenKeys={openSection ? [openSection] : []}
-          items={menuItems(currentTaskRoute)}
+          items={menuItems()}
           onClick={({ key }) => {
             if (key === '/pentest' && currentTaskRoute) {
               navigate(currentTaskRoute);
