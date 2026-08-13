@@ -394,7 +394,7 @@ a { color: var(--primary); cursor: pointer; }
 .overview-material-panel .dashboard-summary-block strong{font-size:13px}
 .overview-material-panel .dashboard-summary-block ul{font-size:11px;line-height:1.5}
 .overview-material-panel .ai-source{font-size:9px}
-.overview-material-panel .activity-timeline{--timeline-axis-x:10px}
+.overview-material-panel .activity-timeline{--timeline-axis-x:calc(1% + 10px)}
 .overview-material-panel .activity-timeline::before{left:var(--timeline-axis-x);transform:translateX(-50%)}
 .overview-material-panel .activity-node{margin-left:0;justify-self:center}
 .risk-donut{position:relative;display:grid;place-items:center;background:none}

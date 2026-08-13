@@ -44,7 +44,7 @@ describe('material responsive layout', () => {
   it('matches the overview material typography and shared timeline axis', () => {
     expect(styles).toMatch(/\.overview-material-panel \.dashboard-summary-block strong\{[^}]*font-size\s*:\s*13px/s);
     expect(styles).toMatch(/\.overview-material-panel \.dashboard-summary-block ul\{[^}]*font-size\s*:\s*11px/s);
-    expect(styles).toMatch(/\.overview-material-panel \.activity-timeline\{[^}]*--timeline-axis-x\s*:\s*10px/s);
+    expect(styles).toMatch(/\.overview-material-panel \.activity-timeline\{[^}]*--timeline-axis-x\s*:\s*calc\(1% \+ 10px\)/s);
     expect(styles).toMatch(/\.overview-material-panel \.activity-timeline::before\{[^}]*left\s*:\s*var\(--timeline-axis-x\)[^}]*transform\s*:\s*translateX\(-50%\)/s);
     expect(styles).toMatch(/\.overview-material-panel \.dashboard-summary-block ul\{font-size\s*:\s*11px/s);
   });
