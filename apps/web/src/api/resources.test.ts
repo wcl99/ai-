@@ -111,6 +111,7 @@ describe('resource API', () => {
 
     expect(result.items[0]).toEqual(expect.objectContaining({
       name: '真实任务', status: '进行中', statusCode: 'RUNNING', target: 'example.com', creator: '管理员',
+      updatedAt: '2026-07-23T08:01:00Z',
     }));
     expect(result.items[0]).not.toHaveProperty('priority');
     expect(fetch).toHaveBeenCalledWith(

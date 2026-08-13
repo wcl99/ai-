@@ -292,6 +292,7 @@ function mapTask(item: z.infer<typeof taskSchema>): TaskRecord {
     target: item.targets.join(', ') || '—',
     creator: item.created_by_name,
     createdAt: item.created_at,
+    updatedAt: item.updated_at,
     status: taskStatuses[item.status] ?? '未知',
     statusCode: item.status,
     phase: item.phase,

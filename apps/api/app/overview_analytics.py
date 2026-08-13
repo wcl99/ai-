@@ -144,12 +144,16 @@ async def aggregate_trend(
     org_id,
     range_name: OverviewRange,
     timezone_name: str,
+    *,
+    extra_earliest: datetime | None = None,
 ) -> tuple[TrendWindow, list[TrendPoint]]:
-    earliest = None
+    earliest = extra_earliest
     if range_name == "all":
-        earliest = await session.scalar(
+        database_earliest = await session.scalar(
             select(func.min(model.created_at)).where(model.org_id == org_id)
         )
+        candidates = [value for value in (database_earliest, extra_earliest) if value]
+        earliest = min(candidates, key=_aware_utc) if candidates else None
     window = build_window(
         range_name,
         timezone_name,

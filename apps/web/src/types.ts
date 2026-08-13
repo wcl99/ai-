@@ -18,6 +18,7 @@ export interface TaskRecord {
   target: string;
   creator: string;
   createdAt: string;
+  updatedAt: string;
   status: TaskStatus;
   statusCode: string;
   phase: string;

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from functools import lru_cache
 from pathlib import Path
 
@@ -25,6 +27,17 @@ def _safe_file(directory: Path, path: Path) -> Path:
     if resolved != root and root not in resolved.parents:
         raise ValueError("Demo report must be inside demo data directory")
     return resolved
+
+
+def _evidence_time(response: object) -> datetime | None:
+    match = re.search(r"(?im)^Date:\s*(.+?)\s*$", str(response or ""))
+    if not match:
+        return None
+    try:
+        value = parsedate_to_datetime(match.group(1))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return value.astimezone(UTC) if value.tzinfo else value.replace(tzinfo=UTC)
 
 
 @dataclass(frozen=True)
@@ -102,9 +115,15 @@ def _load_cached(
     if not isinstance(raw_items, list):
         raise ValueError("Demo vulnerability list must be an array")
 
-    created_at = datetime.fromtimestamp(
+    evidence_times = [
+        value
+        for raw in raw_items
+        if (value := _evidence_time(raw.get("响应体"))) is not None
+    ]
+    created_at = min(evidence_times) if evidence_times else datetime.fromtimestamp(
         (directory / VULNERABILITY_FILE).stat().st_mtime, tz=UTC
     ).replace(microsecond=0)
+    finished_at = max(evidence_times) if evidence_times else created_at
     plan_id = demo_uuid(f"plan:{target}")
     task_id = demo_uuid(f"task:{target}")
     asset_id = demo_uuid(f"asset:{target}")
@@ -144,7 +163,7 @@ def _load_cached(
         "error_code": None,
         "error_message": None,
         "created_at": created_at,
-        "updated_at": created_at,
+        "updated_at": finished_at,
         "plan_name": task_name,
         "test_type": "standard",
         "targets": [target],
@@ -163,7 +182,7 @@ def _load_cached(
             "event_type": "task.finished",
             "message": f"渗透测试已完成，共发现 {len(raw_items)} 个漏洞",
             "data_json": {"phase": "FINISHED", "progress": 100},
-            "created_at": created_at + timedelta(minutes=38),
+            "created_at": finished_at,
         },
     )
 
@@ -172,6 +191,7 @@ def _load_cached(
         source_id = str(raw.get("漏洞ID", index))
         title = str(raw.get("漏洞名称") or "未命名漏洞").strip()
         vulnerability_id = demo_uuid(f"vulnerability:{target}:{source_id}:{title}")
+        evidence_at = _evidence_time(raw.get("响应体"))
         vulnerabilities.append(
             {
                 "id": vulnerability_id,
@@ -191,10 +211,11 @@ def _load_cached(
                     "http_response": str(raw.get("响应体") or ""),
                     "analysis": str(raw.get("分析过程") or ""),
                     "vuln_suggestions": str(raw.get("修复建议") or ""),
+                    "evidence_at": evidence_at.isoformat() if evidence_at else None,
                     "tags": ["渗透测试", "演示数据"],
                 },
-                "created_at": created_at + timedelta(seconds=index),
-                "updated_at": created_at + timedelta(seconds=index),
+                "created_at": evidence_at or created_at + timedelta(seconds=index),
+                "updated_at": evidence_at or created_at + timedelta(seconds=index),
                 "task_name": task_name,
                 "tags": ["渗透测试", "演示数据"],
             }
@@ -214,7 +235,7 @@ def _load_cached(
         "first_viewed_by": None,
         "first_exported_at": None,
         "first_exported_by": None,
-        "created_at": created_at + timedelta(minutes=39),
+        "created_at": finished_at,
         "plan_name": task_name,
         "task_name": task_name,
     }

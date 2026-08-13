@@ -344,6 +344,31 @@ def page_data(items: list, total: int, page: int, page_size: int) -> dict:
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
+def _timestamp(value: datetime) -> float:
+    return (value.replace(tzinfo=UTC) if value.tzinfo is None else value).timestamp()
+
+
+def _trend_key(value: datetime, timezone_name: str, granularity: str) -> str:
+    try:
+        customer_timezone = ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        customer_timezone = timezone(timedelta(hours=8), DEFAULT_TIMEZONE)
+    local_value = (value.replace(tzinfo=UTC) if value.tzinfo is None else value).astimezone(customer_timezone)
+    if granularity == "hour":
+        return local_value.strftime("%Y-%m-%dT%H:00:00")
+    if granularity == "month":
+        return local_value.strftime("%Y-%m")
+    return local_value.strftime("%Y-%m-%d")
+
+
+def _add_trend_times(trend: list[dict], values: list[datetime], timezone_name: str, granularity: str) -> None:
+    index = {point["start"]: point for point in trend}
+    for value in values:
+        key = _trend_key(value, timezone_name, granularity)
+        if key in index:
+            index[key]["count"] += 1
+
+
 @app.get("/api/v1/users")
 async def list_users(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), user: User = Depends(require_roles("admin")), session: AsyncSession = Depends(get_session)):
     where = User.org_id == user.org_id
@@ -467,13 +492,15 @@ async def list_audit_logs(action: str | None = Query(default=None, max_length=10
 @app.get("/api/v1/assets", response_model=ApiEnvelope[PageData[AssetRead]])
 async def list_assets(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
     demo = configured_demo_store(settings)
-    if demo:
-        items = [AssetRead.model_validate(demo.asset)]
-        return envelope(page_data(items[(page - 1) * page_size:page * page_size], 1, page, page_size))
     where = Asset.org_id == user.org_id
     total = await session.scalar(select(func.count()).select_from(Asset).where(where))
-    items = list(await session.scalars(select(Asset).where(where).order_by(Asset.created_at.desc(), Asset.id.desc()).offset((page - 1) * page_size).limit(page_size)))
-    return envelope(page_data([AssetRead.model_validate(item) for item in items], total or 0, page, page_size))
+    items = list(await session.scalars(select(Asset).where(where).order_by(Asset.created_at.desc(), Asset.id.desc()).offset(0 if demo else (page - 1) * page_size).limit(page * page_size if demo else page_size)))
+    values = [AssetRead.model_validate(item) for item in items]
+    if demo:
+        values.append(AssetRead.model_validate(demo.asset))
+        values.sort(key=lambda item: (_timestamp(item.created_at), str(item.id)), reverse=True)
+        values = values[(page - 1) * page_size:page * page_size]
+    return envelope(page_data(values, int(total or 0) + int(bool(demo)), page, page_size))
 
 
 @app.post("/api/v1/assets", response_model=AssetRead, status_code=201)
@@ -744,30 +771,16 @@ async def list_tasks(
     settings: Settings = Depends(get_settings),
 ):
     demo = configured_demo_store(settings)
-    if demo:
-        task = demo.task
-        matches = (
-            (not status or task["status"] == status)
-            and (not keyword or keyword.strip().casefold() in task["name"].casefold())
-            and (not test_type or task["test_type"] == test_type)
-            and (not creator or task["created_by_name"] == creator)
-            and (not created_from or task["created_at"] >= created_from)
-            and (not created_to or task["created_at"] <= created_to)
-        )
-        items = [TaskListRead.model_validate(task)] if matches else []
-        return envelope(
-            {
-                **page_data(items[(page - 1) * page_size:page * page_size], len(items), page, page_size),
-                "metrics": {
-                    "total": 1,
-                    "queued": 0,
-                    "running": 0,
-                    "completed": 1,
-                    "failed": 0,
-                    "cancelled": 0,
-                },
-            }
-        )
+    demo_task = demo.task if demo else None
+    demo_matches = bool(
+        demo_task
+        and (not status or demo_task["status"] == status)
+        and (not keyword or keyword.strip().casefold() in demo_task["name"].casefold())
+        and (not test_type or demo_task["test_type"] == test_type)
+        and (not creator or demo_task["created_by_name"] == creator)
+        and (not created_from or demo_task["created_at"] >= created_from)
+        and (not created_to or demo_task["created_at"] <= created_to)
+    )
     criteria = [Task.org_id == user.org_id]
     if status:
         criteria.append(Task.status == status)
@@ -811,8 +824,8 @@ async def list_tasks(
             .join(User, creator_join)
             .where(*criteria)
             .order_by(Task.created_at.desc(), Task.id.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
+            .offset(0 if demo else (page - 1) * page_size)
+            .limit(page * page_size if demo else page_size)
         )
     ).all()
     items = [
@@ -827,14 +840,21 @@ async def list_tasks(
         )
         for task, plan, creator_name in rows
     ]
+    if demo_matches and demo_task:
+        items.append(TaskListRead.model_validate(demo_task))
+        items.sort(key=lambda item: (_timestamp(item.created_at), str(item.id)), reverse=True)
+    if demo:
+        items = items[(page - 1) * page_size:page * page_size]
+    visible_total = int(total or 0) + int(demo_matches)
+    demo_count = int(bool(demo_task))
     return envelope(
         {
-            **page_data(items, total or 0, page, page_size),
+            **page_data(items, visible_total, page, page_size),
             "metrics": {
-                "total": metric_row.total,
+                "total": metric_row.total + demo_count,
                 "queued": metric_row.queued,
                 "running": metric_row.running,
-                "completed": metric_row.completed,
+                "completed": metric_row.completed + demo_count,
                 "failed": metric_row.failed,
                 "cancelled": metric_row.cancelled,
             },
@@ -1080,8 +1100,8 @@ async def list_vulnerabilities(
     settings: Settings = Depends(get_settings),
 ):
     demo = configured_demo_store(settings)
-    if demo:
-        items = demo.filter_vulnerabilities(
+    demo_items = (
+        demo.filter_vulnerabilities(
             severity=severity,
             status=status,
             keyword=keyword,
@@ -1091,15 +1111,9 @@ async def list_vulnerabilities(
             created_from=created_from,
             created_to=created_to,
         )
-        values = [VulnerabilityListRead.model_validate(item) for item in items]
-        return envelope(
-            page_data(
-                values[(page - 1) * page_size:page * page_size],
-                len(values),
-                page,
-                page_size,
-            )
-        )
+        if demo
+        else []
+    )
     criteria = [Vulnerability.org_id == user.org_id]
     if severity:
         criteria.append(Vulnerability.severity == severity)
@@ -1133,8 +1147,8 @@ async def list_vulnerabilities(
             )
             .where(*criteria)
             .order_by(Vulnerability.created_at.desc(), Vulnerability.id.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
+            .offset(0 if demo else (page - 1) * page_size)
+            .limit(page * page_size if demo else page_size)
         )
     ).all()
     items = []
@@ -1163,7 +1177,11 @@ async def list_vulnerabilities(
                 }
             )
         )
-    return envelope(page_data(items, total or 0, page, page_size))
+    items.extend(VulnerabilityListRead.model_validate(item) for item in demo_items)
+    if demo:
+        items.sort(key=lambda item: (_timestamp(item.created_at), str(item.id)), reverse=True)
+        items = items[(page - 1) * page_size:page * page_size]
+    return envelope(page_data(items, int(total or 0) + len(demo_items), page, page_size))
 
 
 @app.get(
@@ -1178,37 +1196,6 @@ async def vulnerability_overview(
     settings: Settings = Depends(get_settings),
 ):
     demo = configured_demo_store(settings)
-    if demo:
-        counts = {
-            severity: sum(item["severity"] == severity for item in demo.vulnerabilities)
-            for severity in ("critical", "high", "medium", "low")
-        }
-        metrics = {
-            "total": len(demo.vulnerabilities),
-            **counts,
-            "unknown": len(demo.vulnerabilities) - sum(counts.values()),
-            "open": len(demo.vulnerabilities),
-            "retesting": 0,
-            "fixed": 0,
-        }
-        risk_labels = {"critical": "严重", "high": "高危", "medium": "中危", "low": "低危", "unknown": "未知"}
-        return envelope(
-            {
-                "range": range_name,
-                "timezone": DEFAULT_TIMEZONE,
-                "granularity": "day",
-                "metrics": metrics,
-                "risk_distribution": [
-                    {"key": key, "label": label, "count": metrics[key]}
-                    for key, label in risk_labels.items()
-                ],
-                "source_distribution": [
-                    {"key": "demo", "label": "演示数据导入", "count": len(demo.vulnerabilities)}
-                ],
-                "trend": [{"start": datetime.now(UTC).date().isoformat(), "count": len(demo.vulnerabilities)}],
-                "recommendations": [f"优先处置 {counts['critical'] + counts['high']} 个严重或高危漏洞。"],
-            }
-        )
     metric_row = (
         await session.execute(
             select(
@@ -1237,6 +1224,14 @@ async def vulnerability_overview(
             strict=True,
         )
     )
+    demo_vulnerabilities = demo.vulnerabilities if demo else ()
+    for item in demo_vulnerabilities:
+        metrics["total"] += 1
+        severity_key = item["severity"] if item["severity"] in {"critical", "high", "medium", "low"} else "unknown"
+        metrics[severity_key] += 1
+        status_key = {"OPEN": "open", "RETESTING": "retesting", "FIXED": "fixed"}.get(item["status"])
+        if status_key:
+            metrics[status_key] += 1
     source = func.coalesce(
         Vulnerability.data_json["source_tool"].as_string(),
         "xiaoyi",
@@ -1255,6 +1250,17 @@ async def vulnerability_overview(
         user.org_id,
         range_name,
         timezone_name,
+        extra_earliest=min(
+            (item["created_at"] for item in demo_vulnerabilities if item["data_json"].get("evidence_at")),
+            default=None,
+        ),
+    )
+    trend_values = [point.__dict__ for point in trend]
+    _add_trend_times(
+        trend_values,
+        [item["created_at"] for item in demo_vulnerabilities if item["data_json"].get("evidence_at")],
+        window.timezone_name,
+        window.granularity,
     )
     risk_labels = {
         "critical": "严重",
@@ -1285,12 +1291,12 @@ async def vulnerability_overview(
             "source_distribution": [
                 {
                     "key": str(key),
-                    "label": "小易回传" if key == "xiaoyi" else str(key),
+                    "label": "平台回传" if key == "xiaoyi" else str(key),
                     "count": int(count),
                 }
                 for key, count in source_rows
-            ],
-            "trend": [point.__dict__ for point in trend],
+            ] + ([{"key": "demo", "label": "演示数据导入", "count": len(demo_vulnerabilities)}] if demo else []),
+            "trend": trend_values,
             "recommendations": recommendations,
         }
     )
@@ -1353,19 +1359,24 @@ async def list_reports(
     settings: Settings = Depends(get_settings),
 ):
     demo = configured_demo_store(settings)
-    if demo:
-        item = demo.report
-        matches = (
-            (not task_id or item["task_id"] == task_id)
-            and (not plan_id or item["plan_id"] == plan_id)
-            and (not keyword or keyword.strip().casefold() in f"{item['filename']} {item['plan_name']} {item['task_name']}".casefold())
-            and (not report_format or item["format"] == report_format)
-            and (not status or status in {"READY", "PENDING_CONFIRMATION", "PENDING_EXPORT"})
-            and (not created_from or item["created_at"] >= created_from)
-            and (not created_to or item["created_at"] <= created_to)
+    demo_report = demo.report if demo else None
+    demo_matches = bool(
+        demo_report
+        and (not task_id or demo_report["task_id"] == task_id)
+        and (not plan_id or demo_report["plan_id"] == plan_id)
+        and (
+            not keyword
+            or keyword.strip().casefold()
+            in f"{demo_report['filename']} {demo_report['plan_name']} {demo_report['task_name']}".casefold()
         )
-        items = [ReportListRead.model_validate(item)] if matches else []
-        return envelope(page_data(items[(page - 1) * page_size:page * page_size], len(items), page, page_size))
+        and (not report_format or demo_report["format"] == report_format)
+        and (
+            not status
+            or status in {"READY", "PENDING_CONFIRMATION", "PENDING_EXPORT"}
+        )
+        and (not created_from or demo_report["created_at"] >= created_from)
+        and (not created_to or demo_report["created_at"] <= created_to)
+    )
     criteria = [Report.org_id == user.org_id]
     if task_id:
         criteria.append(Report.task_id == task_id)
@@ -1410,8 +1421,8 @@ async def list_reports(
             .outerjoin(Task, task_join)
             .where(*criteria)
             .order_by(Report.created_at.desc(), Report.id.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
+            .offset(0 if demo else (page - 1) * page_size)
+            .limit(page * page_size if demo else page_size)
         )
     ).all()
     items = [
@@ -1425,7 +1436,22 @@ async def list_reports(
         )
         for report, plan_name, task_name in rows
     ]
-    return envelope(page_data(items, total or 0, page, page_size))
+    if demo_matches and demo_report:
+        items.append(ReportListRead.model_validate(demo_report))
+        items.sort(
+            key=lambda item: (
+                item.created_at.replace(tzinfo=UTC).timestamp()
+                if item.created_at.tzinfo is None
+                else item.created_at.timestamp(),
+                str(item.id),
+            ),
+            reverse=True,
+        )
+    if demo:
+        items = items[(page - 1) * page_size:page * page_size]
+    return envelope(
+        page_data(items, int(total or 0) + int(demo_matches), page, page_size)
+    )
 
 
 @app.get(
@@ -1440,44 +1466,6 @@ async def report_overview(
     settings: Settings = Depends(get_settings),
 ):
     demo = configured_demo_store(settings)
-    if demo:
-        report = demo.report
-        created_at = report["created_at"]
-        highest = max(
-            (item["severity"] for item in demo.vulnerabilities),
-            key={"critical": 4, "high": 3, "medium": 2, "low": 1}.get,
-            default="low",
-        )
-        return envelope(
-            {
-                "range": range_name,
-                "timezone": DEFAULT_TIMEZONE,
-                "granularity": "day",
-                "metrics": {
-                    "total": {"value": 1},
-                    "monthly_new": {"value": 1},
-                    "pending_export": {"value": 1},
-                    "exported": {"value": 0},
-                    "pending_confirmation": {"value": 1},
-                    "monthly_delivered": {"value": 0},
-                },
-                "source_distribution": [{"key": "penetration", "label": "渗透测试", "count": 1}],
-                "risk_distribution": [{"key": highest, "label": highest, "count": 1}],
-                "trend": [{"start": created_at.date().isoformat(), "count": 1}],
-                "latest_reports": [
-                    {
-                        "id": report["id"],
-                        "filename": report["filename"],
-                        "source": "penetration",
-                        "source_label": "渗透测试",
-                        "creator_name": "演示数据",
-                        "created_at": created_at,
-                    }
-                ],
-                "recent_exports": [],
-                "insights": ["本次渗透测试报告已生成，可直接下载查看。"],
-            }
-        )
     now = datetime.now(UTC)
     try:
         customer_timezone = ZoneInfo(timezone_name)
@@ -1547,6 +1535,13 @@ async def report_overview(
         "pending_confirmation": metric(metric_row[4]),
         "monthly_delivered": metric(metric_row[5], metric_row[7]),
     }
+    if demo:
+        report_created_at = demo.report["created_at"]
+        metrics["total"]["value"] += 1
+        metrics["pending_export"]["value"] += 1
+        metrics["pending_confirmation"]["value"] += 1
+        if report_created_at >= month_start:
+            metrics["monthly_new"]["value"] += 1
     penetration_modes = ("standard", "two_high_one_weak", "two_clear_two_solid", "mlps_2_0")
     source = case(
         (ScanPlan.test_type.in_(penetration_modes), "penetration"),
@@ -1598,7 +1593,16 @@ async def report_overview(
         user.org_id,
         range_name,
         timezone_name,
+        extra_earliest=demo.report["created_at"] if demo else None,
     )
+    trend_values = [point.__dict__ for point in trend]
+    if demo:
+        _add_trend_times(
+            trend_values,
+            [demo.report["created_at"]],
+            window.timezone_name,
+            window.granularity,
+        )
     source_labels = {
         "penetration": "渗透测试",
         "code_audit": "代码审计",
@@ -1607,6 +1611,8 @@ async def report_overview(
         "other": "其他",
     }
     source_counts = {str(key): int(count) for key, count in source_rows}
+    if demo:
+        source_counts["penetration"] = source_counts.get("penetration", 0) + 1
     risk_labels = {
         "critical": "严重",
         "high": "高危",
@@ -1616,6 +1622,13 @@ async def report_overview(
     }
     risk_keys = {4: "critical", 3: "high", 2: "medium", 1: "low", 0: "none"}
     risk_counts = {risk_keys[int(rank or 0)]: int(count) for rank, count in risk_rows}
+    if demo:
+        highest = max(
+            (item["severity"] for item in demo.vulnerabilities),
+            key={"critical": 4, "high": 3, "medium": 2, "low": 1}.get,
+            default="none",
+        )
+        risk_counts[highest] = risk_counts.get(highest, 0) + 1
     latest_rows = (
         await session.execute(
             select(Report, ScanPlan.test_type, User.name)
@@ -1645,6 +1658,31 @@ async def report_overview(
             "emergency_response": "emergency",
             "data_analysis": "data_analysis",
         }.get(test_type, "other")
+
+    latest_reports = [
+        {
+            "id": report.id,
+            "filename": report.filename,
+            "source": (key := source_key(test_type)),
+            "source_label": source_labels[key],
+            "creator_name": creator_name,
+            "created_at": report.created_at,
+        }
+        for report, test_type, creator_name in latest_rows
+    ]
+    if demo:
+        latest_reports.append(
+            {
+                "id": demo.report["id"],
+                "filename": demo.report["filename"],
+                "source": "penetration",
+                "source_label": source_labels["penetration"],
+                "creator_name": "演示数据",
+                "created_at": demo.report["created_at"],
+            }
+        )
+        latest_reports.sort(key=lambda item: (_timestamp(item["created_at"]), str(item["id"])), reverse=True)
+        latest_reports = latest_reports[:5]
 
     insights = [
         f"平台累计生成 {metrics['total']['value']} 份报告，本月新增 {metrics['monthly_new']['value']} 份。",
@@ -1676,18 +1714,8 @@ async def report_overview(
                 }
                 for key, label in risk_labels.items()
             ],
-            "trend": [point.__dict__ for point in trend],
-            "latest_reports": [
-                {
-                    "id": report.id,
-                    "filename": report.filename,
-                    "source": (key := source_key(test_type)),
-                    "source_label": source_labels[key],
-                    "creator_name": creator_name,
-                    "created_at": report.created_at,
-                }
-                for report, test_type, creator_name in latest_rows
-            ],
+            "trend": trend_values,
+            "latest_reports": latest_reports,
             "recent_exports": [
                 {
                     "id": report.id,
@@ -1808,51 +1836,22 @@ async def list_ai_logs(plan_id: uuid.UUID | None = None, level: str | None = Que
 @app.get("/api/v1/dashboard/summary", response_model=ApiEnvelope[DashboardSummaryRead])
 async def dashboard_summary(user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
     demo = configured_demo_store(settings)
-    if demo:
-        vulnerabilities = demo.vulnerabilities
-        severity_counts = {
-            severity: sum(item["severity"] == severity for item in vulnerabilities)
-            for severity in ("critical", "high", "medium", "low")
-        }
-        metrics = {
-            "assets": 1,
-            "tasks": 1,
-            "running_tasks": 0,
-            "failed_tasks": 0,
-            "high_risk": severity_counts["critical"] + severity_counts["high"],
-            "vulnerabilities": len(vulnerabilities),
-            "open_vulnerabilities": len(vulnerabilities),
-            "reports": 1,
-        }
-        today = datetime.now(UTC).date()
-        trend = [
-            {"start": (today - timedelta(days=offset)).isoformat(), "critical": 0, "high": 0, "medium": 0, "low": 0}
-            for offset in range(6, -1, -1)
-        ]
-        trend[-1].update(severity_counts)
-        return envelope(
-            {
-                "metrics": metrics,
-                "ai_summary": {
-                    "warnings": [f"当前有 {len(vulnerabilities)} 个未关闭漏洞。"],
-                    "priority_findings": [f"本次测试发现 {metrics['high_risk']} 个严重或高危漏洞，建议优先处置。"],
-                    "remediation": ["先修复严重和高危漏洞，完成后安排复测并更新报告。"],
-                    "source": "fallback",
-                },
-                "risk_trend": trend,
-            }
-        )
     async def count(model, *criteria):
         return await session.scalar(select(func.count()).select_from(model).where(model.org_id == user.org_id, *criteria)) or 0
+    demo_vulnerabilities = demo.vulnerabilities if demo else ()
+    demo_severity_counts = {
+        severity: sum(item["severity"] == severity for item in demo_vulnerabilities)
+        for severity in ("critical", "high", "medium", "low")
+    }
     metrics = {
-        "assets": await count(Asset),
-        "tasks": await count(Task),
+        "assets": await count(Asset) + int(bool(demo)),
+        "tasks": await count(Task) + int(bool(demo)),
         "running_tasks": await count(Task, Task.status.in_(["QUEUED", "RUNNING", "CANCELLING"])),
         "failed_tasks": await count(Task, Task.status == "FAILED"),
-        "high_risk": await count(Vulnerability, Vulnerability.severity.in_(["critical", "high"])),
-        "vulnerabilities": await count(Vulnerability),
-        "open_vulnerabilities": await count(Vulnerability, Vulnerability.status != "FIXED"),
-        "reports": await count(Report),
+        "high_risk": await count(Vulnerability, Vulnerability.severity.in_(["critical", "high"])) + demo_severity_counts["critical"] + demo_severity_counts["high"],
+        "vulnerabilities": await count(Vulnerability) + len(demo_vulnerabilities),
+        "open_vulnerabilities": await count(Vulnerability, Vulnerability.status != "FIXED") + sum(item["status"] != "FIXED" for item in demo_vulnerabilities),
+        "reports": await count(Report) + int(bool(demo)),
     }
     today = datetime.now(UTC).date()
     starts = [today - timedelta(days=offset) for offset in range(6, -1, -1)]
@@ -1867,6 +1866,12 @@ async def dashboard_summary(user: User = Depends(current_user), session: AsyncSe
         key = vulnerability.created_at.astimezone(UTC).date().isoformat()
         if key in index and vulnerability.severity in {"critical", "high", "medium", "low"}:
             index[key][vulnerability.severity] += 1
+    for vulnerability in demo_vulnerabilities:
+        if not vulnerability["data_json"].get("evidence_at"):
+            continue
+        key = vulnerability["created_at"].astimezone(UTC).date().isoformat()
+        if key in index and vulnerability["severity"] in {"critical", "high", "medium", "low"}:
+            index[key][vulnerability["severity"]] += 1
     ai_summary = {
         "warnings": ([f"当前有 {metrics['open_vulnerabilities']} 个未关闭漏洞。"] if metrics["open_vulnerabilities"] else ["当前没有未关闭漏洞。"]),
         "priority_findings": ([f"优先检查 {metrics['failed_tasks']} 个异常任务及 {metrics['high_risk']} 个严重或高危漏洞。"] if metrics["failed_tasks"] or metrics["high_risk"] else ["当前没有异常任务或高危漏洞，需要保持常规巡检。"]),
