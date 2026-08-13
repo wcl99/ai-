@@ -17,6 +17,7 @@ import {
   type TaskPhaseGroup,
   type TaskToolSummary,
 } from '../pages/taskActivityTimeline';
+import { displayPhase, sanitizeDisplayText } from '../vendorDisplay';
 
 type TaskConversationProps = {
   messages: TaskQAMessage[];
@@ -68,7 +69,7 @@ function ToolActivity({ tool }: { tool: TaskToolSummary }) {
               <time>{formatActivityTime(call.startedAt)}</time>
               <Tag color={stateColors[call.state]}>{stateLabels[call.state]}</Tag>
             </header>
-            <div className="task-tool-call-phase">阶段：{call.phase}</div>
+            <div className="task-tool-call-phase">阶段：{displayPhase(call.phase)}</div>
             {call.steps.length ? (
               <div className="orchestrator-steps">
                 {call.steps.map((step, stepIndex) => (
@@ -153,10 +154,10 @@ function ConversationActivity({ message }: { message: TaskQAMessage }) {
       <span className="task-timeline-marker">{isUser ? <UserOutlined /> : <MessageOutlined />}</span>
       <div>
         <header>
-          <strong>{isUser ? '您' : '小易任务助手'}</strong>
+          <strong>{isUser ? '您' : '平台任务助手'}</strong>
           <time>{formatActivityTime(message.created_at)}</time>
         </header>
-        <p>{message.content}</p>
+        <p>{sanitizeDisplayText(message.content)}</p>
       </div>
     </article>
   );
@@ -206,7 +207,7 @@ export function TaskConversation({
             <article className="task-activity-entry task-message-entry task-message-entry--assistant task-intake-prompt">
               <span className="task-timeline-marker"><MessageOutlined /></span>
               <div>
-                <header><strong>小易任务助手</strong></header>
+                <header><strong>平台任务助手</strong></header>
                 <p><b>任务已开始，您可以补充测试信息</b></p>
                 <p>如有白盒账号、特殊入口、测试限制或业务窗口，请在下方对话框发送；不回复不会影响任务继续执行。</p>
               </div>
@@ -216,7 +217,7 @@ export function TaskConversation({
             <div className="task-activity-empty">
               <span className="task-timeline-marker"><ClockCircleOutlined /></span>
               <div>
-                <strong>正在等待小易返回任务编排信息</strong>
+                <strong>正在等待平台返回任务编排信息</strong>
                 <p>收到阶段、工具或对话更新后会自动显示在这里。</p>
               </div>
             </div>
@@ -230,7 +231,7 @@ export function TaskConversation({
 
       <div className="task-conversation-composer task-conversation-composer--floating">
         <div className="task-conversation-progress">
-          <span>{phase || '等待阶段信息'}</span>
+          <span>{displayPhase(phase)}</span>
           <strong>{safeProgress}%</strong>
           <Progress percent={safeProgress} showInfo={false} size="small" />
         </div>

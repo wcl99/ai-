@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sanitizeDisplayText } from '../vendorDisplay';
 
 const platformErrorSchema = z.object({
   success: z.literal(false),
@@ -48,7 +49,7 @@ function responseError(response: Response, body: string, requestAuthGeneration: 
       return new ApiError(
         response.status,
         error.data.code,
-        error.data.message,
+        sanitizeDisplayText(error.data.message),
         error.data.details,
       );
     }

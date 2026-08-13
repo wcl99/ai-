@@ -83,7 +83,7 @@ test('runs the authorized platform golden path without contacting the engine', a
     external_task_id: 'mock-platform-task',
     name: 'Authorized platform task',
     status: taskStatus,
-    phase: taskStatus === 'CANCELLING' ? 'SCANNING' : 'SCANNING',
+    phase: taskStatus === 'CANCELLING' ? 'SCANNING' : 'INIT',
     progress: 60,
     sync_failures: 0,
     error_code: null,
@@ -234,6 +234,8 @@ test('runs the authorized platform golden path without contacting the engine', a
   await page.locator('form button[type="submit"]').click();
 
   await expect(page.locator('.analysis-result')).toContainText('DRAFT');
+  await expect(page.getByRole('alert', { name: '需求分析结果' })).toHaveCount(0);
+  await expect(page.getByText(/小易/)).toHaveCount(0);
   expect(planCreates).toBe(1);
   expect(assetUpdates).toBe(0);
   expect(confirmations).toBe(0);
@@ -255,6 +257,9 @@ test('runs the authorized platform golden path without contacting the engine', a
   expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
 
   await expect(page.getByText('Authorized platform task')).toBeVisible();
+  await expect(page.locator('.monitor-metrics')).toContainText('任务编排中');
+  await expect(page.getByText('INIT', { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/小易/)).toHaveCount(0);
   await expect(page.getByText('Platform task created')).toBeVisible();
   await expect(page.getByText('Validated finding')).toBeVisible();
   await expect(page.getByText('authorized-report.md')).toBeVisible();

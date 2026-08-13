@@ -74,7 +74,7 @@ describe('resource API', () => {
 
     expect(vulnerabilities).toMatchObject({
       range: 'today', riskDistribution: [{ key: 'high', label: '高危', count: 1 }],
-      sourceDistribution: [{ key: 'xiaoyi', label: '小易回传', count: 3 }],
+      sourceDistribution: [{ key: 'xiaoyi', label: '平台回传', count: 3 }],
     });
     expect(reports).toMatchObject({
       metrics: { monthlyNew: { value: 3, changePercent: 50 }, pendingConfirmation: { value: 2 } },

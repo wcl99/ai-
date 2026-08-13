@@ -10,6 +10,7 @@ import type {
 } from '../types';
 import { apiRequest, apiTextRequest } from './client';
 import { userSchema } from './schemas';
+import { sanitizeDisplayText } from '../vendorDisplay';
 
 const uuid = z.string().uuid();
 const timestamp = z.string();
@@ -504,7 +505,7 @@ export async function getVulnerabilityOverview(input: { range: OverviewRange; ti
     granularity: data.granularity,
     metrics: data.metrics,
     riskDistribution: data.risk_distribution,
-    sourceDistribution: data.source_distribution,
+    sourceDistribution: data.source_distribution.map((item) => ({ ...item, label: sanitizeDisplayText(item.label) })),
     trend: data.trend,
     recommendations: data.recommendations,
   };
@@ -529,15 +530,15 @@ export async function getReportOverview(input: { range: OverviewRange; timezone:
       pendingConfirmation: { value: number; changePercent: number | null };
       monthlyDelivered: { value: number; changePercent: number | null };
     },
-    sourceDistribution: data.source_distribution,
+    sourceDistribution: data.source_distribution.map((item) => ({ ...item, label: sanitizeDisplayText(item.label) })),
     riskDistribution: data.risk_distribution,
     trend: data.trend,
     latestReports: data.latest_reports.map((item) => ({
-      id: item.id, filename: item.filename, source: item.source, sourceLabel: item.source_label,
+      id: item.id, filename: item.filename, source: item.source, sourceLabel: sanitizeDisplayText(item.source_label),
       creatorName: item.creator_name, createdAt: item.created_at,
     })),
     recentExports: data.recent_exports.map((item) => ({
-      id: item.id, filename: item.filename, source: item.source, sourceLabel: item.source_label,
+      id: item.id, filename: item.filename, source: item.source, sourceLabel: sanitizeDisplayText(item.source_label),
       format: item.format, exporterName: item.exporter_name, status: item.status,
       exportedAt: item.exported_at,
     })),

@@ -31,6 +31,7 @@ import type {
 } from '../api/resources';
 import { MetricCard, ProgressCell, StatusTag } from '../components/Ui';
 import type { Metric, ReportRecord, TaskRecord, VulnerabilityRecord } from '../types';
+import { displayPhase } from '../vendorDisplay';
 
 const PAGE_SIZE = 10;
 const { RangePicker } = DatePicker;
@@ -126,7 +127,7 @@ export function TasksPage() {
     { title: '创建人', dataIndex: 'creator', width: 150, render: (value) => <span className="table-nowrap" title={value}>{value}</span> },
     { title: '当前状态', dataIndex: 'status', width: 110, render: (value) => <StatusTag status={value} /> },
     { title: '进度', dataIndex: 'progress', width: 150, render: (value, row) => <ProgressCell value={value} tone={row.status === '异常' ? 'red' : row.status === '已完成' ? 'green' : 'blue'} /> },
-    { title: '阶段', dataIndex: 'phase', width: 120, render: (value) => value || '—' },
+      { title: '阶段', dataIndex: 'phase', width: 120, render: (value) => displayPhase(value) },
     { title: '操作', width: 250, fixed: 'right', render: (_, row) => <Space size={2}>
       <Button type="link" onClick={() => setSelected(row)}>摘要</Button>
       <Button type="link" aria-label="打开执行页" onClick={() => navigate(`/pentest/session/${row.id}`)}>详情</Button>
@@ -179,7 +180,7 @@ export function TasksPage() {
             { key: 'creator', label: '创建人', children: selected.creator },
             { key: 'status', label: '当前状态', children: <StatusTag status={selected.status} /> },
             { key: 'progress', label: '执行进度', children: <ProgressCell value={selected.progress} tone={selected.statusCode === 'FAILED' ? 'red' : selected.statusCode === 'SUCCEEDED' ? 'green' : 'blue'} /> },
-            { key: 'phase', label: '当前阶段', children: selected.phase || '暂无阶段信息' },
+            { key: 'phase', label: '当前阶段', children: displayPhase(selected.phase) },
           ]} />
           <Card size="small" title="摘要" className="task-summary-copy"><p>{selected.errorMessage || `${selected.name} 当前处于${selected.status}，执行进度 ${selected.progress}%，目标为 ${selected.target}。`}</p></Card>
           <Button type="primary" block onClick={() => navigate(`/pentest/session/${selected.id}`)}>查看任务详情</Button>

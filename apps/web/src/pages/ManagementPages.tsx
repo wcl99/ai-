@@ -190,7 +190,7 @@ export function LegacySettingsPage() {
             children: (
               <Row gutter={20}>
                 <Col span={14}>
-                  <SettingsCard icon={<CloudServerOutlined />} title="小易渗透引擎" description="平台通过适配器调用预查 WebSocket 和扫描 REST。">
+          <SettingsCard icon={<CloudServerOutlined />} title="渗透执行引擎" description="平台通过适配器调用预查 WebSocket 和扫描 REST。">
                     <Form layout="vertical">
                       <Form.Item label="REST Base URL"><Input value={engineUrl} onChange={(event) => setEngineUrl(event.target.value)} prefix={<ApiOutlined />} /></Form.Item>
                       <Form.Item label="资产预查 WebSocket"><Input value={`${engineUrl.replace(/^http/, 'ws')}/ws/asset-can`} readOnly /></Form.Item>
@@ -218,7 +218,7 @@ export function LegacySettingsPage() {
                 <Col span={12}>
                   <SettingsCard icon={<SafetyCertificateOutlined />} title="授权与范围" description="防止验证流程误触发未授权扫描。">
                     <SettingRow title="仅允许授权资产" description="未授权资产不能创建真实任务"><Switch checked={allowlistOnly} onChange={setAllowlistOnly} /></SettingRow>
-                    <SettingRow title="单次资产上限" description="与小易网段展开限制保持一致"><InputNumber defaultValue={512} min={1} max={512} /></SettingRow>
+              <SettingRow title="单次资产上限" description="与平台网段展开限制保持一致"><InputNumber defaultValue={512} min={1} max={512} /></SettingRow>
                     <SettingRow title="白盒信息" description="仅在最终 chat 提交，不进入预查 WebSocket"><Tag color="blue">隔离传输</Tag></SettingRow>
                   </SettingsCard>
                 </Col>

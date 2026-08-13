@@ -90,7 +90,8 @@ describe('TaskConversation', () => {
     expect(within(timeline).getByText('2026-08-03 10:00:00 — 2026-08-03 10:04:00'))
       .toBeInTheDocument();
     expect(within(timeline).getByText('为什么失败？')).toBeInTheDocument();
-    expect(within(timeline).getByText('小易任务助手')).toBeInTheDocument();
+    expect(within(timeline).getByText('平台任务助手')).toBeInTheDocument();
+    expect(within(timeline).queryByText(/小易/)).not.toBeInTheDocument();
     expect(within(timeline).getByText('2026-08-03 10:05:00')).toBeInTheDocument();
 
     const phaseDetails = within(timeline).getByText('信息收集').closest('details');
@@ -129,7 +130,7 @@ describe('TaskConversation', () => {
       />,
     );
 
-    expect(screen.getByText('正在等待小易返回任务编排信息')).toBeInTheDocument();
+    expect(screen.getByText('正在等待平台返回任务编排信息')).toBeInTheDocument();
     expect(screen.getByText('任务已开始，您可以补充测试信息')).toBeInTheDocument();
     expect(screen.getByText(/白盒账号、特殊入口、测试限制或业务窗口/)).toBeInTheDocument();
     expect(screen.getByText('问题发送失败')).toBeInTheDocument();

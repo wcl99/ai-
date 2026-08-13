@@ -48,6 +48,22 @@ describe('apiRequest', () => {
     );
   });
 
+  it('removes legacy vendor names from user-visible API errors', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: false,
+          code: 'ENGINE_TIMEOUT',
+          message: '小易响应超时，请稍后重试',
+        }),
+        { status: 504, headers: { 'Content-Type': 'application/json' } },
+      ),
+    ));
+
+    await expect(apiRequest('/api/v1/example', z.object({ value: z.string() }))).rejects
+      .toMatchObject({ message: '平台响应超时，请稍后重试' });
+  });
+
   it('rejects a successful response that violates its schema', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ value: 42 }), {
