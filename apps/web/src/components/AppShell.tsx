@@ -175,13 +175,13 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <Layout className={basePath === '/pentest' ? 'app-shell pentest-shell' : 'app-shell'}>
       <Sider width={260} theme="light" className="app-sider">
-        <div className="brand">
+        {basePath.startsWith('/pentest') ? <div className="brand">
           <div className="brand-mark"><SafetyCertificateOutlined /></div>
           <div>
             <Typography.Title level={4}>AI 安服平台</Typography.Title>
             <span>下一代安全服务平台</span>
           </div>
-        </div>
+        </div> : <div className="brand material-brand-crop" aria-label="AI 安服平台"><img src="/material/pages/vulnerabilityDetail.png" alt="AI 安服平台 下一代安全服务平台" /></div>}
         <Menu
           mode="inline"
           selectedKeys={[selectedPath]}

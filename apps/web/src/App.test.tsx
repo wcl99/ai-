@@ -165,6 +165,15 @@ describe('App', () => {
     expect(container.querySelector('.app-header h2')).toHaveTextContent('漏洞详情');
   });
 
+  it('uses the exported material brand outside penetration testing', async () => {
+    const { container } = renderRoute('/overview');
+    await screen.findByRole('button', { name: '用户菜单' });
+    expect(container.querySelector('.material-brand-crop img')).toHaveAttribute(
+      'src',
+      '/material/pages/vulnerabilityDetail.png',
+    );
+  });
+
   it('renders the platform overview', async () => {
     const { container } = renderRoute('/overview');
     expect(await screen.findByRole('heading', { name: '平台总览' })).toBeInTheDocument();
