@@ -30,6 +30,7 @@ from .auth import (
     verify_captcha,
 )
 from .config import Settings, get_settings
+from .demo_data import DemoDataStore
 from .cdn import assess_targets
 from .consultation import run_requirement_agent, run_task_expert_agent
 from .db import SessionLocal, get_session
@@ -102,6 +103,15 @@ from .sync import sync_forever
 
 def envelope(data=None, *, message="ok") -> dict:
     return {"success": True, "message": message, "data": data}
+
+
+def configured_demo_store(settings: Settings) -> DemoDataStore | None:
+    if not settings.demo_data_enabled:
+        return None
+    try:
+        return DemoDataStore.load(settings.demo_data_dir)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise AppError(503, "DEMO_DATA_INVALID", "Demo data is unavailable") from exc
 
 
 def public_report_url(value: str | None) -> str | None:
@@ -455,7 +465,11 @@ async def list_audit_logs(action: str | None = Query(default=None, max_length=10
 
 
 @app.get("/api/v1/assets", response_model=ApiEnvelope[PageData[AssetRead]])
-async def list_assets(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
+async def list_assets(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    demo = configured_demo_store(settings)
+    if demo:
+        items = [AssetRead.model_validate(demo.asset)]
+        return envelope(page_data(items[(page - 1) * page_size:page * page_size], 1, page, page_size))
     where = Asset.org_id == user.org_id
     total = await session.scalar(select(func.count()).select_from(Asset).where(where))
     items = list(await session.scalars(select(Asset).where(where).order_by(Asset.created_at.desc(), Asset.id.desc()).offset((page - 1) * page_size).limit(page_size)))
@@ -499,7 +513,22 @@ async def add_plan(payload: ScanPlanCreate, user: User = Depends(require_roles("
 
 
 @app.get("/api/v1/scan-plans/{plan_id}", response_model=ScanPlanRead)
-async def read_plan(plan_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
+async def read_plan(plan_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    demo = configured_demo_store(settings)
+    if demo and plan_id == demo.plan["id"]:
+        created_at = demo.task["created_at"]
+        return ScanPlanRead.model_validate(
+            {
+                **demo.plan,
+                "asset_list": [{"host": demo.asset["address"], "hostType": "domain"}],
+                "templates": [],
+                "description": "演示数据导入的已完成渗透测试任务。",
+                "time_limit": None,
+                "snapshot": {"source": "demo", "authorization_confirmed": True},
+                "analysis_json": {},
+                "created_at": created_at,
+            }
+        )
     return await get_plan(session, plan_id, user)
 
 
@@ -508,7 +537,11 @@ async def list_plan_messages(
     plan_id: uuid.UUID,
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ):
+    demo = configured_demo_store(settings)
+    if demo and plan_id == demo.plan["id"]:
+        return envelope([])
     await get_plan(session, plan_id, user)
     items = list(
         await session.scalars(
@@ -708,7 +741,33 @@ async def list_tasks(
     page_size: int = Query(20, ge=1, le=100),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ):
+    demo = configured_demo_store(settings)
+    if demo:
+        task = demo.task
+        matches = (
+            (not status or task["status"] == status)
+            and (not keyword or keyword.strip().casefold() in task["name"].casefold())
+            and (not test_type or task["test_type"] == test_type)
+            and (not creator or task["created_by_name"] == creator)
+            and (not created_from or task["created_at"] >= created_from)
+            and (not created_to or task["created_at"] <= created_to)
+        )
+        items = [TaskListRead.model_validate(task)] if matches else []
+        return envelope(
+            {
+                **page_data(items[(page - 1) * page_size:page * page_size], len(items), page, page_size),
+                "metrics": {
+                    "total": 1,
+                    "queued": 0,
+                    "running": 0,
+                    "completed": 1,
+                    "failed": 0,
+                    "cancelled": 0,
+                },
+            }
+        )
     criteria = [Task.org_id == user.org_id]
     if status:
         criteria.append(Task.status == status)
@@ -804,19 +863,28 @@ async def scoped_task(session: AsyncSession, task_id: uuid.UUID, user: User) -> 
 
 
 @app.get("/api/v1/tasks/{task_id}", response_model=TaskRead)
-async def read_task(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
+async def read_task(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    demo = configured_demo_store(settings)
+    if demo and task_id == demo.task["id"]:
+        return TaskRead.model_validate(demo.task)
     return await scoped_task(session, task_id, user)
 
 
 @app.get("/api/v1/tasks/{task_id}/children")
-async def task_children(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
+async def task_children(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    demo = configured_demo_store(settings)
+    if demo and task_id == demo.task["id"]:
+        return envelope([])
     await scoped_task(session, task_id, user)
     items = list(await session.scalars(select(Task).where(Task.parent_id == task_id, Task.org_id == user.org_id)))
     return envelope([TaskRead.model_validate(item) for item in items])
 
 
 @app.get("/api/v1/tasks/{task_id}/tools")
-async def task_tools(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
+async def task_tools(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    demo = configured_demo_store(settings)
+    if demo and task_id == demo.task["id"]:
+        return envelope([])
     task = await scoped_task(session, task_id, user)
     if not task.external_task_id:
         return envelope([])
@@ -825,14 +893,25 @@ async def task_tools(task_id: uuid.UUID, user: User = Depends(current_user), ses
 
 
 @app.get("/api/v1/tasks/{task_id}/events")
-async def task_events(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
+async def task_events(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    demo = configured_demo_store(settings)
+    if demo and task_id == demo.task["id"]:
+        return envelope([TaskEventRead.model_validate(item) for item in demo.events])
     await scoped_task(session, task_id, user)
     items = list(await session.scalars(select(TaskEvent).where(TaskEvent.task_id == task_id).order_by(TaskEvent.created_at)))
     return envelope([TaskEventRead.model_validate(item) for item in items])
 
 
 @app.get("/api/v1/tasks/{task_id}/qa/messages")
-async def task_qa_messages(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
+async def task_qa_messages(
+    task_id: uuid.UUID,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    demo = configured_demo_store(settings)
+    if demo and task_id == demo.task["id"]:
+        return envelope([])
     await scoped_task(session, task_id, user)
     items = list(
         await session.scalars(
@@ -998,7 +1077,29 @@ async def list_vulnerabilities(
     page_size: int = Query(20, ge=1, le=100),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ):
+    demo = configured_demo_store(settings)
+    if demo:
+        items = demo.filter_vulnerabilities(
+            severity=severity,
+            status=status,
+            keyword=keyword,
+            asset=asset,
+            task_id=task_id,
+            plan_id=plan_id,
+            created_from=created_from,
+            created_to=created_to,
+        )
+        values = [VulnerabilityListRead.model_validate(item) for item in items]
+        return envelope(
+            page_data(
+                values[(page - 1) * page_size:page * page_size],
+                len(values),
+                page,
+                page_size,
+            )
+        )
     criteria = [Vulnerability.org_id == user.org_id]
     if severity:
         criteria.append(Vulnerability.severity == severity)
@@ -1074,7 +1175,40 @@ async def vulnerability_overview(
     timezone_name: str = Query(DEFAULT_TIMEZONE, alias="timezone", max_length=64),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ):
+    demo = configured_demo_store(settings)
+    if demo:
+        counts = {
+            severity: sum(item["severity"] == severity for item in demo.vulnerabilities)
+            for severity in ("critical", "high", "medium", "low")
+        }
+        metrics = {
+            "total": len(demo.vulnerabilities),
+            **counts,
+            "unknown": len(demo.vulnerabilities) - sum(counts.values()),
+            "open": len(demo.vulnerabilities),
+            "retesting": 0,
+            "fixed": 0,
+        }
+        risk_labels = {"critical": "严重", "high": "高危", "medium": "中危", "low": "低危", "unknown": "未知"}
+        return envelope(
+            {
+                "range": range_name,
+                "timezone": DEFAULT_TIMEZONE,
+                "granularity": "day",
+                "metrics": metrics,
+                "risk_distribution": [
+                    {"key": key, "label": label, "count": metrics[key]}
+                    for key, label in risk_labels.items()
+                ],
+                "source_distribution": [
+                    {"key": "demo", "label": "演示数据导入", "count": len(demo.vulnerabilities)}
+                ],
+                "trend": [{"start": datetime.now(UTC).date().isoformat(), "count": len(demo.vulnerabilities)}],
+                "recommendations": [f"优先处置 {counts['critical'] + counts['high']} 个严重或高危漏洞。"],
+            }
+        )
     metric_row = (
         await session.execute(
             select(
@@ -1163,7 +1297,12 @@ async def vulnerability_overview(
 
 
 @app.get("/api/v1/vulnerabilities/{vulnerability_id}", response_model=VulnerabilityRead)
-async def read_vulnerability(vulnerability_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
+async def read_vulnerability(vulnerability_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    demo = configured_demo_store(settings)
+    if demo:
+        item = next((item for item in demo.vulnerabilities if item["id"] == vulnerability_id), None)
+        if item:
+            return VulnerabilityRead.model_validate(item)
     item = await session.scalar(select(Vulnerability).where(Vulnerability.id == vulnerability_id, Vulnerability.org_id == user.org_id))
     if item is None:
         raise AppError(404, "VULNERABILITY_NOT_FOUND", "Vulnerability not found")
@@ -1171,8 +1310,10 @@ async def read_vulnerability(vulnerability_id: uuid.UUID, user: User = Depends(c
 
 
 @app.patch("/api/v1/vulnerabilities/{vulnerability_id}", response_model=VulnerabilityRead)
-async def update_vulnerability(vulnerability_id: uuid.UUID, payload: VulnerabilityUpdate, user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session)):
-    item = await read_vulnerability(vulnerability_id, user, session)
+async def update_vulnerability(vulnerability_id: uuid.UUID, payload: VulnerabilityUpdate, user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    item = await read_vulnerability(vulnerability_id, user, session, settings)
+    if isinstance(item, VulnerabilityRead):
+        raise AppError(409, "DEMO_DATA_READ_ONLY", "Demo vulnerabilities are read-only")
     item.status = payload.status
     await add_audit(session, user, "vulnerability.update", "vulnerability", item.id, {"status": payload.status})
     await session.commit()
@@ -1185,8 +1326,11 @@ async def delete_vulnerability(
     vulnerability_id: uuid.UUID,
     user: User = Depends(require_roles("admin", "operator", "security_expert")),
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ):
-    item = await read_vulnerability(vulnerability_id, user, session)
+    item = await read_vulnerability(vulnerability_id, user, session, settings)
+    if isinstance(item, VulnerabilityRead):
+        raise AppError(409, "DEMO_DATA_READ_ONLY", "Demo vulnerabilities are read-only")
     await add_audit(session, user, "vulnerability.delete", "vulnerability", item.id)
     await session.delete(item)
     await session.commit()
@@ -1206,7 +1350,22 @@ async def list_reports(
     page_size: int = Query(20, ge=1, le=100),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ):
+    demo = configured_demo_store(settings)
+    if demo:
+        item = demo.report
+        matches = (
+            (not task_id or item["task_id"] == task_id)
+            and (not plan_id or item["plan_id"] == plan_id)
+            and (not keyword or keyword.strip().casefold() in f"{item['filename']} {item['plan_name']} {item['task_name']}".casefold())
+            and (not report_format or item["format"] == report_format)
+            and (not status or status in {"READY", "PENDING_CONFIRMATION", "PENDING_EXPORT"})
+            and (not created_from or item["created_at"] >= created_from)
+            and (not created_to or item["created_at"] <= created_to)
+        )
+        items = [ReportListRead.model_validate(item)] if matches else []
+        return envelope(page_data(items[(page - 1) * page_size:page * page_size], len(items), page, page_size))
     criteria = [Report.org_id == user.org_id]
     if task_id:
         criteria.append(Report.task_id == task_id)
@@ -1278,7 +1437,47 @@ async def report_overview(
     timezone_name: str = Query(DEFAULT_TIMEZONE, alias="timezone", max_length=64),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ):
+    demo = configured_demo_store(settings)
+    if demo:
+        report = demo.report
+        created_at = report["created_at"]
+        highest = max(
+            (item["severity"] for item in demo.vulnerabilities),
+            key={"critical": 4, "high": 3, "medium": 2, "low": 1}.get,
+            default="low",
+        )
+        return envelope(
+            {
+                "range": range_name,
+                "timezone": DEFAULT_TIMEZONE,
+                "granularity": "day",
+                "metrics": {
+                    "total": {"value": 1},
+                    "monthly_new": {"value": 1},
+                    "pending_export": {"value": 1},
+                    "exported": {"value": 0},
+                    "pending_confirmation": {"value": 1},
+                    "monthly_delivered": {"value": 0},
+                },
+                "source_distribution": [{"key": "penetration", "label": "渗透测试", "count": 1}],
+                "risk_distribution": [{"key": highest, "label": highest, "count": 1}],
+                "trend": [{"start": created_at.date().isoformat(), "count": 1}],
+                "latest_reports": [
+                    {
+                        "id": report["id"],
+                        "filename": report["filename"],
+                        "source": "penetration",
+                        "source_label": "渗透测试",
+                        "creator_name": "演示数据",
+                        "created_at": created_at,
+                    }
+                ],
+                "recent_exports": [],
+                "insights": ["本次渗透测试报告已生成，可直接下载查看。"],
+            }
+        )
     now = datetime.now(UTC)
     try:
         customer_timezone = ZoneInfo(timezone_name)
@@ -1536,7 +1735,10 @@ async def record_report_lifecycle(
 
 
 @app.get("/api/v1/reports/{report_id}", response_model=ReportRead)
-async def read_report(report_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
+async def read_report(report_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    demo = configured_demo_store(settings)
+    if demo and report_id == demo.report["id"]:
+        return ReportRead.model_validate(demo.report)
     report = await scoped_report(session, report_id, user)
     return ReportRead.model_validate(
         {
@@ -1547,7 +1749,10 @@ async def read_report(report_id: uuid.UUID, user: User = Depends(current_user), 
 
 
 @app.get("/api/v1/reports/{report_id}/download")
-async def download_report(report_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
+async def download_report(report_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    demo = configured_demo_store(settings)
+    if demo and report_id == demo.report["id"]:
+        return FileResponse(demo.report["local_path"], filename=demo.report["filename"])
     report = await scoped_report(session, report_id, user)
     if not report.local_path or not Path(report.local_path).is_file():
         raise AppError(404, "REPORT_FILE_NOT_FOUND", "Report file not found")
@@ -1601,7 +1806,42 @@ async def list_ai_logs(plan_id: uuid.UUID | None = None, level: str | None = Que
 
 
 @app.get("/api/v1/dashboard/summary", response_model=ApiEnvelope[DashboardSummaryRead])
-async def dashboard_summary(user: User = Depends(current_user), session: AsyncSession = Depends(get_session)):
+async def dashboard_summary(user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    demo = configured_demo_store(settings)
+    if demo:
+        vulnerabilities = demo.vulnerabilities
+        severity_counts = {
+            severity: sum(item["severity"] == severity for item in vulnerabilities)
+            for severity in ("critical", "high", "medium", "low")
+        }
+        metrics = {
+            "assets": 1,
+            "tasks": 1,
+            "running_tasks": 0,
+            "failed_tasks": 0,
+            "high_risk": severity_counts["critical"] + severity_counts["high"],
+            "vulnerabilities": len(vulnerabilities),
+            "open_vulnerabilities": len(vulnerabilities),
+            "reports": 1,
+        }
+        today = datetime.now(UTC).date()
+        trend = [
+            {"start": (today - timedelta(days=offset)).isoformat(), "critical": 0, "high": 0, "medium": 0, "low": 0}
+            for offset in range(6, -1, -1)
+        ]
+        trend[-1].update(severity_counts)
+        return envelope(
+            {
+                "metrics": metrics,
+                "ai_summary": {
+                    "warnings": [f"当前有 {len(vulnerabilities)} 个未关闭漏洞。"],
+                    "priority_findings": [f"本次测试发现 {metrics['high_risk']} 个严重或高危漏洞，建议优先处置。"],
+                    "remediation": ["先修复严重和高危漏洞，完成后安排复测并更新报告。"],
+                    "source": "fallback",
+                },
+                "risk_trend": trend,
+            }
+        )
     async def count(model, *criteria):
         return await session.scalar(select(func.count()).select_from(model).where(model.org_id == user.org_id, *criteria)) or 0
     metrics = {

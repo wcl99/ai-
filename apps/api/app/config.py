@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     engine_retry_limit: int = Field(default=2, ge=0, le=10)
     sync_interval_seconds: float = 1
     report_dir: Path = Path("data/reports")
+    demo_data_enabled: bool = False
+    demo_data_dir: Path = Path("数据")
     static_dir: Path = Path("static")
     bootstrap_admin_username: str | None = None
     bootstrap_admin_password: str | None = None

@@ -15,6 +15,8 @@ import { useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { getDashboardSummary, listAssets, listReports, listTasks, listVulnerabilities } from '../api/resources';
 import { MetricCard, SectionTitle } from '../components/Ui';
+import { RiskDonut } from '../components/DashboardVisuals';
+import { smoothLine } from '../components/dashboardVisualGeometry';
 import { displayPhase, sanitizeDisplayText } from '../vendorDisplay';
 import type { Metric } from '../types';
 
@@ -92,7 +94,7 @@ export function DashboardPage() {
         </MaterialPanel>
         <Card variant="borderless" className="risk-card">
           <SectionTitle icon={<BugOutlined />} title="风险概况" />
-          <div className="risk-content"><div className="risk-donut"><div><span>漏洞总数</span><strong>{totalValue(vulnerabilities.data?.total, vulnerabilities.isError)}</strong></div></div><ul><li><i className="dot high" />高危 <strong>{totalValue(high.data?.total, high.isError)}</strong></li><li><i className="dot low" />其他 <strong>{otherRisk}</strong></li></ul></div>
+          <div className="risk-content"><RiskDonut total={Number(totalValue(vulnerabilities.data?.total, vulnerabilities.isError)) || 0} segments={[{ key: 'high', value: Number(totalValue(high.data?.total, high.isError)) || 0, color: '#ff8b2b' }, { key: 'other', value: Number(otherRisk) || 0, color: '#e9edf5' }]} /><ul><li><i className="dot high" />高危 <strong>{totalValue(high.data?.total, high.isError)}</strong></li><li><i className="dot low" />其他 <strong>{otherRisk}</strong></li></ul></div>
         </Card>
       </div>
 
@@ -146,16 +148,6 @@ function RiskTrend({ values }: { values: Array<{ start: string; critical: number
     </svg>
     <div className="dashboard-risk-legend">{series.map((item) => <span key={item.key}><i style={{ background: item.color }} />{item.label}</span>)}</div>
   </div>;
-}
-
-function smoothLine(points: Array<{ x: number; y: number }>) {
-  if (points.length === 0) return '';
-  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-  return points.slice(1).reduce((path, point, index) => {
-    const previous = points[index];
-    const middle = (previous.x + point.x) / 2;
-    return `${path} C ${middle} ${previous.y}, ${middle} ${point.y}, ${point.x} ${point.y}`;
-  }, `M ${points[0].x} ${points[0].y}`);
 }
 
 function formatDashboardTime(value: string) {

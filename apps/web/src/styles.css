@@ -363,10 +363,23 @@ a { color: var(--primary); cursor: pointer; }
   .app-content:not(.pentest-content){padding:12px}.app-content:not(.pentest-content) .dashboard-page .metric-grid-five,.app-content:not(.pentest-content) .dashboard-page .feature-grid,.app-content:not(.pentest-content) .dashboard-page .dashboard-main-grid,.app-content:not(.pentest-content) .dashboard-page .dashboard-bottom-grid{grid-template-columns:minmax(0,1fr)}
   .app-content:not(.pentest-content) .dashboard-page .dashboard-main-grid>.risk-card,.app-content:not(.pentest-content) .dashboard-page .dashboard-bottom-grid>:last-child{grid-column:auto}
   .app-content:not(.pentest-content) .dashboard-page .feature-card .ant-card-body{grid-template-columns:44px minmax(0,1fr) max-content}.app-content:not(.pentest-content) .dashboard-page .feature-card p{display:none}
-  .overview-material-panel .dashboard-summary-block strong{font-size:10px}.overview-material-panel .dashboard-summary-block ul{font-size:8px}.overview-material-panel .recent-task-copy strong,.overview-material-panel .activity-copy strong{font-size:9px}
+  .overview-material-panel .dashboard-summary-block strong{font-size:13px}.overview-material-panel .dashboard-summary-block ul{font-size:11px}.overview-material-panel .recent-task-copy strong,.overview-material-panel .activity-copy strong{font-size:12px}
 }
 
 .material-brand{height:80px;display:block;padding:0;overflow:hidden;background:#eef3ff}.material-brand img{display:block;width:260px;height:80px}
+/* Overview material overlays use fixed visual tiers; the source artwork is the responsive surface. */
+.overview-material-panel .dashboard-summary-block strong{font-size:13px}
+.overview-material-panel .dashboard-summary-block ul{font-size:11px;line-height:1.5}
+.overview-material-panel .ai-source{font-size:9px}
+.overview-material-panel .activity-timeline{--timeline-axis-x:10px}
+.overview-material-panel .activity-timeline::before{left:var(--timeline-axis-x);transform:translateX(-50%)}
+.overview-material-panel .activity-node{margin-left:0;justify-self:center}
+.risk-donut{position:relative;display:grid;place-items:center;background:none}
+.risk-donut::before{display:none}
+.risk-donut svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.risk-donut-track,.risk-donut-segment{fill:none;stroke-width:20}
+.risk-donut-track{stroke:#edf1f8}
+.risk-donut-segment{stroke-linecap:round}
 .vulnerability-detail-page{display:grid;grid-template-columns:minmax(0,3fr) minmax(300px,1fr);grid-template-areas:'back back' 'error error' 'identity risk' 'summary info' 'content info' 'content actions';gap:20px;align-items:start;color:#26364d}.detail-back-link{grid-area:back;justify-self:start;border:0;color:#075bcc;background:transparent;cursor:pointer}.detail-update-error{grid-area:error}.detail-identity-card,.detail-ai-summary,.detail-risk-card,.detail-info-card,.detail-content-card,.detail-actions-card{border:0;border-radius:12px;background:#fff;box-shadow:0 8px 24px rgba(47,91,172,.08)}
 .detail-identity-card{grid-area:identity;min-height:112px;display:grid;grid-template-columns:58px minmax(220px,1fr) auto auto auto auto;grid-template-rows:1fr 1fr;align-items:center;gap:0 12px;padding:20px 24px}.detail-shield{grid-row:1/-1;width:48px;height:48px;display:grid;place-items:center;border-radius:10px;color:#075bcc;background:#eef5ff;font-size:25px}.detail-title-copy{min-width:0}.detail-title-copy h1{margin:0 0 8px;overflow:hidden;color:#15243b;font-size:22px;text-overflow:ellipsis;white-space:nowrap}.detail-title-copy p{margin:0;color:#8a96a8;font-size:12px}.detail-title-tags{grid-column:2/4;grid-row:2;display:flex;align-items:center;gap:5px}.detail-title-tags .ant-tag{margin:0}.detail-identity-card>.ant-btn,.detail-identity-card>.ant-dropdown-trigger{grid-row:1/-1}
 .detail-ai-summary{grid-area:summary;min-height:172px;padding:22px 28px;background:linear-gradient(105deg,#fff 65%,#edf4ff)}.detail-section-heading{display:flex;align-items:center;gap:10px;color:#075bcc}.detail-section-heading h2{margin:0;font-size:17px}.detail-ai-summary>p{min-height:48px;margin:20px 0;color:#37465d;line-height:1.8}.detail-summary-signals{display:flex;flex-wrap:wrap;gap:10px}.detail-summary-signals span{padding:7px 12px;border-radius:5px;color:#677489;background:#f5f7fa;font-size:12px}.detail-summary-signals span:nth-child(2){background:#eef8f4}.detail-summary-signals span:last-child{color:#cf4d53;background:#fff1f2}
