@@ -130,6 +130,18 @@ describe('App', () => {
     expect(taskCenter).toHaveClass('ant-menu-submenu-open');
   });
 
+  it('uses the shared material shell for penetration testing routes', async () => {
+    const { container } = renderRoute(`/pentest/session/${task.id}`);
+
+    await screen.findByText('Test Admin');
+    expect(container.querySelector('.app-shell')).not.toHaveClass('pentest-shell');
+    expect(container.querySelector('.material-brand img')).toHaveAttribute(
+      'src',
+      '/material/source/brand/sidebar-brand-exact.png',
+    );
+    expect(container.querySelector('.app-content')).not.toHaveClass('pentest-content');
+  });
+
   it('keeps a terminal penetration session available for replay', async () => {
     rememberPentestSession(user.id, task.id);
     const finishedFetch = (input: RequestInfo | URL) => {

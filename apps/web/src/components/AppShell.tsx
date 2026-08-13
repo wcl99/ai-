@@ -1,7 +1,6 @@
 import {
   AppstoreFilled,
   SearchOutlined,
-  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { Alert, Avatar, Dropdown, Input, Layout, Menu, Space, Typography } from 'antd';
 import type { MenuProps } from 'antd';
@@ -172,15 +171,9 @@ export function AppShell({ children }: AppShellProps) {
   };
 
   return (
-    <Layout className={basePath === '/pentest' ? 'app-shell pentest-shell' : 'app-shell'}>
+    <Layout className="app-shell">
       <Sider width={260} theme="light" className="app-sider">
-        {basePath.startsWith('/pentest') ? <div className="brand">
-          <div className="brand-mark"><SafetyCertificateOutlined /></div>
-          <div>
-            <Typography.Title level={4}>AI 安服平台</Typography.Title>
-            <span>下一代安全服务平台</span>
-          </div>
-        </div> : <div className="brand material-brand" aria-label="AI 安服平台"><img src="/material/source/brand/sidebar-brand-exact.png" alt="AI 安服平台 下一代安全服务平台" /></div>}
+        <div className="brand material-brand" aria-label="AI 安服平台"><img src="/material/source/brand/sidebar-brand-exact.png" alt="AI 安服平台 下一代安全服务平台" /></div>
         <Menu
           mode="inline"
           selectedKeys={[selectedPath]}
@@ -224,7 +217,7 @@ export function AppShell({ children }: AppShellProps) {
             onClose={() => setLogoutError(null)}
           />
         )}
-        <Content className={basePath === '/pentest' ? 'app-content pentest-content' : 'app-content'}>
+        <Content className="app-content">
           <div className="app-content-frame">{children}</div>
         </Content>
       </Layout>

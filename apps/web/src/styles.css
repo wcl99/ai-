@@ -55,7 +55,6 @@ a { color: var(--primary); cursor: pointer; }
 .report-preview { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.7 Consolas, monospace; color: #26354d; }
 .truthful-empty { min-height: 150px; display: grid; place-items: center; color: #8a94a6; text-align: center; }
 .app-content { min-height: calc(100vh - 66px); padding: 22px 24px 32px; }
-.pentest-content { padding: 0; overflow: hidden; }
 .page { max-width: 1660px; margin: 0 auto; }
 .ant-card { border-radius: 12px; box-shadow: var(--shadow); }
 .metric-grid { display: grid; gap: 18px; margin-bottom: 20px; }
@@ -195,7 +194,6 @@ a { color: var(--primary); cursor: pointer; }
 
 /* 2026 management surfaces and large-desktop canvas */
 .app-content-frame{width:100%;max-width:2100px;min-width:0;margin:0 auto}
-.pentest-content .app-content-frame{max-width:none}
 .management-page{width:100%;max-width:1780px}
 .management-page-header{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;margin:4px 0 24px;padding:28px 30px;border:1px solid #e2e9f5;border-radius:18px;background:rgba(255,255,255,.9);box-shadow:0 14px 38px rgba(32,67,125,.07)}
 .management-page-header h2{margin:6px 0 8px;font-size:28px;letter-spacing:-.02em;color:#132746}
@@ -242,11 +240,11 @@ a { color: var(--primary); cursor: pointer; }
 
 @media (min-width:2400px){
   :root{--shadow:0 12px 36px rgba(31,74,150,.08)}
-  .app-sider{width:288px!important;max-width:288px!important;min-width:288px!important;flex:0 0 288px!important}.app-sider + .ant-layout{margin-left:288px}.brand{height:100px;padding-inline:28px}.app-header{height:76px;padding-inline:40px}.app-content{min-height:calc(100vh - 76px);padding:34px 42px 48px}.pentest-content{padding:0}.page{max-width:2100px}.management-page{max-width:2100px}.metric-grid{gap:24px}.feature-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}.dashboard-main-grid,.dashboard-bottom-grid{gap:28px}.overview-with-aside{grid-template-columns:minmax(0,1fr) 420px;gap:30px}.execution-workbench{min-height:calc(100vh - 76px)}
+.app-sider{width:288px!important;max-width:288px!important;min-width:288px!important;flex:0 0 288px!important}.app-sider + .ant-layout{margin-left:288px}.brand{height:100px;padding-inline:28px}.app-header{height:76px;padding-inline:40px}.app-content{min-height:calc(100vh - 76px);padding:34px 42px 48px}.page{max-width:2100px}.management-page{max-width:2100px}.metric-grid{gap:24px}.feature-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}.dashboard-main-grid,.dashboard-bottom-grid{gap:28px}.overview-with-aside{grid-template-columns:minmax(0,1fr) 420px;gap:30px}.execution-workbench{min-height:calc(100vh - 76px)}
   .management-page-header{padding:34px 38px}.management-settings-grid,.authorization-summary{gap:26px}.management-panel .ant-card-body{padding:34px}.login-card{width:590px;padding:62px}.login-form-panel{padding:96px}.login-visual-panel{padding-top:86px;padding-bottom:86px}
 }
 @media (min-width:3200px){
-  .app-sider{width:340px!important;max-width:340px!important;min-width:340px!important;flex-basis:340px!important}.app-sider + .ant-layout{margin-left:340px}.app-sider .ant-menu{padding-inline:24px;font-size:17px}.brand{height:116px;padding-inline:36px}.brand h4{font-size:24px!important}.app-header{height:88px;padding-inline:56px}.app-header h2{font-size:32px!important}.global-search{width:560px;height:50px}.app-content{min-height:calc(100vh - 88px);padding:46px 58px 62px}.pentest-content{padding:0}.app-content-frame{max-width:2800px}.page,.management-page{max-width:2800px}.metric-grid,.feature-grid{gap:30px}.metric-card{min-height:150px}.metric-card .ant-card-body{padding:30px}.dashboard-main-grid,.dashboard-bottom-grid{gap:34px}.overview-with-aside{grid-template-columns:minmax(0,1fr) 500px;gap:36px}
+.app-sider{width:340px!important;max-width:340px!important;min-width:340px!important;flex-basis:340px!important}.app-sider + .ant-layout{margin-left:340px}.app-sider .ant-menu{padding-inline:24px;font-size:17px}.brand{height:116px;padding-inline:36px}.brand h4{font-size:24px!important}.app-header{height:88px;padding-inline:56px}.app-header h2{font-size:32px!important}.global-search{width:560px;height:50px}.app-content{min-height:calc(100vh - 88px);padding:46px 58px 62px}.app-content-frame{max-width:2800px}.page,.management-page{max-width:2800px}.metric-grid,.feature-grid{gap:30px}.metric-card{min-height:150px}.metric-card .ant-card-body{padding:30px}.dashboard-main-grid,.dashboard-bottom-grid{gap:34px}.overview-with-aside{grid-template-columns:minmax(0,1fr) 500px;gap:36px}
   .management-page-header{padding:42px 48px}.management-page-header h2{font-size:34px}.management-page-header p{max-width:960px;font-size:16px}.management-settings-grid{grid-template-columns:minmax(600px,1.2fr) repeat(2,minmax(460px,1fr));gap:32px}.management-panel .ant-card-body{padding:42px}.management-panel-wide{min-height:430px}.authorization-summary{gap:32px}.management-stat-strip>div{min-height:132px}.management-table-panel .ant-table{font-size:16px}.ant-table-wrapper .ant-table-tbody>tr>td{height:76px;font-size:15px}
   .login-page{grid-template-columns:1fr 1fr}.login-visual-panel{padding:110px 150px}.login-brand .brand-mark{width:58px;height:58px}.login-brand h1{font-size:34px}.login-brand p{font-size:16px}.login-visual-copy{max-width:900px}.login-visual-copy h2{font-size:86px}.login-visual-copy p{max-width:800px;font-size:22px}.login-form-panel{padding:120px}.login-card{width:720px;padding:76px}.login-card h2{font-size:38px}.login-card-heading p{font-size:16px}.login-card .ant-input-affix-wrapper,.login-card .ant-btn{height:64px}.login-card .ant-form-item-label label{font-size:16px}
 }
@@ -397,14 +395,15 @@ a { color: var(--primary); cursor: pointer; }
 .material-drawer-meta{display:grid;gap:4px;background:transparent}
 .material-drawer-meta>div{border:1px solid #edf1f6;border-radius:8px;background:#fff}
 html,body,#root{min-width:0;overflow-x:auto}
-.app-shell:not(.pentest-shell){width:100%;min-width:0;overflow-x:hidden}
-.pentest-shell{min-width:1920px}
-.app-shell:not(.pentest-shell) .app-sider{width:clamp(220px,13.55vw,300px)!important;min-width:clamp(220px,13.55vw,300px)!important;max-width:clamp(220px,13.55vw,300px)!important;flex-basis:clamp(220px,13.55vw,300px)!important}
-.app-shell:not(.pentest-shell) .app-sider+.ant-layout{min-width:0;margin-left:clamp(220px,13.55vw,300px)}
-.app-shell:not(.pentest-shell) .app-header{height:clamp(64px,3.5vw,76px);padding-inline:clamp(20px,1.6vw,40px);gap:clamp(18px,1.8vw,36px)}
-.app-shell:not(.pentest-shell) .app-header h2{min-width:clamp(130px,8.2vw,178px);font-size:clamp(24px,1.45vw,30px)!important;white-space:nowrap}
-.app-shell:not(.pentest-shell) .global-search{width:clamp(300px,22vw,520px)}
-.app-content:not(.pentest-content){min-width:0;padding:clamp(18px,1.4vw,34px) clamp(18px,1.65vw,42px) clamp(28px,2vw,48px)}
+.app-shell{width:100%;min-width:0;overflow-x:hidden}
+.app-shell .app-sider{width:clamp(220px,13.55vw,300px)!important;min-width:clamp(220px,13.55vw,300px)!important;max-width:clamp(220px,13.55vw,300px)!important;flex-basis:clamp(220px,13.55vw,300px)!important}
+.app-shell .app-sider+.ant-layout{min-width:0;margin-left:clamp(220px,13.55vw,300px)}
+.app-shell .app-header{height:clamp(64px,3.5vw,76px);padding-inline:clamp(20px,1.6vw,40px);gap:clamp(18px,1.8vw,36px)}
+.app-shell .app-header h2{min-width:clamp(130px,8.2vw,178px);font-size:clamp(24px,1.45vw,30px)!important;white-space:nowrap}
+.app-shell .global-search{width:clamp(300px,22vw,520px)}
+.app-content{min-width:0;padding:clamp(18px,1.4vw,34px) clamp(18px,1.65vw,42px) clamp(28px,2vw,48px)}
+.app-content .pentest-welcome,.app-content .execution-workbench{margin:calc(clamp(18px,1.4vw,34px) * -1) calc(clamp(18px,1.65vw,42px) * -1) calc(clamp(28px,2vw,48px) * -1)}
+.material-inline-icon{width:18px;height:18px;display:inline-block;object-fit:contain;vertical-align:-4px}
 .app-content:not(.pentest-content) .app-content-frame{width:100%;max-width:min(100%,2800px);margin-inline:auto;min-width:0}
 .app-content:not(.pentest-content) .page,.app-content:not(.pentest-content) .management-page{width:100%;max-width:none;min-width:0}
 .app-content:not(.pentest-content) .metric-grid{grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:clamp(14px,1.15vw,24px)}
