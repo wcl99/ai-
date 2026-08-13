@@ -13,7 +13,7 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import { Alert, Button, Card, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { getDashboardSummary, listAssets, listReports, listTasks, listVulnerabilities } from '../api/resources';
+import { getDashboardSummary, getVulnerabilityOverview, listAssets, listReports, listTasks, listVulnerabilities } from '../api/resources';
 import { MetricCard, SectionTitle } from '../components/Ui';
 import { RiskDonut } from '../components/DashboardVisuals';
 import { smoothLine } from '../components/dashboardVisualGeometry';
@@ -41,12 +41,12 @@ function totalValue(total: number | undefined, isError = false) {
 }
 
 export function riskOverviewMetrics(
-  summary: Record<string, number> | undefined,
+  overview: { metrics: { total: number; high: number } } | undefined,
   fallbackTotal: number | undefined,
   fallbackHighRisk: number | undefined,
 ) {
-  const total = summary?.vulnerabilities ?? fallbackTotal;
-  const highRisk = summary?.high_risk ?? fallbackHighRisk;
+  const total = overview?.metrics.total ?? fallbackTotal;
+  const highRisk = overview?.metrics.high ?? fallbackHighRisk;
   return {
     total,
     highRisk,
@@ -67,13 +67,17 @@ export function DashboardPage() {
     ],
   });
   const dashboard = useQuery({ queryKey: ['dashboard', 'summary'], queryFn: getDashboardSummary });
-  const queries = [tasks, running, assets, vulnerabilities, high, reports];
+  const allVulnerabilityOverview = useQuery({
+    queryKey: ['vulnerabilities', 'dashboard-overview-all'],
+    queryFn: () => getVulnerabilityOverview({ range: 'all', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+  });
+  const queries = [tasks, running, assets, vulnerabilities, high, reports, allVulnerabilityOverview];
   const firstError = [...queries, dashboard].find((query) => query.isError)?.error;
   // The dashboard summary is the authoritative all-time aggregate. The paged
   // list queries remain useful for the recent-task and fallback states, but
   // must not define the risk-card totals.
   const riskMetrics = riskOverviewMetrics(
-    dashboard.data?.metrics,
+    allVulnerabilityOverview.data,
     vulnerabilities.data?.total,
     high.data?.total,
   );
@@ -82,9 +86,9 @@ export function DashboardPage() {
   const metrics: Metric[] = [
     { label: '任务总数', value: totalValue(tasks.data?.total, tasks.isError), tone: 'blue' },
     { label: '进行中任务', value: totalValue(running.data?.total, running.isError), tone: 'blue' },
-    { label: '高危风险', value: totalValue(highRiskTotal, dashboard.isError && high.isError), tone: 'red' },
+    { label: '高危风险', value: totalValue(highRiskTotal, allVulnerabilityOverview.isError && high.isError), tone: 'red' },
     { label: '资产总数', value: totalValue(assets.data?.total, assets.isError), tone: 'purple' },
-    { label: '漏洞总数', value: totalValue(vulnerabilityTotal, dashboard.isError && vulnerabilities.isError), tone: 'green' },
+    { label: '漏洞总数', value: totalValue(vulnerabilityTotal, allVulnerabilityOverview.isError && vulnerabilities.isError), tone: 'green' },
   ];
   const otherRisk = riskMetrics.other === undefined ? '—' : String(riskMetrics.other);
 
@@ -116,7 +120,7 @@ export function DashboardPage() {
         </MaterialPanel>
         <Card variant="borderless" className="risk-card dashboard-material-height">
           <SectionTitle icon={<BugOutlined />} title="风险概况" />
-          <div className="risk-content"><RiskDonut total={Number(vulnerabilityTotal) || 0} segments={[{ key: 'high', value: Number(highRiskTotal) || 0, color: '#ff8b2b' }, { key: 'other', value: Number(otherRisk) || 0, color: '#e9edf5' }]} /><ul><li><i className="dot high" />严重及高危 <strong>{totalValue(highRiskTotal, dashboard.isError && high.isError)}</strong></li><li><i className="dot low" />其他 <strong>{otherRisk}</strong></li></ul></div>
+          <div className="risk-content"><RiskDonut total={Number(vulnerabilityTotal) || 0} segments={[{ key: 'high', value: Number(highRiskTotal) || 0, color: '#ff8b2b' }, { key: 'other', value: Number(otherRisk) || 0, color: '#e9edf5' }]} /><ul><li><i className="dot high" />高危 <strong>{totalValue(highRiskTotal, allVulnerabilityOverview.isError && high.isError)}</strong></li><li><i className="dot low" />其他 <strong>{otherRisk}</strong></li></ul></div>
         </Card>
       </div>
 

@@ -20,11 +20,11 @@ describe('dashboard visual contracts', () => {
     expect(document.querySelector('.risk-donut-segment')?.getAttribute('stroke-linecap')).toBe('round');
   });
 
-  it('uses all-time summary totals instead of paged-list totals when available', () => {
-    expect(riskOverviewMetrics({ vulnerabilities: 132, high_risk: 28 }, 243, 37)).toEqual({
-      total: 132,
-      highRisk: 28,
-      other: 104,
+  it('uses all-time vulnerability overview totals instead of paged-list totals when available', () => {
+    expect(riskOverviewMetrics({ metrics: { total: 243, high: 37 } }, 132, 18)).toEqual({
+      total: 243,
+      highRisk: 37,
+      other: 206,
     });
   });
 
