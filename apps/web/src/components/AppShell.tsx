@@ -180,7 +180,7 @@ export function AppShell({ children }: AppShellProps) {
             <Typography.Title level={4}>AI 安服平台</Typography.Title>
             <span>下一代安全服务平台</span>
           </div>
-        </div> : <div className="brand material-brand" aria-label="AI 安服平台"><img src="/material/source/brand/sidebar-brand.png" alt="AI 安服平台 下一代安全服务平台" /></div>}
+        </div> : <div className="brand material-brand" aria-label="AI 安服平台"><img src="/material/source/brand/sidebar-brand-exact.png" alt="AI 安服平台 下一代安全服务平台" /></div>}
         <Menu
           mode="inline"
           selectedKeys={[selectedPath]}

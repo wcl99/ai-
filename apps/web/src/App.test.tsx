@@ -170,7 +170,7 @@ describe('App', () => {
     await screen.findByRole('button', { name: '用户菜单' });
     expect(container.querySelector('.material-brand img')).toHaveAttribute(
       'src',
-      '/material/source/brand/sidebar-brand.png',
+      '/material/source/brand/sidebar-brand-exact.png',
     );
   });
 
