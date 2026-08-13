@@ -41,16 +41,21 @@ function totalValue(total: number | undefined, isError = false) {
 }
 
 export function riskOverviewMetrics(
-  overview: { metrics: { total: number; high: number } } | undefined,
+  overview: { metrics: { total: number; critical: number; high: number; medium: number; low: number } } | undefined,
   fallbackTotal: number | undefined,
   fallbackHighRisk: number | undefined,
 ) {
   const total = overview?.metrics.total ?? fallbackTotal;
+  const critical = overview?.metrics.critical;
   const highRisk = overview?.metrics.high ?? fallbackHighRisk;
+  const medium = overview?.metrics.medium;
+  const low = overview?.metrics.low;
   return {
     total,
+    critical,
     highRisk,
-    other: total !== undefined && highRisk !== undefined ? Math.max(0, total - highRisk) : undefined,
+    medium,
+    low,
   };
 }
 
@@ -90,7 +95,12 @@ export function DashboardPage() {
     { label: '资产总数', value: totalValue(assets.data?.total, assets.isError), tone: 'purple' },
     { label: '漏洞总数', value: totalValue(vulnerabilityTotal, allVulnerabilityOverview.isError && vulnerabilities.isError), tone: 'green' },
   ];
-  const otherRisk = riskMetrics.other === undefined ? '—' : String(riskMetrics.other);
+  const riskSegments = [
+    { key: 'critical', label: '严重', value: riskMetrics.critical, color: '#c72d35', dot: 'severe' },
+    { key: 'high', label: '高危', value: riskMetrics.highRisk, color: '#ff8b2b', dot: 'high' },
+    { key: 'medium', label: '中危', value: riskMetrics.medium, color: '#075bd8', dot: 'medium' },
+    { key: 'low', label: '低危', value: riskMetrics.low, color: '#087b5b', dot: 'low' },
+  ];
 
   return (
     <div className="page dashboard-page material-dashboard">
@@ -120,7 +130,7 @@ export function DashboardPage() {
         </MaterialPanel>
         <Card variant="borderless" className="risk-card dashboard-material-height">
           <SectionTitle icon={<BugOutlined />} title="风险概况" />
-          <div className="risk-content"><RiskDonut total={Number(vulnerabilityTotal) || 0} segments={[{ key: 'high', value: Number(highRiskTotal) || 0, color: '#ff8b2b' }, { key: 'other', value: Number(otherRisk) || 0, color: '#e9edf5' }]} /><ul><li><i className="dot high" />高危 <strong>{totalValue(highRiskTotal, allVulnerabilityOverview.isError && high.isError)}</strong></li><li><i className="dot low" />其他 <strong>{otherRisk}</strong></li></ul></div>
+          <div className="risk-content"><RiskDonut total={Number(vulnerabilityTotal) || 0} segments={riskSegments.map(({ key, value, color }) => ({ key, value: Number(value) || 0, color }))} /><ul>{riskSegments.map(({ key, label, value, dot }) => <li key={key}><i className={`dot ${dot}`} />{label} <strong>{totalValue(value, allVulnerabilityOverview.isError && (key === 'high' ? high.isError : true))}</strong></li>)}</ul></div>
         </Card>
       </div>
 

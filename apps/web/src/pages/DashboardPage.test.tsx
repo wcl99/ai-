@@ -21,14 +21,22 @@ describe('dashboard visual contracts', () => {
   });
 
   it('uses all-time vulnerability overview totals instead of paged-list totals when available', () => {
-    expect(riskOverviewMetrics({ metrics: { total: 243, high: 37 } }, 132, 18)).toEqual({
+    expect(riskOverviewMetrics({ metrics: { total: 243, critical: 12, high: 37, medium: 81, low: 113 } }, 132, 18)).toEqual({
       total: 243,
+      critical: 12,
       highRisk: 37,
-      other: 206,
+      medium: 81,
+      low: 113,
     });
   });
 
-  it('falls back to list totals while the summary request is unavailable', () => {
-    expect(riskOverviewMetrics(undefined, 12, 4)).toEqual({ total: 12, highRisk: 4, other: 8 });
+  it('does not invent unavailable severity totals from paged-list fallbacks', () => {
+    expect(riskOverviewMetrics(undefined, 12, 4)).toEqual({
+      total: 12,
+      critical: undefined,
+      highRisk: 4,
+      medium: undefined,
+      low: undefined,
+    });
   });
 });

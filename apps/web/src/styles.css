@@ -99,8 +99,8 @@ a { color: var(--primary); cursor: pointer; }
 .risk-donut div { z-index: 1; display: flex; flex-direction: column; text-align: center; }
 .risk-donut span { color: #6c7483; }.risk-donut strong { font-size: 30px; }
 .risk-content ul { list-style: none; padding: 0; min-width: 120px; }
-.risk-content li { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; margin: 18px 0; color: #4e5869; }
-.dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; }.dot.severe { background:#c72d35 }.dot.high { background:#ff8b2b }.dot.medium { background:#075bd8 }.dot.low { background:#dfe5f0 }
+.risk-content li { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; margin: 12px 0; color: #4e5869; }
+.dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; }.dot.severe { background:#c72d35 }.dot.high { background:#ff8b2b }.dot.medium { background:#075bd8 }.dot.low { background:#087b5b }
 .recent-task { display: grid; grid-template-columns: 1fr 150px; gap: 24px; align-items: center; padding: 14px 4px; }
 .recent-task div { display:flex; flex-direction:column; }.recent-task span { color:var(--muted); font-size:12px; }
 .activity { display: flex; gap: 14px; margin: 16px 0; }
