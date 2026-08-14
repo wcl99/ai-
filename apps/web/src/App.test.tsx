@@ -193,13 +193,11 @@ describe('App', () => {
       .not.toHaveClass('ant-menu-item-disabled');
   });
 
-  it('keeps the report export history navigation enabled and selected', async () => {
+  it('hides the duplicate report export history navigation entry', async () => {
     renderRoute('/reports?status=EXPORTED');
 
     await screen.findByText('Test Admin');
-    const exportHistory = screen.getByText('导出记录').closest('li');
-    expect(exportHistory).not.toHaveClass('ant-menu-item-disabled');
-    expect(exportHistory).toHaveClass('ant-menu-item-selected');
+    expect(screen.queryByText('导出记录')).not.toBeInTheDocument();
   });
 
   it('labels a vulnerability detail route in the app header', async () => {

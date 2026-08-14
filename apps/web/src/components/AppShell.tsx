@@ -79,7 +79,6 @@ function menuItems(): MenuProps['items'] {
     children: [
       { key: '/reports/overview', label: '报告总览' },
       { key: '/reports', label: '报告列表' },
-      { key: '/reports?status=EXPORTED', label: '导出记录' },
     ],
   },
   {
@@ -135,8 +134,6 @@ export function AppShell({ children }: AppShellProps) {
     ? location.pathname
     : basePath === '/tasks' && location.search.startsWith('?status=')
       ? `/tasks?status=${new URLSearchParams(location.search).get('status')}`
-      : basePath === '/reports' && new URLSearchParams(location.search).get('status') === 'EXPORTED'
-        ? '/reports?status=EXPORTED'
       : basePath;
   const title = basePath.startsWith('/vulnerabilities/')
     ? '漏洞详情'

@@ -11,6 +11,12 @@ describe('dashboard visual contracts', () => {
     expect(path).not.toContain(' L ');
   });
 
+  it('keeps smoothed curve control points inside the chart bounds', () => {
+    const path = smoothLine([{ x: 0, y: 180 }, { x: 100, y: 180 }, { x: 200, y: 180 }], { minY: 180, maxY: 180 });
+    const numbers = [...path.matchAll(/\d+(?:\.\d+)?/g)].map((match) => Number(match[0]));
+    expect(Math.min(...numbers.filter((_, index) => index % 2 === 1))).toBeGreaterThanOrEqual(180);
+  });
+
   it('renders risk segments as rounded SVG strokes', () => {
     const document = new DOMParser().parseFromString(
       renderToStaticMarkup(<RiskDonut total={12} segments={[{ key: 'high', value: 4, color: '#ff8b32' }, { key: 'other', value: 8, color: '#e9edf5' }]} />),

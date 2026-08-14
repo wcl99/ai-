@@ -14,6 +14,13 @@ describe('OverviewChart', () => {
     expect(getAllByText('08-11：5')).not.toHaveLength(0);
   });
 
+  it('clamps negative bar values to the zero baseline', () => {
+    const { container } = render(<OverviewChart kind="bar" label="趋势" values={[{ label: '08-10', value: -2 }]} />);
+    const bar = container.querySelector('rect');
+    expect(Number(bar?.getAttribute('y'))).toBe(178);
+    expect(Number(bar?.getAttribute('height'))).toBe(0);
+  });
+
   it('renders a donut with a real total and accessible legend', () => {
     const { getByLabelText, getByText } = render(
       <OverviewChart
