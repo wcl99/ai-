@@ -684,6 +684,37 @@ async def test_report_packaging_failure_keeps_polling_until_success(
     assert len(retries) == 1
 
 
+async def test_existing_report_packaging_failure_resumes_after_deployment(
+    authenticated_client, monkeypatch
+):
+    task_id = await create_queued_task(
+        authenticated_client, "Existing report failure", "existing-report-failure"
+    )
+    running_engine = RestartEngine(
+        EngineTask("existing-report-task", "RUNNING", "SCANNING", 70, {})
+    )
+    monkeypatch.setattr(sync, "get_engine_client", lambda settings: running_engine)
+    await sync.sync_once(get_settings())
+
+    async with SessionLocal() as session:
+        task = await session.get(Task, uuid.UUID(task_id))
+        task.status = "FAILED"
+        task.phase = "FINISHED"
+        task.progress = 100
+        task.error_code = "XIAOYI_TASK_FAILED"
+        task.error_message = "报告生成失败：ZIP entry size is too large or invalid"
+        await session.commit()
+
+    recovered_engine = ReportPackagingRetryEngine(failures=0)
+    monkeypatch.setattr(sync, "get_engine_client", lambda settings: recovered_engine)
+    await sync.sync_once(get_settings())
+
+    recovered = await authenticated_client.get(f"/api/v1/tasks/{task_id}")
+    assert recovered.json()["status"] == "SUCCEEDED"
+    assert recovered.json()["error_message"] is None
+    assert recovered_engine.polls == 1
+
+
 async def test_retry_limit_exhaustion_fails_task(authenticated_client, monkeypatch):
     task_id = await create_queued_task(
         authenticated_client, "Exhausted task", "exhausted-task-request"

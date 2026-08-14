@@ -120,6 +120,30 @@ async def has_ready_report_fallback(session, task: Task) -> bool:
     return finding_id is not None
 
 
+async def keep_report_packaging_retrying(
+    session, task: Task, was_retrying: bool
+) -> None:
+    if (
+        not is_report_packaging_error(task.error_message)
+        or await has_ready_report_fallback(session, task)
+    ):
+        return
+    task.status = "RUNNING"
+    task.phase = "REPORT_GENERATING"
+    task.progress = 90
+    task.error_code = "REPORT_GENERATION_RETRYING"
+    task.sync_failures += 1
+    if not was_retrying:
+        session.add(
+            TaskEvent(
+                task_id=task.id,
+                event_type="report_retry_scheduled",
+                message="报告生成暂未完成，系统将继续重试",
+                data_json={"attempt": task.sync_failures},
+            )
+        )
+
+
 async def recover_ready_report_fallbacks(session) -> None:
     """Recover ZIP-only report failures after a persisted platform report exists."""
     candidates = list(
@@ -259,16 +283,32 @@ async def sync_children(session, client, parent: Task) -> tuple[list[dict], list
 async def sync_once(settings: Settings) -> None:
     client = get_engine_client(settings)
     async with SessionLocal() as session:
-        # Terminal tasks are immutable here; only active platform tasks need engine polling.
-        tasks = list(
+        active_tasks = list(
             await session.scalars(
                 select(Task).where(Task.status.in_(["QUEUED", "RUNNING", "CANCELLING"]))
             )
         )
+        failed_report_tasks = list(
+            await session.scalars(
+                select(Task).where(
+                    Task.status.in_(["FAILED", "PARTIAL_SUCCEEDED"]),
+                    Task.error_message.is_not(None),
+                )
+            )
+        )
+        retry_tasks = []
+        for task in failed_report_tasks:
+            if (
+                is_report_packaging_error(task.error_message)
+                and not await has_ready_report_fallback(session, task)
+            ):
+                retry_tasks.append(task)
+        tasks = active_tasks + retry_tasks
         for task in tasks:
             # Isolate each task so one engine failure cannot prevent the others from syncing.
             try:
                 previous = (task.status, task.phase, task.progress)
+                was_report_retrying = task.error_code == "REPORT_GENERATION_RETRYING"
                 if task.status == "CANCELLING":
                     if task.external_task_id:
                         await client.stop_task(task.external_task_id)
@@ -311,7 +351,6 @@ async def sync_once(settings: Settings) -> None:
                         )
                         await sync_report(session, task, result.raw)
                 else:
-                    was_report_retrying = task.error_code == "REPORT_GENERATION_RETRYING"
                     result = await client.get_task(task.external_task_id, task.progress)
                     apply_engine_state(task, result)
                     task.raw_external = redact_sensitive(result.raw)
@@ -337,24 +376,7 @@ async def sync_once(settings: Settings) -> None:
                         await ensure_local_report(
                             session, settings, task, children, tools
                         )
-                    if (
-                        is_report_packaging_error(task.error_message)
-                        and not await has_ready_report_fallback(session, task)
-                    ):
-                        task.status = "RUNNING"
-                        task.phase = "REPORT_GENERATING"
-                        task.progress = 90
-                        task.error_code = "REPORT_GENERATION_RETRYING"
-                        task.sync_failures += 1
-                        if not was_report_retrying:
-                            session.add(
-                                TaskEvent(
-                                    task_id=task.id,
-                                    event_type="report_retry_scheduled",
-                                    message="报告生成暂未完成，系统将继续重试",
-                                    data_json={"attempt": task.sync_failures},
-                                )
-                            )
+                await keep_report_packaging_retrying(session, task, was_report_retrying)
                 current = (task.status, task.phase, task.progress)
                 if current != previous:
                     session.add(
