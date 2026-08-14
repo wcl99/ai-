@@ -509,6 +509,36 @@ class RestartEngine:
         return None
 
 
+class ReportPackagingRetryEngine:
+    def __init__(self, failures: int):
+        self.failures = failures
+        self.polls = 0
+
+    async def create_task(self, payload: dict, request_id: str) -> EngineTask:
+        return EngineTask("report-retry-task", "RUNNING", "SCANNING", 70, {})
+
+    async def get_task(
+        self, external_task_id: str, current_progress: float = 0
+    ) -> EngineTask:
+        self.polls += 1
+        if self.polls <= self.failures:
+            return EngineTask(
+                external_task_id,
+                "FAILED",
+                "FINISHED",
+                100,
+                {},
+                error_message="报告生成失败：ZIP entry size is too large or invalid",
+            )
+        return EngineTask(external_task_id, "SUCCEEDED", "FINISHED", 100, {})
+
+    async def get_children(self, external_task_id: str) -> list[EngineTask]:
+        return []
+
+    async def stop_task(self, external_task_id: str) -> None:
+        return None
+
+
 async def create_queued_task(client, name: str, request_id: str) -> str:
     plan = await client.post(
         "/api/v1/scan-plans",
@@ -615,6 +645,43 @@ async def test_transient_engine_failures_retry_and_recover(authenticated_client,
     assert recovered.json()["status"] == "SUCCEEDED"
     assert recovered.json()["sync_failures"] == 0
     assert recovered.json()["error_code"] is None
+
+
+async def test_report_packaging_failure_keeps_polling_until_success(
+    authenticated_client, monkeypatch
+):
+    task_id = await create_queued_task(
+        authenticated_client, "Report retry task", "report-retry-request"
+    )
+    engine = ReportPackagingRetryEngine(failures=2)
+    monkeypatch.setattr(sync, "get_engine_client", lambda settings: engine)
+
+    await sync.sync_once(get_settings())
+    await sync.sync_once(get_settings())
+    first_retry = await authenticated_client.get(f"/api/v1/tasks/{task_id}")
+    assert first_retry.json()["status"] == "RUNNING"
+    assert first_retry.json()["phase"] == "REPORT_GENERATING"
+    assert first_retry.json()["progress"] == 90
+
+    await sync.sync_once(get_settings())
+    second_retry = await authenticated_client.get(f"/api/v1/tasks/{task_id}")
+    assert second_retry.json()["status"] == "RUNNING"
+    assert second_retry.json()["progress"] == 90
+
+    await sync.sync_once(get_settings())
+    recovered = await authenticated_client.get(f"/api/v1/tasks/{task_id}")
+    assert recovered.json()["status"] == "SUCCEEDED"
+    assert recovered.json()["progress"] == 100
+    assert recovered.json()["error_code"] is None
+    assert recovered.json()["error_message"] is None
+
+    events = await authenticated_client.get(f"/api/v1/tasks/{task_id}/events")
+    retries = [
+        item
+        for item in events.json()["data"]
+        if item["event_type"] == "report_retry_scheduled"
+    ]
+    assert len(retries) == 1
 
 
 async def test_retry_limit_exhaustion_fails_task(authenticated_client, monkeypatch):

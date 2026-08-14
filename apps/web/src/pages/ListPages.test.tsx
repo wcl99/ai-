@@ -132,6 +132,36 @@ describe('resource list pages', () => {
     expect(fetchMock.mock.calls[2][0]).toBe(`/api/v1/tasks/${task.id}/stop`);
   });
 
+  it('hides report generation errors from the task summary drawer', async () => {
+    const reportFailure = {
+      ...task,
+      status: 'FAILED',
+      progress: 100,
+      error_code: 'XIAOYI_TASK_FAILED',
+      error_message: '报告生成失败：ZIP entry size is too large or invalid',
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(envelope([reportFailure])))
+      .mockResolvedValueOnce(json({
+        task_id: task.id,
+        vulnerabilities: [],
+        score: null,
+        level: '暂无评分',
+        rationale: '该任务尚未发现漏洞，暂无 CVSS 评分。',
+        source: 'platform',
+        message: null,
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage(<TasksPage />);
+    await screen.findByText('API 真实任务');
+
+    await userEvent.setup().click(screen.getByRole('button', { name: '摘要' }));
+
+    expect(screen.queryByText(/报告生成失败：ZIP entry size is too large or invalid/))
+      .not.toBeInTheDocument();
+    expect(await screen.findByText(/当前处于异常/)).toBeInTheDocument();
+  });
+
   it('deletes a terminal task after confirmation', async () => {
     const terminal = { ...task, status: 'SUCCEEDED', progress: 100 };
     const fetchMock = vi.fn()

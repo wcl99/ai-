@@ -104,6 +104,22 @@ def is_report_packaging_error(message: str | None) -> bool:
     return bool(found) and not suffix.strip() and ";" not in prefix and "；" not in prefix
 
 
+async def has_ready_report_fallback(session, task: Task) -> bool:
+    report = await session.scalar(
+        select(Report).where(
+            Report.task_id == task.id,
+            Report.status == "READY",
+            Report.local_path.is_not(None),
+        )
+    )
+    if report is None or not report.local_path or not Path(report.local_path).is_file():
+        return False
+    finding_id = await session.scalar(
+        select(Vulnerability.id).where(Vulnerability.task_id == task.id).limit(1)
+    )
+    return finding_id is not None
+
+
 async def recover_ready_report_fallbacks(session) -> None:
     """Recover ZIP-only report failures after a persisted platform report exists."""
     candidates = list(
@@ -117,19 +133,7 @@ async def recover_ready_report_fallbacks(session) -> None:
     for task in candidates:
         if not is_report_packaging_error(task.error_message):
             continue
-        report = await session.scalar(
-            select(Report).where(
-                Report.task_id == task.id,
-                Report.status == "READY",
-                Report.local_path.is_not(None),
-            )
-        )
-        if report is None or not report.local_path or not Path(report.local_path).is_file():
-            continue
-        finding_id = await session.scalar(
-            select(Vulnerability.id).where(Vulnerability.task_id == task.id).limit(1)
-        )
-        if finding_id is None:
+        if not await has_ready_report_fallback(session, task):
             continue
         original_reason = task.error_message[:500]
         task.status = "SUCCEEDED"
@@ -307,6 +311,7 @@ async def sync_once(settings: Settings) -> None:
                         )
                         await sync_report(session, task, result.raw)
                 else:
+                    was_report_retrying = task.error_code == "REPORT_GENERATION_RETRYING"
                     result = await client.get_task(task.external_task_id, task.progress)
                     apply_engine_state(task, result)
                     task.raw_external = redact_sensitive(result.raw)
@@ -332,6 +337,24 @@ async def sync_once(settings: Settings) -> None:
                         await ensure_local_report(
                             session, settings, task, children, tools
                         )
+                    if (
+                        is_report_packaging_error(task.error_message)
+                        and not await has_ready_report_fallback(session, task)
+                    ):
+                        task.status = "RUNNING"
+                        task.phase = "REPORT_GENERATING"
+                        task.progress = 90
+                        task.error_code = "REPORT_GENERATION_RETRYING"
+                        task.sync_failures += 1
+                        if not was_report_retrying:
+                            session.add(
+                                TaskEvent(
+                                    task_id=task.id,
+                                    event_type="report_retry_scheduled",
+                                    message="报告生成暂未完成，系统将继续重试",
+                                    data_json={"attempt": task.sync_failures},
+                                )
+                            )
                 current = (task.status, task.phase, task.progress)
                 if current != previous:
                     session.add(

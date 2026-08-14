@@ -13,6 +13,15 @@ export function sanitizeDisplayText(value: string) {
   return value.replace(/小易/g, '平台');
 }
 
+export function visibleTaskError(value?: string | null) {
+  if (!value) return null;
+  const reportFailure = /报告(?:生成|打包)(?:过程)?失败|report (?:generation|packaging)(?: has)? failed|zip entry size is too large or invalid/i;
+  const parts = value.split(/[；;\r\n]+/).map((part) => part.trim()).filter(Boolean);
+  const visible = parts.filter((part) => !reportFailure.test(part));
+  if (visible.length === parts.length) return value;
+  return visible.length ? visible.join('；') : null;
+}
+
 export function displayPhase(value?: string | null) {
   const normalized = value?.trim();
   if (!normalized) return '等待阶段';

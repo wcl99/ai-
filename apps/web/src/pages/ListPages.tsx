@@ -12,6 +12,7 @@ import type { MenuProps } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { visibleTaskError } from '../vendorDisplay';
 import {
   listReports,
   listTasks,
@@ -215,7 +216,7 @@ export function TasksPage() {
             { key: 'phase', label: '当前阶段', children: displayPhase(selected.phase) },
           ]} />
           <TaskRiskSummary taskId={selected.id} />
-          <Card size="small" title="摘要" className="task-summary-copy"><p>{selected.errorMessage || `${selected.name} 当前处于${selected.status}，执行进度 ${selected.progress}%，目标为 ${selected.target}。`}</p></Card>
+          <Card size="small" title="摘要" className="task-summary-copy"><p>{visibleTaskError(selected.errorMessage) || `${selected.name} 当前处于${selected.status}，执行进度 ${selected.progress}%，目标为 ${selected.target}。`}</p></Card>
           <Button type="primary" block onClick={() => navigate(`/pentest/session/${selected.id}`)}>查看任务详情</Button>
         </div>}
       </Drawer>
