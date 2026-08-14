@@ -16,6 +16,7 @@ import {
   listReports,
   listTasks,
   listVulnerabilities,
+  getTaskRiskSummary,
   previewReport,
   reportDownloadUrl,
   updateVulnerability,
@@ -81,6 +82,37 @@ function pageMetrics(
     { label: totalLabel, value: loaded ? String(total) : '—', tone: 'gray' },
     ...rows.map((row) => ({ ...row, value: loaded ? String(row.value) : '—' })),
   ];
+}
+
+function TaskRiskSummary({ taskId }: { taskId: string }) {
+  const query = useQuery({
+    queryKey: ['task-risk-summary', taskId],
+    queryFn: () => getTaskRiskSummary(taskId),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  if (query.isPending) return <Card size="small" title="任务风险评分" className="task-risk-summary"><p>正在分析任务漏洞...</p></Card>;
+  if (query.isError || !query.data) return <Card size="small" title="任务风险评分" className="task-risk-summary"><Alert type="warning" showIcon message={errorMessage(query.error)} /></Card>;
+  const summary = query.data;
+  return <section className="task-risk-summary" aria-label="任务漏洞摘要">
+    <Card size="small" title="任务风险评分" className="task-risk-score-card">
+      <div className="task-risk-score-top">
+        <strong>{summary.score === null ? '—' : summary.score.toFixed(1)}</strong>
+        {['暂无评分', '无风险'].includes(summary.level) ? <Tag>{summary.level}</Tag> : <SeverityTag severity={summary.level} />}
+      </div>
+      <p>{summary.rationale}</p>
+      {summary.source === 'deepseek' && <small>依据 CVSS v3.1 生成</small>}
+      {summary.message && <small>{summary.message}</small>}
+    </Card>
+    <Card size="small" title={`任务中探测到的漏洞（${summary.vulnerabilities.length}）`} className="task-findings-card">
+      {summary.vulnerabilities.length === 0 ? <p>本次任务未发现漏洞。</p> : <ul>
+        {summary.vulnerabilities.map((item) => <li key={item.id}>
+          <div><strong>{item.title}</strong><span>{item.asset_key || '未关联资产'}</span></div>
+          <div>{item.severity === 'unknown' ? <Tag>未知</Tag> : <SeverityTag severity={item.severity} />}{item.cvss_score !== null && <em>CVSS {item.cvss_score.toFixed(1)}</em>}</div>
+        </li>)}
+      </ul>}
+    </Card>
+  </section>;
 }
 
 export function TasksPage() {
@@ -182,6 +214,7 @@ export function TasksPage() {
             { key: 'progress', label: '执行进度', children: <ProgressCell value={selected.progress} tone={selected.statusCode === 'FAILED' ? 'red' : selected.statusCode === 'SUCCEEDED' ? 'green' : 'blue'} /> },
             { key: 'phase', label: '当前阶段', children: displayPhase(selected.phase) },
           ]} />
+          <TaskRiskSummary taskId={selected.id} />
           <Card size="small" title="摘要" className="task-summary-copy"><p>{selected.errorMessage || `${selected.name} 当前处于${selected.status}，执行进度 ${selected.progress}%，目标为 ${selected.target}。`}</p></Card>
           <Button type="primary" block onClick={() => navigate(`/pentest/session/${selected.id}`)}>查看任务详情</Button>
         </div>}

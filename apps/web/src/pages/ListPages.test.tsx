@@ -98,6 +98,23 @@ describe('resource list pages', () => {
   it('shows a task summary and submits a pause request', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(envelope([task])))
+      .mockResolvedValueOnce(json({
+        task_id: task.id,
+        vulnerabilities: [{
+          id: vulnerability.id,
+          title: '任务中的认证绕过',
+          severity: 'high',
+          status: 'OPEN',
+          asset_key: 'example.com',
+          description: '缺少前置验证',
+          cvss_score: 8.6,
+        }],
+        score: 8.6,
+        level: '高危',
+        rationale: '漏洞可远程利用且影响认证流程。',
+        source: 'deepseek',
+        message: null,
+      }))
       .mockResolvedValueOnce(json({ ...task, status: 'CANCELLING' }))
       .mockResolvedValueOnce(json(envelope([{ ...task, status: 'CANCELLING' }])));
     vi.stubGlobal('fetch', fetchMock);
@@ -107,9 +124,12 @@ describe('resource list pages', () => {
 
     await interaction.click(screen.getByRole('button', { name: '摘要' }));
     expect(await screen.findByText(/执行进度 42%/)).toBeInTheDocument();
+    expect(await screen.findByText('任务中的认证绕过')).toBeInTheDocument();
+    expect(screen.getByText('8.6')).toBeInTheDocument();
+    expect(screen.getAllByText('高危', { selector: '.task-risk-summary .ant-tag' })).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: '暂停' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    expect(fetchMock.mock.calls[1][0]).toBe(`/api/v1/tasks/${task.id}/stop`);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    expect(fetchMock.mock.calls[2][0]).toBe(`/api/v1/tasks/${task.id}/stop`);
   });
 
   it('deletes a terminal task after confirmation', async () => {

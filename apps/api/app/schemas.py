@@ -300,6 +300,26 @@ class TaskListRead(TaskRead):
     created_by_name: str
 
 
+class TaskRiskFindingRead(BaseModel):
+    id: uuid.UUID
+    title: str
+    severity: str
+    status: str
+    asset_key: str | None
+    description: str | None
+    cvss_score: float | None = Field(default=None, ge=0, le=10)
+
+
+class TaskRiskSummaryRead(BaseModel):
+    task_id: uuid.UUID
+    vulnerabilities: list[TaskRiskFindingRead]
+    score: float | None = Field(default=None, ge=0, le=10)
+    level: str
+    rationale: str
+    source: Literal["deepseek", "platform", "unavailable"]
+    message: str | None = None
+
+
 class TaskOverviewMetrics(BaseModel):
     total: int
     queued: int

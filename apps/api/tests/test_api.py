@@ -14,6 +14,7 @@ from app.auth import create_token, password_hash
 from app.config import get_settings
 from app.db import SessionLocal
 from app.models import Organization, Report, ScanPlan, Task, User, Vulnerability, XiaoyiPlanMapping
+from app.risk_assessment import RiskAssessmentResult
 from app.schemas import DomainPrecheckRequest, PortPrecheckRequest
 from app.services import plan_for_update_query
 from app.sync import sync_once
@@ -545,6 +546,65 @@ async def test_authorized_plan_runs_through_mock_engine(authenticated_client):
     result = await authenticated_client.get(f"/api/v1/tasks/{task_id}")
     assert result.status_code == 200
     assert result.json()["status"] == "SUCCEEDED"
+
+
+async def test_task_risk_summary_lists_scoped_findings_and_returns_deepseek_cvss(
+    authenticated_client, monkeypatch
+):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": "Risk summary",
+            "test_type": "standard",
+            "targets": ["example.test"],
+            "authorization_confirmed": True,
+        },
+    )
+    plan_id = uuid.UUID(plan.json()["id"])
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan_id}/confirm")
+    task = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": str(plan_id), "request_id": "risk-summary-task"},
+    )
+    task_id = uuid.UUID(task.json()["id"])
+    async with SessionLocal() as session:
+        stored_task = await session.get(Task, task_id)
+        session.add(
+            Vulnerability(
+                org_id=stored_task.org_id,
+                plan_id=plan_id,
+                task_id=task_id,
+                asset_key="example.test",
+                title="Authentication bypass",
+                severity="high",
+                description="Missing precondition validation",
+                data_json={"cvss_score": 8.6},
+            )
+        )
+        await session.commit()
+
+    captured = []
+
+    async def fake_assessment(_settings, findings):
+        captured.extend(findings)
+        return RiskAssessmentResult(
+            score=8.6,
+            level="高危",
+            rationale="Remote authentication bypass with high impact.",
+            source="deepseek",
+        )
+
+    monkeypatch.setattr(main_module, "run_risk_assessment", fake_assessment)
+    response = await authenticated_client.get(
+        f"/api/v1/tasks/{task_id}/risk-summary"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["score"] == 8.6
+    assert response.json()["source"] == "deepseek"
+    assert response.json()["vulnerabilities"][0]["title"] == "Authentication bypass"
+    assert response.json()["vulnerabilities"][0]["cvss_score"] == 8.6
+    assert captured[0]["asset_key"] == "example.test"
 
 
 async def test_plan_confirmation_is_audited_and_task_creation_is_idempotent(

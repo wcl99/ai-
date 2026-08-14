@@ -114,6 +114,24 @@ const trendPointSchema = z.object({ start: z.string(), count: z.number().int().n
 const distributionItemSchema = z.object({
   key: z.string(), label: z.string(), count: z.number().int().nonnegative(),
 });
+
+const taskRiskSummarySchema = z.object({
+  task_id: uuid,
+  vulnerabilities: z.array(z.object({
+    id: uuid,
+    title: z.string(),
+    severity: z.string(),
+    status: z.string(),
+    asset_key: z.string().nullable(),
+    description: z.string().nullable(),
+    cvss_score: z.number().min(0).max(10).nullable(),
+  })),
+  score: z.number().min(0).max(10).nullable(),
+  level: z.string(),
+  rationale: z.string(),
+  source: z.enum(['deepseek', 'platform', 'unavailable']),
+  message: z.string().nullable(),
+});
 const taskListEnvelope = pageEnvelope(taskSchema).extend({
   data: pageEnvelope(taskSchema).shape.data.extend({
     metrics: z.object({
@@ -361,6 +379,11 @@ export async function listTasks(input: { status?: TaskStatusCode; keyword?: stri
   const query = params([['status', status], ['keyword', input.keyword], ['test_type', input.testType], ['creator', input.creator], ['created_from', input.createdFrom], ['created_to', input.createdTo], ['page', input.page], ['page_size', input.pageSize]]);
   const response = await apiRequest(`/api/v1/tasks?${query}`, taskListEnvelope);
   return { ...result(response.data, mapTask), metrics: response.data.metrics };
+}
+
+export async function getTaskRiskSummary(id: string) {
+  const response = await apiRequest(`/api/v1/tasks/${uuid.parse(id)}/risk-summary`, taskRiskSummarySchema);
+  return response;
 }
 
 export async function stopTask(id: string) {

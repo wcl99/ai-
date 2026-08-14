@@ -43,6 +43,7 @@ from .engine import (
 from .errors import AppError
 from .models import AiLog, Asset, AuditLog, Organization, QAMessage, Report, ScanPlan, ScanPlanMessage, Task, TaskEvent, User, Vulnerability, XiaoyiPlanMapping
 from .overview_analytics import DEFAULT_TIMEZONE, aggregate_trend
+from .risk_assessment import RiskAssessmentResult, fallback_assessment, run_risk_assessment
 from .schemas import (
     AiAssetUpload,
     AiLogRead,
@@ -82,6 +83,8 @@ from .schemas import (
     TaskListRead,
     TaskListPageData,
     TaskRead,
+    TaskRiskFindingRead,
+    TaskRiskSummaryRead,
     UserCreate,
     UserRead,
     UserUpdate,
@@ -888,6 +891,89 @@ async def read_task(task_id: uuid.UUID, user: User = Depends(current_user), sess
     if demo and task_id == demo.task["id"]:
         return TaskRead.model_validate(demo.task)
     return await scoped_task(session, task_id, user)
+
+
+def _risk_finding(item: Vulnerability | dict) -> dict:
+    if isinstance(item, dict):
+        data = item.get("data_json") if isinstance(item.get("data_json"), dict) else item
+        item_id = item.get("id")
+        title = item.get("title")
+        severity = item.get("severity")
+        status = item.get("status")
+        asset_key = item.get("asset_key")
+        description = item.get("description")
+    else:
+        data = item.data_json if isinstance(item.data_json, dict) else {}
+        item_id = item.id
+        title = item.title
+        severity = item.severity
+        status = item.status
+        asset_key = item.asset_key
+        description = item.description
+    score = data.get("cvss_score") or data.get("cvss")
+    if isinstance(score, bool) or not isinstance(score, (int, float)) or not 0 <= score <= 10:
+        score = None
+    return {
+        "id": item_id,
+        "title": str(title or "未命名漏洞"),
+        "severity": str(severity or "unknown"),
+        "status": str(status or "OPEN"),
+        "asset_key": asset_key,
+        "description": description,
+        "cvss_score": float(score) if score is not None else None,
+    }
+
+
+@app.get("/api/v1/tasks/{task_id}/risk-summary", response_model=TaskRiskSummaryRead)
+async def task_risk_summary(
+    task_id: uuid.UUID,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    demo = configured_demo_store(settings)
+    if demo and task_id == demo.task["id"]:
+        findings = [_risk_finding(item) for item in demo.vulnerabilities]
+    else:
+        await scoped_task(session, task_id, user)
+        items = list(
+            await session.scalars(
+                select(Vulnerability)
+                .where(
+                    Vulnerability.task_id == task_id,
+                    Vulnerability.org_id == user.org_id,
+                )
+                .order_by(Vulnerability.created_at.desc(), Vulnerability.id.desc())
+            )
+        )
+        findings = [_risk_finding(item) for item in items]
+    assessment: RiskAssessmentResult
+    message = None
+    if not findings:
+        assessment = RiskAssessmentResult(
+            score=None,
+            level="暂无评分",
+            rationale="该任务尚未发现漏洞，暂无 CVSS 评分。",
+            source="platform",
+        )
+    else:
+        try:
+            assessment = await asyncio.wait_for(
+                run_risk_assessment(settings, findings),
+                timeout=min(settings.agent_timeout_seconds, 12),
+            )
+        except Exception:
+            assessment = fallback_assessment()
+            message = assessment.rationale
+    return TaskRiskSummaryRead(
+        task_id=task_id,
+        vulnerabilities=[TaskRiskFindingRead.model_validate(item) for item in findings],
+        score=assessment.score,
+        level=assessment.level,
+        rationale=assessment.rationale,
+        source=assessment.source,
+        message=message,
+    )
 
 
 @app.get("/api/v1/tasks/{task_id}/children")
