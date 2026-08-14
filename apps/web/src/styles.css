@@ -401,9 +401,10 @@ a { color: var(--primary); cursor: pointer; }
 
 /* The exported summary panel contains placeholder copy; retain only its watermark. */
 .overview-material-panel.summary-card{border:1px solid #aac8fb!important}
-.overview-material-panel.summary-card>img{clip-path:inset(0 0 0 58%)}
-.overview-material-panel.summary-card .dashboard-ai-summary{inset:9% 5% 7% 5%;min-height:0;padding:0;background:transparent}
-.dashboard-ai-summary-content{width:58%;display:grid;gap:6%;align-content:start}
+.overview-material-panel.summary-card>img{clip-path:none}
+.overview-material-panel.summary-card .summary-content-surface{position:absolute;z-index:1;inset:24% 42% 3% 4%;background:rgba(248,250,255,.98);border-radius:2px}
+.overview-material-panel.summary-card .dashboard-ai-summary{inset:8% 5% 7% 5%;min-height:0;padding:0;background:transparent}
+.dashboard-ai-summary-content{position:relative;z-index:2;width:58%;display:grid;gap:6%;align-content:start}
 .dashboard-ai-summary-title{display:flex;align-items:center;min-height:28px;color:#075bcc;font-size:clamp(12px,.9vw,16px);font-weight:700}
 
 @media (max-width:700px){

@@ -158,7 +158,8 @@ export function DashboardAiSummary({ summary }: { summary: { warnings: string[];
 }
 
 function MaterialPanel({ className, image, label, children }: { className: string; image: string; label: string; children: ReactNode }) {
-  return <section className={`overview-material-panel ${className}`} aria-label={label}><img src={`/material/overview/${image}`} alt="" aria-hidden /><span className="material-panel-accessible-title">{label}</span>{children}</section>;
+  const isSummary = className.includes('summary-card');
+  return <section className={`overview-material-panel ${className}`} aria-label={label}><img src={`/material/overview/${image}`} alt="" aria-hidden />{isSummary && <div className="summary-content-surface" aria-hidden="true" />}<span className="material-panel-accessible-title">{label}</span>{children}</section>;
 }
 
 function SummaryBlock({ tone, title, items }: { tone: 'danger' | 'warning' | 'safe'; title: string; items: string[] }) {
