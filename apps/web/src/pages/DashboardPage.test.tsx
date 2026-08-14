@@ -63,4 +63,9 @@ describe('dashboard visual contracts', () => {
     const markup = renderToStaticMarkup(<DashboardAiSummary summary={{ warnings: [], priorityFindings: [], remediation: [] }} />);
     expect(markup.match(/AI 今日摘要/g)).toHaveLength(1);
   });
+
+  it('keeps live summary copy in a dedicated content column', () => {
+    const markup = renderToStaticMarkup(<DashboardAiSummary summary={{ warnings: ['预警'], priorityFindings: ['发现'], remediation: ['建议'] }} />);
+    expect(markup).toContain('dashboard-ai-summary-content');
+  });
 });
