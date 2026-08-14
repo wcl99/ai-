@@ -399,13 +399,20 @@ a { color: var(--primary); cursor: pointer; }
 
 @media(max-width:1200px){.material-security-grid{grid-template-columns:1fr}.material-security-grid>.material-settings-card:first-child{grid-column:auto}.material-login-settings{grid-template-columns:1fr;gap:24px}.material-team-page>.material-page-heading{position:static}.material-team-layout{grid-template-columns:1fr}.material-team-tree{min-height:auto}.material-team-main{padding-top:0}.material-authorization-summary{grid-template-columns:1fr}}
 
-/* The exported summary panel contains placeholder copy; retain only its watermark. */
-.overview-material-panel.summary-card{border:1px solid #aac8fb!important}
-.overview-material-panel.summary-card>img{clip-path:none}
-.overview-material-panel.summary-card .summary-content-surface{position:absolute;z-index:1;inset:24% 42% 3% 4%;background:rgba(248,250,255,.98);border-radius:2px}
-.overview-material-panel.summary-card .dashboard-ai-summary{inset:8% 5% 7% 5%;min-height:0;padding:0;background:transparent}
-.dashboard-ai-summary-content{position:relative;z-index:2;width:58%;display:grid;gap:6%;align-content:start}
-.dashboard-ai-summary-title{display:flex;align-items:center;min-height:28px;color:#075bcc;font-size:clamp(12px,.9vw,16px);font-weight:700}
+/* Dashboard summary rebuilt from the independent vectors in 平台总览/组件.svg. */
+.dashboard-summary-card{position:relative;min-width:0;aspect-ratio:522/340;box-sizing:border-box;overflow:hidden;padding:4.7% 4.5% 4%;border:1px solid #aac8fb;border-radius:12px;background:#fff;box-shadow:0 8px 26px rgba(34,72,139,.055)}
+.dashboard-summary-heading{position:relative;z-index:2;height:13%;display:flex;align-items:center;gap:2.2%;color:#014ac6}
+.dashboard-summary-heading>img{width:8%;height:auto;flex:0 0 auto}
+.dashboard-summary-heading h3{margin:0;font-size:clamp(14px,1vw,18px);font-weight:700;line-height:1.3;letter-spacing:0}
+.dashboard-ai-summary-content{position:relative;z-index:2;width:61%;height:79%;display:grid;grid-template-rows:repeat(3,minmax(0,1fr));align-content:stretch;padding-top:4%}
+.dashboard-summary-item{min-height:0;display:grid;grid-template-columns:16px minmax(0,1fr);align-content:start;gap:10px}
+.dashboard-summary-item-icon{width:16px;height:16px;margin-top:1px}
+.dashboard-summary-item strong{display:block;color:#17253d;font-size:clamp(11px,.78vw,14px);font-weight:700;line-height:1.35}
+.dashboard-summary-item ul{margin:5px 0 0;padding-left:16px;color:#59667b;font-size:clamp(9px,.61vw,11px);line-height:1.65}
+.dashboard-summary-item li{overflow-wrap:anywhere}
+.dashboard-summary-item li::marker{font-size:8px}
+.dashboard-summary-watermark{position:absolute;right:-.5%;bottom:-1%;z-index:1;width:42.5%;height:auto;transform:none;pointer-events:none;user-select:none}
+.dashboard-summary-card>.truthful-empty{position:relative;z-index:2;width:61%;min-height:70%;background:transparent}
 
 @media (max-width:700px){
   .app-shell:not(.pentest-shell) .app-sider{width:72px!important;min-width:72px!important;max-width:72px!important;flex-basis:72px!important}
@@ -416,7 +423,7 @@ a { color: var(--primary); cursor: pointer; }
   .app-content:not(.pentest-content){padding:12px}.app-content:not(.pentest-content) .dashboard-page .metric-grid-five,.app-content:not(.pentest-content) .dashboard-page .feature-grid,.app-content:not(.pentest-content) .dashboard-page .dashboard-main-grid,.app-content:not(.pentest-content) .dashboard-page .dashboard-bottom-grid{grid-template-columns:minmax(0,1fr)}
   .app-content:not(.pentest-content) .dashboard-page .dashboard-main-grid>.risk-card,.app-content:not(.pentest-content) .dashboard-page .dashboard-bottom-grid>:last-child{grid-column:auto}
   .app-content:not(.pentest-content) .dashboard-page .feature-card .ant-card-body{grid-template-columns:44px minmax(0,1fr) max-content}.app-content:not(.pentest-content) .dashboard-page .feature-card p{display:none}
-  .overview-material-panel .dashboard-summary-block strong{font-size:13px}.overview-material-panel .dashboard-summary-block ul{font-size:11px}.overview-material-panel .recent-task-copy strong,.overview-material-panel .activity-copy strong{font-size:12px}
+  .dashboard-summary-heading h3{font-size:16px}.dashboard-summary-item strong{font-size:13px}.dashboard-summary-item ul{font-size:11px}.overview-material-panel .recent-task-copy strong,.overview-material-panel .activity-copy strong{font-size:12px}
 }
 
 .material-brand{height:80px;display:block;padding:0;overflow:hidden;background:#eef3ff}.material-brand img{display:block;width:260px;height:80px}

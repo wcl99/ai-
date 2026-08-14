@@ -231,11 +231,12 @@ describe('App', () => {
     expect(
       [...container.querySelectorAll<HTMLImageElement>('.overview-material-panel > img')].map((image) => image.src),
     ).toEqual([
-      expect.stringContaining('/material/overview/ai-summary.png'),
       expect.stringContaining('/material/overview/risk-trend.png'),
       expect.stringContaining('/material/overview/recent-tasks.png'),
       expect.stringContaining('/material/overview/latest-activity.png'),
     ]);
+    expect(container.querySelector('img[src*="/material/overview/ai-summary.png"]')).not.toBeInTheDocument();
+    expect(container.querySelectorAll('.dashboard-summary-card img[src*="/material/overview/components/"]')).toHaveLength(5);
     expect(container.querySelectorAll('.recent-task > i')).toHaveLength(1);
     expect(screen.getByRole('progressbar', { name: 'API 近期任务执行进度' })).toHaveAttribute('aria-valuenow', '42');
     expect(container.querySelectorAll('.activity-timeline .activity-node')).toHaveLength(1);

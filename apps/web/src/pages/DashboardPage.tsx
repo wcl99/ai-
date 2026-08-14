@@ -117,9 +117,7 @@ export function DashboardPage() {
       </div>
 
       <div className="dashboard-main-grid">
-        <MaterialPanel className="summary-card dashboard-material-height" image="ai-summary.png" label="AI 今日摘要">
-          {dashboard.isPending ? <TruthfulEmpty text="正在生成摘要..." /> : dashboard.data ? <DashboardAiSummary summary={dashboard.data.aiSummary} /> : <TruthfulEmpty text="摘要暂不可用" />}
-        </MaterialPanel>
+        <DashboardSummaryCard isPending={dashboard.isPending} summary={dashboard.data?.aiSummary} />
         <MaterialPanel className="trend-card dashboard-material-height" image="risk-trend.png" label="风险趋势">
           {dashboard.isPending ? <TruthfulEmpty text="正在加载风险趋势..." /> : dashboard.data ? <div className="material-panel-data"><RiskTrend values={dashboard.data.riskTrend} /></div> : <TruthfulEmpty text="趋势暂不可用" />}
         </MaterialPanel>
@@ -147,23 +145,35 @@ function TruthfulEmpty({ text }: { text: string }) {
   return <div className="truthful-empty">{text}</div>;
 }
 
-export function DashboardAiSummary({ summary }: { summary: { warnings: string[]; priorityFindings: string[]; remediation: string[] } }) {
-  return <div className="dashboard-ai-summary material-panel-data"><div className="dashboard-ai-summary-content">
-    <div className="dashboard-ai-summary-title">AI 今日摘要</div>
+type DashboardSummary = { warnings: string[]; priorityFindings: string[]; remediation: string[] };
+
+const summaryAssetRoot = '/material/overview/components';
+
+function DashboardSummaryHeading() {
+  return <header className="dashboard-summary-heading"><img src={`${summaryAssetRoot}/summary-title.svg`} alt="" aria-hidden /><h3 id="dashboard-summary-title">AI 今日摘要</h3></header>;
+}
+
+export function DashboardSummaryCard({ summary, isPending = false }: { summary?: DashboardSummary; isPending?: boolean }) {
+  return <section className="dashboard-summary-card dashboard-material-height" aria-labelledby="dashboard-summary-title">
+    {isPending ? <><DashboardSummaryHeading /><TruthfulEmpty text="正在生成摘要..." /></> : summary ? <DashboardAiSummary summary={summary} /> : <><DashboardSummaryHeading /><TruthfulEmpty text="摘要暂不可用" /></>}
+    <img className="dashboard-summary-watermark" src={`${summaryAssetRoot}/summary-watermark.svg`} alt="" aria-hidden />
+  </section>;
+}
+
+export function DashboardAiSummary({ summary }: { summary: DashboardSummary }) {
+  return <><DashboardSummaryHeading /><div className="dashboard-ai-summary-content">
     <SummaryBlock tone="danger" title="高危风险预警" items={summary.warnings.map(sanitizeDisplayText)} />
     <SummaryBlock tone="warning" title="重点发现" items={summary.priorityFindings.map(sanitizeDisplayText)} />
     <SummaryBlock tone="safe" title="处置建议" items={summary.remediation.map(sanitizeDisplayText)} />
-  </div>
-  </div>;
+  </div></>;
 }
 
 function MaterialPanel({ className, image, label, children }: { className: string; image: string; label: string; children: ReactNode }) {
-  const isSummary = className.includes('summary-card');
-  return <section className={`overview-material-panel ${className}`} aria-label={label}><img src={`/material/overview/${image}`} alt="" aria-hidden />{isSummary && <div className="summary-content-surface" aria-hidden="true" />}<span className="material-panel-accessible-title">{label}</span>{children}</section>;
+  return <section className={`overview-material-panel ${className}`} aria-label={label}><img src={`/material/overview/${image}`} alt="" aria-hidden /><span className="material-panel-accessible-title">{label}</span>{children}</section>;
 }
 
 function SummaryBlock({ tone, title, items }: { tone: 'danger' | 'warning' | 'safe'; title: string; items: string[] }) {
-  return <section className={`dashboard-summary-block ${tone}`}><span className="dashboard-summary-symbol" aria-hidden>{tone === 'danger' ? '!' : tone === 'warning' ? '△' : '✓'}</span><div><strong>{title}</strong><ul>{items.slice(0, 2).map((item) => <li key={item}>{item}</li>)}</ul></div></section>;
+  return <section className={`dashboard-summary-block dashboard-summary-item ${tone}`}><img className="dashboard-summary-item-icon" src={`${summaryAssetRoot}/summary-${tone}.svg`} alt="" aria-hidden /><div><strong>{title}</strong><ul>{items.slice(0, 2).map((item) => <li key={item}>{item}</li>)}</ul></div></section>;
 }
 
 function RiskTrend({ values }: { values: Array<{ start: string; critical: number; high: number; medium: number; low: number }> }) {

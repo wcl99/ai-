@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { RiskDonut } from '../components/DashboardVisuals';
 import { smoothLine } from '../components/dashboardVisualGeometry';
-import { DashboardAiSummary, riskOverviewMetrics } from './DashboardPage';
+import { DashboardAiSummary, DashboardSummaryCard, riskOverviewMetrics } from './DashboardPage';
 
 describe('dashboard visual contracts', () => {
   it('uses a continuous cubic curve with no hard line joins', () => {
@@ -68,4 +68,25 @@ describe('dashboard visual contracts', () => {
     const markup = renderToStaticMarkup(<DashboardAiSummary summary={{ warnings: ['预警'], priorityFindings: ['发现'], remediation: ['建议'] }} />);
     expect(markup).toContain('dashboard-ai-summary-content');
   });
+
+  it('builds the complete summary card from independent component assets', () => {
+    const markup = renderToStaticMarkup(
+      <DashboardSummaryCard
+        summary={{ warnings: ['预警'], priorityFindings: ['发现'], remediation: ['建议'] }}
+      />,
+    );
+    expect(markup).not.toContain('ai-summary.png');
+    expect(markup).not.toContain('summary-content-surface');
+    expect(markup).not.toContain('dashboard-summary-symbol');
+    expect(markup).toContain('/material/overview/components/summary-title.svg');
+    expect(markup).toContain('/material/overview/components/summary-danger.svg');
+    expect(markup).toContain('/material/overview/components/summary-warning.svg');
+    expect(markup).toContain('/material/overview/components/summary-safe.svg');
+    expect(markup).toContain('/material/overview/components/summary-watermark.svg');
+    expect(markup.match(/AI 今日摘要/g)).toHaveLength(1);
+    expect(markup).toContain('预警');
+    expect(markup).toContain('发现');
+    expect(markup).toContain('建议');
+  });
+
 });
