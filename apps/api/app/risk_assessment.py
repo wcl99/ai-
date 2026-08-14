@@ -72,6 +72,12 @@ def fallback_assessment() -> RiskAssessmentResult:
     )
 
 
+def assessment_prompt(findings: list[dict]) -> str:
+    return json.dumps(
+        redact_sensitive(findings[:100]), ensure_ascii=False, default=str
+    )
+
+
 SYSTEM_PROMPT = """你是安全运营平台的 CVSS v3.1 风险评估器。只根据输入的漏洞标题、严重等级、资产和描述进行整体任务评分，不得补造不存在的漏洞事实。严格输出一个 JSON 对象，不要 Markdown：
 {"score":8.6,"level":"高危","rationale":"说明评分依据"}
 score 必须是 0 到 10 的一位小数；level 只能是 严重、高危、中危、低危。评分应参考 CVSS v3.1 的攻击向量、攻击复杂度、权限要求、用户交互、范围、机密性、完整性和可用性影响；证据不足时按保守原则评分并在 rationale 中说明。"""
@@ -100,7 +106,7 @@ def _run_agent(settings: Settings, findings: list[dict]) -> RiskAssessmentResult
         timeout=settings.agent_timeout_seconds,
         max_retries=0,
     )
-    prompt = json.dumps(redact_sensitive(findings[:100]), ensure_ascii=False)
+    prompt = assessment_prompt(findings)
     response = ChatAgent(
         system_message=SYSTEM_PROMPT,
         model=model,

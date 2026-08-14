@@ -1,6 +1,8 @@
+import uuid
+
 import pytest
 
-from app.risk_assessment import fallback_assessment, parse_assessment
+from app.risk_assessment import assessment_prompt, fallback_assessment, parse_assessment
 
 
 def test_parse_assessment_accepts_cvss_json_wrapped_in_markdown():
@@ -33,3 +35,11 @@ def test_fallback_assessment_does_not_invent_cvss_score():
     assert result.level == "暂无评分"
     assert result.source == "unavailable"
     assert "DeepSeek" not in result.rationale
+
+
+def test_assessment_prompt_serializes_vulnerability_uuid():
+    finding_id = uuid.uuid4()
+
+    prompt = assessment_prompt([{"id": finding_id, "title": "认证绕过"}])
+
+    assert str(finding_id) in prompt
