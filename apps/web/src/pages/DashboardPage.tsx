@@ -149,6 +149,7 @@ function TruthfulEmpty({ text }: { text: string }) {
 
 export function DashboardAiSummary({ summary }: { summary: { warnings: string[]; priorityFindings: string[]; remediation: string[] } }) {
   return <div className="dashboard-ai-summary material-panel-data">
+    <div className="dashboard-ai-summary-title">AI 今日摘要</div>
     <SummaryBlock tone="danger" title="高危风险预警" items={summary.warnings.map(sanitizeDisplayText)} />
     <SummaryBlock tone="warning" title="重点发现" items={summary.priorityFindings.map(sanitizeDisplayText)} />
     <SummaryBlock tone="safe" title="处置建议" items={summary.remediation.map(sanitizeDisplayText)} />

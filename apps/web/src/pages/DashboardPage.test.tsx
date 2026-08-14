@@ -58,4 +58,9 @@ describe('dashboard visual contracts', () => {
     );
     expect(markup).not.toContain('DeepSeek');
   });
+
+  it('renders one live summary title instead of relying on material image text', () => {
+    const markup = renderToStaticMarkup(<DashboardAiSummary summary={{ warnings: [], priorityFindings: [], remediation: [] }} />);
+    expect(markup.match(/AI 今日摘要/g)).toHaveLength(1);
+  });
 });

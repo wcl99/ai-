@@ -399,6 +399,12 @@ a { color: var(--primary); cursor: pointer; }
 
 @media(max-width:1200px){.material-security-grid{grid-template-columns:1fr}.material-security-grid>.material-settings-card:first-child{grid-column:auto}.material-login-settings{grid-template-columns:1fr;gap:24px}.material-team-page>.material-page-heading{position:static}.material-team-layout{grid-template-columns:1fr}.material-team-tree{min-height:auto}.material-team-main{padding-top:0}.material-authorization-summary{grid-template-columns:1fr}}
 
+/* The exported summary panel contains placeholder copy; retain only its watermark. */
+.overview-material-panel.summary-card{border:1px solid #aac8fb!important}
+.overview-material-panel.summary-card>img{clip-path:inset(0 0 0 42%)}
+.overview-material-panel.summary-card .dashboard-ai-summary{inset:9% 5% 7% 5%;min-height:0;padding:0 34% 0 0;gap:6%;align-content:start;background:transparent}
+.dashboard-ai-summary-title{display:flex;align-items:center;min-height:28px;color:#075bcc;font-size:clamp(12px,.9vw,16px);font-weight:700}
+
 @media (max-width:700px){
   .app-shell:not(.pentest-shell) .app-sider{width:72px!important;min-width:72px!important;max-width:72px!important;flex-basis:72px!important}
   .app-shell:not(.pentest-shell) .app-sider+.ant-layout{margin-left:72px!important}
