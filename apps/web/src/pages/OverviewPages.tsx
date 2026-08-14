@@ -124,10 +124,10 @@ export function VulnerabilityOverviewPage() {
           <div className="overview-grid-three vulnerability-analysis-grid">
             {overview.isPending || overview.isError ? <Card variant="borderless" className="overview-chart-card"><TruthfulEmpty text={overview.isPending ? '正在加载分析数据...' : '分析数据不可用'} /></Card> : <DonutPanel title="风险分布" items={data!.riskDistribution} centerLabel="漏洞总数" colors={['#c52c32', '#ff9138', '#075bcc', '#4e9b84', '#c8cddd']} />}
             <Card variant="borderless" className="overview-chart-card vulnerability-material-chart"><SectionTitle icon={<BarChartOutlined />} title="漏洞趋势" action={<span className="chart-range-label">近7天</span>} />{overview.isPending || overview.isError ? <TruthfulEmpty text={overview.isPending ? '正在加载趋势...' : '趋势数据不可用'} /> : <VulnerabilityTrend points={data!.trend} granularity={data!.granularity} />}</Card>
-            {overview.isPending || overview.isError ? <Card variant="borderless" className="overview-chart-card"><TruthfulEmpty text={overview.isPending ? '正在加载分析数据...' : '分析数据不可用'} /></Card> : <DonutPanel title="来源模块分布" items={data!.sourceDistribution} centerLabel="漏洞总数" colors={['#c52c32', '#7038d9', '#075bcc', '#4e9b84', '#c8cddd']} />}
+            {overview.isPending || overview.isError ? <Card variant="borderless" className="overview-chart-card"><TruthfulEmpty text={overview.isPending ? '正在加载分析数据...' : '分析数据不可用'} /></Card> : <DonutPanel title="来源模块分布" items={mapVulnerabilitySourceDistribution(data!.sourceDistribution)} centerLabel="漏洞总数" colors={['#c52c32', '#7038d9', '#075bcc', '#4e9b84', '#c8cddd']} />}
             <DonutPanel title="受影响资产类型分布" items={sections.assetTypes} centerLabel="受影响资产" colors={['#c52c32', '#ff9138', '#075bcc', '#4e9b84', '#c8cddd']} />
             <BusinessTop items={sections.businesses} />
-            <Card variant="borderless" className="overview-chart-card vulnerability-material-chart"><SectionTitle icon={<BarChartOutlined />} title="漏洞修复趋势" action={<span className="chart-range-label">近7天</span>} />{overview.isPending || overview.isError ? <TruthfulEmpty text={overview.isPending ? '正在加载修复趋势...' : '修复趋势不可用'} /> : <VulnerabilityTrend points={data!.trend} granularity={data!.granularity} />}</Card>
+            <Card variant="borderless" className="overview-chart-card vulnerability-material-chart"><SectionTitle icon={<BarChartOutlined />} title="漏洞修复趋势" action={<span className="chart-range-label">近7天</span>} />{overview.isPending || overview.isError ? <TruthfulEmpty text={overview.isPending ? '正在加载修复趋势...' : '修复趋势不可用'} /> : <VulnerabilityRepairTrend points={data!.trend} granularity={data!.granularity} />}</Card>
           </div>
           <div className="overview-lists vulnerability-overview-lists"><Card variant="borderless"><SectionTitle icon={<FileTextOutlined />} title="最近新增漏洞" action={<Button type="link" onClick={() => navigate('/vulnerabilities')}>查看全部 →</Button>} />{recent.isPending ? <TruthfulEmpty text="正在加载漏洞..." /> : recent.isError ? <TruthfulEmpty text="漏洞数据不可用" /> : <VulnerabilityRows rows={recent.data.items.slice(0, 5)} />}</Card><Card variant="borderless"><SectionTitle icon={<SafetyCertificateOutlined />} title="高危漏洞 Top 5" action={<Button type="link" onClick={() => navigate('/vulnerabilities?severity=high')}>查看全部 →</Button>} />{recent.isPending ? <TruthfulEmpty text="正在加载漏洞..." /> : recent.isError ? <TruthfulEmpty text="漏洞数据不可用" /> : <VulnerabilityRows rows={recent.data.items.filter((row) => row.severity === '高危' || row.severity === '严重').slice(0, 5)} />}</Card></div>
         </main>
@@ -160,6 +160,26 @@ export function vulnerabilityOverviewSections(rows: VulnerabilityRecord[]) {
   return { assetTypes: toItems(assetCounts), businesses: toItems(businessCounts).slice(0, 5) };
 }
 
+const vulnerabilitySourceRules: Array<{ key: string; label: string; pattern: RegExp }> = [
+  { key: 'ai-vulnerability-scan', label: 'AI漏洞扫描', pattern: /scan_smart|漏洞扫描|scanner|演示数据导入|demo|xiaoyi|平台回传/i },
+  { key: 'ai-pentest', label: 'AI渗透测试', pattern: /pentest|渗透|penetration|安全验证/i },
+  { key: 'ai-code-audit', label: 'AI代码审计', pattern: /code|audit|代码审计/i },
+  { key: 'ai-emergency-response', label: 'AI应急响应', pattern: /emergency|response|应急/i },
+  { key: 'ai-data-analysis', label: 'AI数据分析', pattern: /data|analysis|数据分析/i },
+];
+
+export function mapVulnerabilitySourceDistribution(items: DistributionItem[]): DistributionItem[] {
+  const counts = new Map<string, DistributionItem>();
+  items.forEach((item) => {
+    const source = `${item.key} ${item.label}`;
+    const rule = vulnerabilitySourceRules.find((candidate) => candidate.pattern.test(source));
+    const target = rule ?? { key: 'other', label: '其他来源' };
+    const current = counts.get(target.key);
+    counts.set(target.key, { key: target.key, label: target.label, count: (current?.count ?? 0) + item.count });
+  });
+  return [...counts.values()].sort((a, b) => b.count - a.count);
+}
+
 function DonutPanel({ title, items, centerLabel, colors }: { title: string; items: DistributionItem[]; centerLabel: string; colors: string[] }) {
   return <Card variant="borderless" className="overview-chart-card vulnerability-material-chart"><SectionTitle icon={<PieChartOutlined />} title={title} />{items.length ? <OverviewChart kind="donut" label={title} centerLabel={centerLabel} values={items.map((item, index) => ({ label: item.label, value: item.count, color: colors[index % colors.length] }))} /> : <TruthfulEmpty text="暂无可确认数据" />}</Card>;
 }
@@ -175,6 +195,11 @@ function VulnerabilityTrend({ points, granularity }: { points: TrendPoint[]; gra
   const pointAt = (index: number) => ({ x: 30 + index * (510 / Math.max(1, points.length - 1)), y: 182 - (points[index].count / max) * 150 });
   const coordinates = points.map((_, index) => pointAt(index));
   return <div className="vulnerability-line-chart"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="漏洞趋势"><g>{[0, 1, 2, 3].map((line) => <line key={line} x1="30" x2="550" y1={32 + line * 48} y2={32 + line * 48} />)}</g><path d={smoothLine(coordinates)} className="vulnerability-line" />{coordinates.map((point, index) => <circle key={points[index].start} cx={point.x} cy={point.y} r="3" className="vulnerability-point"><title>{`${formatBucket(points[index].start, granularity)}：${points[index].count}`}</title></circle>)}{points.map((point, index) => <text key={`label-${point.start}`} x={pointAt(index).x} y="207" textAnchor="middle">{index % Math.max(1, Math.ceil(points.length / 6)) === 0 ? formatBucket(point.start, granularity) : ''}</text>)}</svg><div className="vulnerability-chart-legend"><span><i />新增</span><span className="muted">近{granularity === 'month' ? '半年' : '7天'}</span></div></div>;
+}
+
+export function VulnerabilityRepairTrend({ points, granularity }: { points: TrendPoint[]; granularity: 'hour' | 'day' | 'month' }) {
+  if (!points.length) return <TruthfulEmpty text="当前范围暂无修复趋势数据" />;
+  return <OverviewChart kind="bar" label="漏洞修复趋势" values={points.map((point) => ({ label: formatBucket(point.start, granularity), value: point.count }))} />;
 }
 
 export function ReportOverviewPage() {

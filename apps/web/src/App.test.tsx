@@ -282,7 +282,7 @@ describe('App', () => {
     expect(await screen.findByText('AI 风险一览')).toBeInTheDocument();
     expect(screen.getAllByText('整体修复进度')).not.toHaveLength(0);
     expect(screen.getByRole('radio', { name: '当日' })).toBeInTheDocument();
-    expect(await screen.findByText('平台回传')).toBeInTheDocument();
+    expect(await screen.findByText('AI漏洞扫描')).toBeInTheDocument();
     expect(screen.queryByText(/小易/)).not.toBeInTheDocument();
     expect(await screen.findByText('优先修复严重和高危漏洞')).toBeInTheDocument();
   });
