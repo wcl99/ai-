@@ -592,15 +592,30 @@ async def test_draft_asset_list_can_update_before_confirmation(authenticated_cli
         f"/api/v1/scan-plans/{plan.json()['id']}/assets",
         json={
             "asset_list": [
-                {"host": "WWW.Example.Test", "hostType": "domain", "ports": [443]},
-                {"host": "www.example.test", "hostType": "domain", "ports": [443]},
+                {
+                    "host": "WWW.Example.Test",
+                    "hostType": "domain",
+                    "ports": [443],
+                    "whitebox_context": "test account and repository context",
+                },
+                {
+                    "host": "www.example.test",
+                    "hostType": "domain",
+                    "ports": [443],
+                    "whitebox_context": "test account and repository context",
+                },
             ]
         },
     )
 
     assert updated.status_code == 200, updated.text
     assert updated.json()["asset_list"] == [
-        {"host": "www.example.test", "hostType": "domain", "ports": [443]}
+        {
+            "host": "www.example.test",
+            "hostType": "domain",
+            "ports": [443],
+            "whitebox_context": "test account and repository context",
+        }
     ]
     assert updated.json()["snapshot"]["asset_list"] == updated.json()["asset_list"]
 

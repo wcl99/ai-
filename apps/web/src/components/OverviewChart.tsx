@@ -58,16 +58,18 @@ function DonutChart({ label, centerLabel, values }: Omit<OverviewChartProps, 'ki
 
 function BarChart({ label, values }: Pick<OverviewChartProps, 'label' | 'values'>) {
   const max = Math.max(1, ...values.map((item) => Math.max(0, item.value)));
+  const baseline = 168;
+  const plotHeight = 144;
   return (
     <div className="material-bars" aria-label={label} data-chart-kind="bar">
       <svg viewBox="0 0 560 220" preserveAspectRatio="none" role="img" aria-hidden="true">
         {[0, 1, 2, 3].map((line) => <line key={line} x1="30" x2="550" y1={24 + line * 48} y2={24 + line * 48} />)}
         {values.map((item, index) => {
           const slot = 510 / Math.max(values.length, 1);
-          const height = (Math.max(0, item.value) / max) * 150;
+          const height = (Math.max(0, item.value) / max) * plotHeight;
           return (
             <g key={`${item.label}-${index}`}>
-              <rect x={35 + index * slot} y={178 - height} width={Math.min(18, slot * .58)} height={height} rx="4">
+              <rect x={35 + index * slot} y={baseline - height} width={Math.min(18, slot * .58)} height={height} rx="4">
                 <title>{`${item.label}：${item.value}`}</title>
               </rect>
               <text x={44 + index * slot} y="202" textAnchor="middle">{item.label}</text>

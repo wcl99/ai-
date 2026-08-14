@@ -132,6 +132,7 @@ def test_builds_documented_xiaoyi_ip_port_payload():
             {
                 "host": "139.198.31.136",
                 "hostType": "ip",
+                "whitebox_context": "test account and repository context",
                 "ports": [
                     {
                         "port": 81,
@@ -152,7 +153,7 @@ def test_builds_documented_xiaoyi_ip_port_payload():
                 "asset_address": [
                     {"address": "139.198.31.136", "port": 81, "service": "http"}
                 ],
-                "whitebox_context": "",
+                "whitebox_context": "test account and repository context",
             }
         ],
     }

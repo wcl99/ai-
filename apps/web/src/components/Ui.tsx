@@ -3,7 +3,29 @@ import {
   ArrowUpOutlined,
 } from '@ant-design/icons';
 import { Card, Progress, Tag } from 'antd';
-import type { Metric, TaskStatus, Tone } from '../types';
+import type { Metric, Severity, TaskStatus, Tone } from '../types';
+
+const severityLabels: Record<string, Severity> = {
+  critical: '严重',
+  high: '高危',
+  medium: '中危',
+  low: '低危',
+  info: '未知',
+};
+
+const severityTagColors: Record<Severity, string> = {
+  严重: 'red',
+  高危: 'orange',
+  中危: 'blue',
+  低危: 'green',
+  未知: 'default',
+};
+
+export function SeverityTag({ severity, className }: { severity: string; className?: string }) {
+  const normalized = severityLabels[severity.toLowerCase()] ?? severity;
+  const label: Severity = normalized in severityTagColors ? normalized as Severity : '未知';
+  return <Tag className={className} color={severityTagColors[label]}>{label}</Tag>;
+}
 
 export function MetricCard({ metric }: { metric: Metric }) {
   const negative = metric.trend?.startsWith('-') ?? false;

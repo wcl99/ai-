@@ -28,7 +28,7 @@ import type {
   VulnerabilitySeverityCode,
   VulnerabilityStatusCode,
 } from '../api/resources';
-import { MetricCard, ProgressCell, StatusTag } from '../components/Ui';
+import { MetricCard, ProgressCell, SeverityTag, StatusTag } from '../components/Ui';
 import { VulnerabilityPreviewDrawer } from '../components/VulnerabilityPreviewDrawer';
 import type { Metric, ReportRecord, TaskRecord, VulnerabilityRecord } from '../types';
 import { displayPhase } from '../vendorDisplay';
@@ -214,7 +214,7 @@ export function VulnerabilitiesPage() {
   const visibleRows = rows;
   const metrics = pageMetrics('漏洞总数', query.data?.total, query.isError, [
     { label: '本页高危', value: rows.filter((item) => ['严重', '高危'].includes(item.severity)).length, tone: 'red', icon: 'metric-vulnerability-high' },
-    { label: '本页中危', value: rows.filter((item) => item.severity === '中危').length, tone: 'orange', icon: 'metric-vulnerability-medium' },
+    { label: '本页中危', value: rows.filter((item) => item.severity === '中危').length, tone: 'blue', icon: 'metric-vulnerability-medium' },
     { label: '本页待修复', value: rows.filter((item) => item.statusCode === 'OPEN').length, tone: 'purple', icon: 'metric-vulnerability-pending' },
     { label: '本页待复测', value: rows.filter((item) => item.statusCode === 'RETESTING').length, tone: 'blue', icon: 'metric-vulnerability-retest' },
     { label: '本页已修复', value: rows.filter((item) => item.statusCode === 'FIXED').length, tone: 'green', icon: 'metric-vulnerability-fixed' },
@@ -234,7 +234,7 @@ export function VulnerabilitiesPage() {
     { title: '所属任务', dataIndex: 'task', width: 190, ellipsis: true },
     { title: '首次发现时间', dataIndex: 'discoveredAt', width: 170, render: dateTime },
     { title: '状态', dataIndex: 'status', width: 100, render: (value) => <StatusTag status={value} /> },
-    { title: '等级', dataIndex: 'severity', width: 90, render: (value) => <Tag color={value === '严重' ? 'red' : value === '高危' ? 'orange' : 'blue'}>{value}</Tag> },
+    { title: '等级', dataIndex: 'severity', width: 90, render: (value) => <SeverityTag severity={value} /> },
     { title: '标签', dataIndex: 'tags', render: (tags: string[]) => tags.map((tag) => <Tag key={tag}>{tag}</Tag>) },
     { title: '操作', width: 250, fixed: 'right', render: (_, row) => <Space size={2}><Button type="link" aria-label="查看漏洞详情" onClick={() => setSelectedId(row.id)}>详情</Button><Dropdown menu={statusMenu(row)}><Button type="link" loading={mutation.isPending} aria-label="处置漏洞">处置</Button></Dropdown><Popconfirm title="确认删除该漏洞？" description="删除后无法恢复。" okButtonProps={{ danger: true }} onConfirm={() => remove.mutate(row.id)}><Button type="link" danger loading={remove.isPending}>删除</Button></Popconfirm></Space> },
   ];
