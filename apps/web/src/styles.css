@@ -264,6 +264,27 @@ a { color: var(--primary); cursor: pointer; }
 .report-material-bottom{display:grid;grid-template-columns:1fr 1fr;gap:24px}.report-material-bottom>.ant-card{height:282px;border:1px solid #e4eaf6}.report-material-bottom .ant-card-body{height:100%;padding:20px 24px}.report-material-bottom .section-title{margin-bottom:12px}.material-table-wrap{overflow:auto}.material-table-wrap table{width:100%;border-collapse:collapse;font-size:11px}.material-table-wrap th{height:36px;padding:0 10px;text-align:left;color:#536075;background:#f2f5fb;white-space:nowrap}.material-table-wrap td{height:34px;padding:0 10px;border-bottom:1px solid #edf1f6;color:#667085;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.material-report-insight{position:relative;overflow:hidden;border-color:#a9c8fa!important}.material-report-insight::after{content:'◔';position:absolute;right:26px;bottom:-58px;color:#eaf1fc;font-size:170px;line-height:1}.material-report-insight p{position:relative;z-index:1;margin:0;padding:14px 16px;border:1px solid #cfe0ff;border-radius:9px;color:#5a667b;background:#f5f8ff;line-height:1.7}.material-report-insight ul{position:relative;z-index:1;margin:14px 0 0;padding-left:20px;color:#536075;line-height:1.85;font-size:12px}.material-report-insight li::marker{color:#075bcc}
 @media (min-width:2400px){.report-overview-material{max-width:2100px}.report-lifecycle-card{min-height:144px}.material-chart-card{height:370px}.material-donut,.material-bars{height:275px}.recent-material-report{height:150px}.report-material-bottom>.ant-card{height:320px}}
 
+/* Vulnerability overview material layout. */
+.vulnerability-metric-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+.vulnerability-analysis-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.vulnerability-material-chart{min-height:270px}
+.vulnerability-material-chart .ant-card-body{height:100%;padding:22px 24px}
+.vulnerability-top-bars{display:grid;gap:14px;margin-top:22px}
+.vulnerability-top-bars>div{display:grid;grid-template-columns:92px 1fr 38px;align-items:center;gap:10px}
+.vulnerability-top-bars span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#526079;font-size:12px}
+.vulnerability-top-bars .ant-progress{margin:0}
+.vulnerability-top-bars strong{text-align:right;color:#526079;font-size:12px}
+.vulnerability-line-chart{height:220px}
+.vulnerability-line-chart svg{width:100%;height:100%;overflow:visible}
+.vulnerability-line-chart line{stroke:#e9edf5;stroke-width:1}
+.vulnerability-line-chart text{fill:#657085;font-size:10px}
+.vulnerability-line{fill:none;stroke:#075bd8;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.vulnerability-point{fill:#075bd8;stroke:#fff;stroke-width:2}
+.vulnerability-chart-legend{display:flex;gap:18px;justify-content:flex-end;margin-top:-24px;color:#526079;font-size:11px}
+.vulnerability-chart-legend i{display:inline-block;width:9px;height:9px;margin-right:5px;border-radius:50%;background:#075bd8}
+.vulnerability-overview-lists{margin-top:18px}
+.chart-range-label{color:#7c8799;font-size:12px}
+
 /* 2026-08 material alignment: non-pentest pages only. */
 .app-content:not(.pentest-content){background:#f1f5ff}
 .app-content:not(.pentest-content) .page{width:100%}
