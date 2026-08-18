@@ -1,9 +1,18 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { RiskDonut } from '../components/DashboardVisuals';
 import { smoothLine } from '../components/dashboardVisualGeometry';
+import { dashboardScaleForViewport } from './dashboardScale';
 import { DashboardAiSummary, DashboardSummaryCard, riskOverviewMetrics } from './DashboardPage';
 
 describe('dashboard visual contracts', () => {
+  it('uses a proportional desktop scale when the overview height is constrained', () => {
+    expect(dashboardScaleForViewport({ width: 1569, height: 912 })).toBeCloseTo(0.856, 3);
+  });
+
+  it('keeps the responsive dashboard layout when proportional scaling would be too small', () => {
+    expect(dashboardScaleForViewport({ width: 1024, height: 912 })).toBeNull();
+  });
+
   it('uses a continuous cubic curve with no hard line joins', () => {
     const path = smoothLine([{ x: 0, y: 20 }, { x: 30, y: 5 }, { x: 60, y: 18 }]);
     expect(path).toMatch(/^M 0 20 C /);

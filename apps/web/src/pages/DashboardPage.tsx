@@ -12,13 +12,14 @@ import {
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { Alert, Button, Card, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { getDashboardSummary, getVulnerabilityOverview, listAssets, listReports, listTasks, listVulnerabilities } from '../api/resources';
 import { MetricCard, SectionTitle } from '../components/Ui';
 import { RiskDonut } from '../components/DashboardVisuals';
 import { smoothLine } from '../components/dashboardVisualGeometry';
 import { displayPhase, sanitizeDisplayText } from '../vendorDisplay';
 import type { Metric } from '../types';
+import { dashboardDesignSize, dashboardScaleForViewport } from './dashboardScale';
 
 const featureCards = [
   { title: 'AI 渗透测试', desc: '智能化渗透测试与漏洞发现', icon: <RadarChartOutlined />, tone: 'red' },
@@ -60,6 +61,7 @@ export function riskOverviewMetrics(
 }
 
 export function DashboardPage() {
+  const dashboardScale = useDashboardScale();
   const navigate = useNavigate();
   const [tasks, running, assets, vulnerabilities, high, reports] = useQueries({
     queries: [
@@ -102,7 +104,7 @@ export function DashboardPage() {
     { key: 'low', label: '低危', value: riskMetrics.low, color: '#087b5b', dot: 'low' },
   ];
 
-  return (
+  const dashboardContent = (
     <div className="page dashboard-page material-dashboard">
       {firstError && <Alert className="resource-error" type="error" showIcon message={firstError instanceof Error ? firstError.message : '总览数据加载失败'} action={<Button onClick={() => queries.forEach((query) => query.refetch())}>重试</Button>} />}
       <div className="metric-grid metric-grid-five">{metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}</div>
@@ -139,6 +141,23 @@ export function DashboardPage() {
       </div>
     </div>
   );
+
+  if (dashboardScale === null) return dashboardContent;
+
+  return <div className="dashboard-scale-viewport"><div className="dashboard-scale-frame" style={{ width: `${dashboardDesignSize.width * dashboardScale}px`, height: `${dashboardDesignSize.height * dashboardScale}px` }}><div className="dashboard-scale-canvas" style={{ transform: `scale(${dashboardScale})` }}>{dashboardContent}</div></div></div>;
+}
+
+function useDashboardScale(): number | null {
+  const readScale = () => typeof window === 'undefined' ? null : dashboardScaleForViewport({ width: window.innerWidth, height: window.innerHeight });
+  const [scale, setScale] = useState(readScale);
+
+  useEffect(() => {
+    const updateScale = () => setScale(readScale());
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
+
+  return scale;
 }
 
 function TruthfulEmpty({ text }: { text: string }) {
