@@ -582,4 +582,8 @@ html,body,#root{min-width:0;overflow-x:auto}
   .dashboard-scale-canvas .risk-donut{width:190px;height:190px;aspect-ratio:1}
 }
 
+/* Summary rows keep their natural height; remaining space becomes even, dynamic separation. */
+.dashboard-ai-summary-content{display:flex;flex-direction:column;justify-content:space-between;gap:12px}
+.dashboard-ai-summary-content>.dashboard-summary-item{flex:0 0 auto}
+
 
