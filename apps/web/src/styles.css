@@ -552,4 +552,34 @@ html,body,#root{min-width:0;overflow-x:auto}
   .login-card.material-login-card{width:clamp(590px,18vw,700px)}
 }
 
+/* Final override: short desktop dashboard uses the fixed canvas before scaling. */
+@media (min-width:1024px){
+  .app-content:has(.dashboard-scale-viewport){height:calc(100dvh - 66px);min-height:0;box-sizing:border-box;padding:12px 18px;overflow:hidden}
+  .app-content:has(.dashboard-scale-viewport) .app-content-frame{height:100%}
+  .dashboard-scale-viewport{width:100%;height:100%;overflow:hidden;display:flex;justify-content:center;align-items:flex-start}
+  .dashboard-scale-frame{position:relative;flex:none;overflow:visible}
+  .dashboard-scale-canvas{width:1280px;height:960px;transform-origin:top left}
+  .dashboard-scale-canvas>.dashboard-page.material-dashboard{width:1280px;height:960px;margin:0;display:grid;grid-template-rows:126px 108px minmax(0,1fr) minmax(0,.9fr);gap:20px;overflow:visible}
+  .app-content:not(.pentest-content) .dashboard-scale-canvas>.dashboard-page.material-dashboard>.metric-grid-five{grid-template-columns:repeat(5,minmax(0,1fr));gap:18px}
+  .app-content:not(.pentest-content) .dashboard-scale-canvas>.dashboard-page.material-dashboard>.feature-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}
+  .app-content:not(.pentest-content) .dashboard-scale-canvas>.dashboard-page.material-dashboard>.dashboard-main-grid,.app-content:not(.pentest-content) .dashboard-scale-canvas>.dashboard-page.material-dashboard>.dashboard-bottom-grid{grid-template-columns:1.05fr 1.05fr 1fr;gap:22px}
+  .app-content:not(.pentest-content) .dashboard-scale-canvas>.dashboard-page.material-dashboard>.dashboard-main-grid>.risk-card,.app-content:not(.pentest-content) .dashboard-scale-canvas>.dashboard-page.material-dashboard>.dashboard-bottom-grid>:last-child{grid-column:auto}
+  .dashboard-scale-canvas .metric-card,.dashboard-scale-canvas .metric-card .ant-card-body{height:100%;min-height:126px}
+  .dashboard-scale-canvas .metric-card .ant-card-body{padding:24px}
+  .dashboard-scale-canvas .metric-card strong{margin-top:10px;font-size:36px}
+  .dashboard-scale-canvas .metric-card i{width:96px;height:96px}
+  .dashboard-scale-canvas .metric-card i img{width:72px;max-height:74px}
+  .dashboard-scale-canvas .feature-card,.dashboard-scale-canvas .feature-card .ant-card-body{height:100%;min-height:108px}
+  .dashboard-scale-canvas .feature-card .ant-card-body{grid-template-columns:44px minmax(0,1fr) max-content;padding:18px 24px}
+  .dashboard-scale-canvas .feature-icon{width:44px;height:44px;font-size:22px}
+  .dashboard-scale-canvas .feature-card strong{font-size:17px}
+  .dashboard-scale-canvas .feature-card p{display:block}
+  .dashboard-scale-canvas .dashboard-main-grid,.dashboard-scale-canvas .dashboard-bottom-grid{height:100%;min-height:0;margin-top:0}
+  .dashboard-scale-canvas .overview-material-panel,.dashboard-scale-canvas .dashboard-main-grid>.dashboard-material-height,.dashboard-scale-canvas .dashboard-bottom-grid>.ant-card{height:100%;min-height:0;aspect-ratio:auto}
+  .dashboard-scale-canvas .risk-card>.ant-card-body,.dashboard-scale-canvas .dashboard-bottom-grid>.ant-card>.ant-card-body{height:100%;box-sizing:border-box;padding:24px}
+  .dashboard-scale-canvas .section-title{margin-bottom:16px}
+  .dashboard-scale-canvas .risk-content{height:calc(100% - 56px);box-sizing:border-box;padding-top:20px}
+  .dashboard-scale-canvas .risk-donut{width:190px;height:190px;aspect-ratio:1}
+}
+
 
