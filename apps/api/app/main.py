@@ -1,6 +1,7 @@
 """Expose the FastAPI HTTP/WebSocket boundary and assemble backend dependencies."""
 
 import asyncio
+import json
 import re
 import uuid
 from contextlib import asynccontextmanager, suppress
@@ -108,8 +109,10 @@ def envelope(data=None, *, message="ok") -> dict:
     return {"success": True, "message": message, "data": data}
 
 
-def configured_demo_store(settings: Settings) -> DemoDataStore | None:
+def configured_demo_store(settings: Settings, org_id: uuid.UUID | None = None) -> DemoDataStore | None:
     if not settings.demo_data_enabled:
+        return None
+    if settings.demo_data_org_id and (org_id is None or str(org_id) != settings.demo_data_org_id):
         return None
     try:
         return DemoDataStore.load(settings.demo_data_dir)
@@ -129,6 +132,26 @@ def public_report_url(value: str | None) -> str | None:
     ):
         return None
     return value
+
+
+def compact_tool_history(items: list[dict]) -> list[dict]:
+    """Collapse repeated polling snapshots while keeping distinct tool calls."""
+    result: list[dict] = []
+    polling_positions: dict[tuple[str, str, str], int] = {}
+    for item in items:
+        name = str(item.get("toolName") or item.get("toolType") or "").strip().lower()
+        if re.search(r"(?:^|_)(?:get_status|get_results|poll|progress)(?:_|$)", name):
+            arguments = item.get("arguments")
+            if not isinstance(arguments, str):
+                arguments = json.dumps(arguments, ensure_ascii=False, sort_keys=True, default=str)
+            key = (name, str(item.get("phase") or ""), arguments.strip())
+            position = polling_positions.get(key)
+            if position is not None:
+                result[position] = item
+                continue
+            polling_positions[key] = len(result)
+        result.append(item)
+    return result
 
 
 def cdn_assessment_target(value: str) -> str:
@@ -494,7 +517,7 @@ async def list_audit_logs(action: str | None = Query(default=None, max_length=10
 
 @app.get("/api/v1/assets", response_model=ApiEnvelope[PageData[AssetRead]])
 async def list_assets(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     where = Asset.org_id == user.org_id
     total = await session.scalar(select(func.count()).select_from(Asset).where(where))
     items = list(await session.scalars(select(Asset).where(where).order_by(Asset.created_at.desc(), Asset.id.desc()).offset(0 if demo else (page - 1) * page_size).limit(page * page_size if demo else page_size)))
@@ -544,7 +567,7 @@ async def add_plan(payload: ScanPlanCreate, user: User = Depends(require_roles("
 
 @app.get("/api/v1/scan-plans/{plan_id}", response_model=ScanPlanRead)
 async def read_plan(plan_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     if demo and plan_id == demo.plan["id"]:
         created_at = demo.task["created_at"]
         return ScanPlanRead.model_validate(
@@ -569,7 +592,7 @@ async def list_plan_messages(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     if demo and plan_id == demo.plan["id"]:
         return envelope([])
     await get_plan(session, plan_id, user)
@@ -773,7 +796,7 @@ async def list_tasks(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     demo_task = demo.task if demo else None
     demo_matches = bool(
         demo_task
@@ -784,7 +807,7 @@ async def list_tasks(
         and (not created_from or demo_task["created_at"] >= created_from)
         and (not created_to or demo_task["created_at"] <= created_to)
     )
-    criteria = [Task.org_id == user.org_id]
+    criteria = [Task.org_id == user.org_id, Task.parent_id.is_(None)]
     if status:
         criteria.append(Task.status == status)
     if keyword:
@@ -817,7 +840,7 @@ async def list_tasks(
                 func.coalesce(func.sum(case((Task.status == "FAILED", 1), else_=0)), 0).label("failed"),
                 func.coalesce(func.sum(case((Task.status == "CANCELLED", 1), else_=0)), 0).label("cancelled"),
             )
-            .where(Task.org_id == user.org_id)
+            .where(Task.org_id == user.org_id, Task.parent_id.is_(None))
         )
     ).one()
     rows = (
@@ -887,7 +910,7 @@ async def scoped_task(session: AsyncSession, task_id: uuid.UUID, user: User) -> 
 
 @app.get("/api/v1/tasks/{task_id}", response_model=TaskRead)
 async def read_task(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     if demo and task_id == demo.task["id"]:
         return TaskRead.model_validate(demo.task)
     return await scoped_task(session, task_id, user)
@@ -931,7 +954,7 @@ async def task_risk_summary(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     if demo and task_id == demo.task["id"]:
         findings = [_risk_finding(item) for item in demo.vulnerabilities]
     else:
@@ -978,7 +1001,7 @@ async def task_risk_summary(
 
 @app.get("/api/v1/tasks/{task_id}/children")
 async def task_children(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     if demo and task_id == demo.task["id"]:
         return envelope([])
     await scoped_task(session, task_id, user)
@@ -988,19 +1011,26 @@ async def task_children(task_id: uuid.UUID, user: User = Depends(current_user), 
 
 @app.get("/api/v1/tasks/{task_id}/tools")
 async def task_tools(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     if demo and task_id == demo.task["id"]:
         return envelope([])
     task = await scoped_task(session, task_id, user)
+    persisted_tools = task.raw_external.get("persisted_tools")
+    if isinstance(persisted_tools, list):
+        return envelope(
+            redact_sensitive(
+                compact_tool_history([item for item in persisted_tools if isinstance(item, dict)])
+            )
+        )
     if not task.external_task_id:
         return envelope([])
     client = get_engine_client(get_settings())
-    return envelope(await client.get_tools(task.external_task_id))
+    return envelope(compact_tool_history(await client.get_tools(task.external_task_id)))
 
 
 @app.get("/api/v1/tasks/{task_id}/events")
 async def task_events(task_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     if demo and task_id == demo.task["id"]:
         return envelope([TaskEventRead.model_validate(item) for item in demo.events])
     await scoped_task(session, task_id, user)
@@ -1015,7 +1045,7 @@ async def task_qa_messages(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     if demo and task_id == demo.task["id"]:
         return envelope([])
     await scoped_task(session, task_id, user)
@@ -1185,7 +1215,7 @@ async def list_vulnerabilities(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     demo_items = (
         demo.filter_vulnerabilities(
             severity=severity,
@@ -1281,7 +1311,7 @@ async def vulnerability_overview(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     metric_row = (
         await session.execute(
             select(
@@ -1390,7 +1420,7 @@ async def vulnerability_overview(
 
 @app.get("/api/v1/vulnerabilities/{vulnerability_id}", response_model=VulnerabilityRead)
 async def read_vulnerability(vulnerability_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     if demo:
         item = next((item for item in demo.vulnerabilities if item["id"] == vulnerability_id), None)
         if item:
@@ -1444,7 +1474,7 @@ async def list_reports(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     demo_report = demo.report if demo else None
     demo_matches = bool(
         demo_report
@@ -1551,7 +1581,7 @@ async def report_overview(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     now = datetime.now(UTC)
     try:
         customer_timezone = ZoneInfo(timezone_name)
@@ -1850,7 +1880,7 @@ async def record_report_lifecycle(
 
 @app.get("/api/v1/reports/{report_id}", response_model=ReportRead)
 async def read_report(report_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     if demo and report_id == demo.report["id"]:
         return ReportRead.model_validate(demo.report)
     report = await scoped_report(session, report_id, user)
@@ -1864,7 +1894,7 @@ async def read_report(report_id: uuid.UUID, user: User = Depends(current_user), 
 
 @app.get("/api/v1/reports/{report_id}/download")
 async def download_report(report_id: uuid.UUID, user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     if demo and report_id == demo.report["id"]:
         return FileResponse(demo.report["local_path"], filename=demo.report["filename"])
     report = await scoped_report(session, report_id, user)
@@ -1921,7 +1951,7 @@ async def list_ai_logs(plan_id: uuid.UUID | None = None, level: str | None = Que
 
 @app.get("/api/v1/dashboard/summary", response_model=ApiEnvelope[DashboardSummaryRead])
 async def dashboard_summary(user: User = Depends(current_user), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
-    demo = configured_demo_store(settings)
+    demo = configured_demo_store(settings, user.org_id)
     async def count(model, *criteria):
         return await session.scalar(select(func.count()).select_from(model).where(model.org_id == user.org_id, *criteria)) or 0
     demo_vulnerabilities = demo.vulnerabilities if demo else ()

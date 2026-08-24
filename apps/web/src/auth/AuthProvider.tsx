@@ -11,7 +11,36 @@ import type { AuthContextValue } from './AuthContext';
 
 const authQueryKey = ['auth', 'me'] as const;
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+const localAuthValue: AuthContextValue = {
+  user: {
+    id: '11111111-1111-4111-8111-111111111111',
+    org_id: '22222222-2222-4222-8222-222222222222',
+    username: 'local-admin',
+    name: '本地管理员',
+    role: 'admin',
+    is_active: true,
+    is_digital_human: false,
+  },
+  isLoading: false,
+  error: null,
+  login: async () => undefined,
+  logout: async () => undefined,
+};
+
+export function AuthProvider({
+  children,
+  localBypass = false,
+}: {
+  children: React.ReactNode;
+  localBypass?: boolean;
+}) {
+  if (localBypass) {
+    return <AuthContext.Provider value={localAuthValue}>{children}</AuthContext.Provider>;
+  }
+  return <RemoteAuthProvider>{children}</RemoteAuthProvider>;
+}
+
+function RemoteAuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   useEffect(() => {
     const clearExpiredSession = (event: Event) => {

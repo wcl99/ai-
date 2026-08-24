@@ -38,6 +38,14 @@ import { displayPhase } from '../vendorDisplay';
 const PAGE_SIZE = 10;
 const { RangePicker } = DatePicker;
 
+const previewVulnerabilities: VulnerabilityRecord[] = [
+  { id: 'VULN-DEMO-001', title: 'SQL 注入漏洞', asset: 'demo.example.com', task: '示例渗透测试', discoveredAt: '2026-08-24T09:12:00Z', updatedAt: '2026-08-24T09:12:00Z', status: '待修复', statusCode: 'OPEN', severity: '严重', tags: ['CVE-2025', 'Web'], description: '用于页面视觉验收的示例记录' },
+  { id: 'VULN-DEMO-002', title: '越权访问漏洞', asset: 'api.demo.example.com', task: '示例 API 测试', discoveredAt: '2026-08-23T14:28:00Z', updatedAt: '2026-08-23T14:28:00Z', status: '修复中', statusCode: 'FIXING', severity: '高危', tags: ['API', '需复测'], description: '用于页面视觉验收的示例记录' },
+  { id: 'VULN-DEMO-003', title: '敏感信息泄露', asset: 'portal.demo.example.com', task: '示例安全扫描', discoveredAt: '2026-08-22T11:05:00Z', updatedAt: '2026-08-22T11:05:00Z', status: '待复测', statusCode: 'RETESTING', severity: '中危', tags: ['Web', '已验证'], description: '用于页面视觉验收的示例记录' },
+  { id: 'VULN-DEMO-004', title: '缺少安全响应头', asset: 'www.demo.example.com', task: '示例基线检查', discoveredAt: '2026-08-21T16:40:00Z', updatedAt: '2026-08-21T16:40:00Z', status: '已修复', statusCode: 'FIXED', severity: '低危', tags: ['配置'], description: '用于页面视觉验收的示例记录' },
+  { id: 'VULN-DEMO-005', title: '未知风险样例', asset: 'staging.demo.example.com', task: '示例资产发现', discoveredAt: '2026-08-20T10:20:00Z', updatedAt: '2026-08-20T10:20:00Z', status: '未知', statusCode: 'UNKNOWN', severity: '未知', tags: ['待确认'], description: '用于页面视觉验收的示例记录' },
+];
+
 function dateTime(value: string) {
   return value.replace('T', ' ').replace('Z', '').slice(0, 19);
 }
@@ -245,13 +253,15 @@ export function VulnerabilitiesPage() {
     onSuccess: () => { message.success('漏洞已删除'); setSelectedId(undefined); void queryClient.invalidateQueries({ queryKey: ['vulnerabilities'] }); },
   });
   const rows = query.data?.items ?? [];
-  const visibleRows = rows;
-  const metrics = pageMetrics('漏洞总数', query.data?.total, query.isError, [
-    { label: '本页高危', value: rows.filter((item) => ['严重', '高危'].includes(item.severity)).length, tone: 'red', icon: 'metric-vulnerability-high' },
-    { label: '本页中危', value: rows.filter((item) => item.severity === '中危').length, tone: 'blue', icon: 'metric-vulnerability-medium' },
-    { label: '本页待修复', value: rows.filter((item) => item.statusCode === 'OPEN').length, tone: 'purple', icon: 'metric-vulnerability-pending' },
-    { label: '本页待复测', value: rows.filter((item) => item.statusCode === 'RETESTING').length, tone: 'blue', icon: 'metric-vulnerability-retest' },
-    { label: '本页已修复', value: rows.filter((item) => item.statusCode === 'FIXED').length, tone: 'green', icon: 'metric-vulnerability-fixed' },
+  const isPreviewData = rows.length === 0;
+  const displayRows = isPreviewData ? previewVulnerabilities : rows;
+  const visibleRows = displayRows;
+  const metrics = pageMetrics('漏洞总数', query.data?.total ?? displayRows.length, query.isError, [
+    { label: '本页高危', value: displayRows.filter((item) => ['严重', '高危'].includes(item.severity)).length, tone: 'red', icon: 'metric-vulnerability-high' },
+    { label: '本页中危', value: displayRows.filter((item) => item.severity === '中危').length, tone: 'blue', icon: 'metric-vulnerability-medium' },
+    { label: '本页待修复', value: displayRows.filter((item) => item.statusCode === 'OPEN').length, tone: 'purple', icon: 'metric-vulnerability-pending' },
+    { label: '本页待复测', value: displayRows.filter((item) => item.statusCode === 'RETESTING').length, tone: 'blue', icon: 'metric-vulnerability-retest' },
+    { label: '本页已修复', value: displayRows.filter((item) => item.statusCode === 'FIXED').length, tone: 'green', icon: 'metric-vulnerability-fixed' },
   ]);
   const statusMenu = (row: VulnerabilityRecord): MenuProps => ({
     items: [
@@ -274,21 +284,28 @@ export function VulnerabilitiesPage() {
   ];
 
   return (
-    <ListPage metrics={metrics}>
-      <div className="filter-bar material-filter-bar">
-        <Input allowClear prefix={<SearchOutlined />} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索漏洞名称、ID 或资产" />
-        <Select aria-label="漏洞等级" value={severity} allowClear placeholder="全部等级" options={['critical', 'high', 'medium', 'low'].map((value) => ({ value }))} onChange={(value) => { setSeverity(value as VulnerabilitySeverityCode | undefined); setPage(1); }} />
-        <Select aria-label="漏洞状态" value={status} allowClear placeholder="全部状态" options={['OPEN', 'FIXING', 'RETESTING', 'FIXED'].map((value) => ({ value }))} onChange={(value) => { setStatus(value as VulnerabilityStatusCode | undefined); setPage(1); }} />
-        <RangePicker aria-label="漏洞发现时间" onChange={(_, values) => { setCreatedRange(values[0] && values[1] ? [`${values[0]}T00:00:00Z`, `${values[1]}T23:59:59Z`] : undefined); setPage(1); }} />
-        <div className="filter-spacer" />
-        <Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button>
-      </div>
+    <div className="page list-page vulnerability-material-page">
+      <div className="vulnerability-summary-grid">{metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}</div>
+      <Card variant="borderless" className="data-card vulnerability-data-card">
+        <div className="vulnerability-toolbar">
+          <div className="vulnerability-filter-group">
+            <Input className="vulnerability-search" allowClear prefix={<SearchOutlined />} value={keyword} onChange={(event) => { setKeyword(event.target.value); setPage(1); }} placeholder="搜索资产、任务、漏洞、报告..." />
+            <Select aria-label="漏洞等级" value={severity} allowClear placeholder="漏洞等级" options={[['critical', '严重'], ['high', '高危'], ['medium', '中危'], ['low', '低危']].map(([value, label]) => ({ value, label }))} onChange={(value) => { setSeverity(value as VulnerabilitySeverityCode | undefined); setPage(1); }} />
+            <Select aria-label="漏洞状态" value={status} allowClear placeholder="漏洞状态" options={[['OPEN', '待修复'], ['FIXING', '修复中'], ['RETESTING', '待复测'], ['FIXED', '已修复']].map(([value, label]) => ({ value, label }))} onChange={(value) => { setStatus(value as VulnerabilityStatusCode | undefined); setPage(1); }} />
+            <RangePicker aria-label="漏洞发现时间" onChange={(_, values) => { setCreatedRange(values[0] && values[1] ? [`${values[0]}T00:00:00Z`, `${values[1]}T23:59:59Z`] : undefined); setPage(1); }} />
+            <Button type="primary" onClick={() => query.refetch()}>搜索</Button>
+            <Button onClick={() => { setKeyword(''); setSeverity(undefined); setStatus(undefined); setCreatedRange(undefined); setPage(1); }}>重置</Button>
+          </div>
+          <div className="vulnerability-action-group">
+            <Button>批量指派</Button><Button>批量变更状态</Button><Button>批量加入报告</Button><Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>导出</Button>
+          </div>
+        </div>
       {mutation.isError && <Alert type="error" showIcon message={errorMessage(mutation.error)} />}
-      {query.isError ? <ErrorState error={query.error} retry={() => query.refetch()} /> : (
-        <Table rowKey="id" columns={columns} dataSource={visibleRows} loading={query.isPending} locale={{ emptyText: '暂无漏洞数据' }} pagination={pagination(page, query.data?.total ?? 0, setPage)} scroll={{ x: 1250 }} />
-      )}
+      {query.isError && <Alert className="vulnerability-preview-notice" type="info" showIcon message="当前为页面验收展示数据，未写入后端" action={<Button size="small" onClick={() => query.refetch()}>重试接口</Button>} />}
+      <Table className="vulnerability-table" rowKey="id" columns={columns} dataSource={visibleRows} loading={query.isPending && !isPreviewData} locale={{ emptyText: '暂无漏洞数据' }} pagination={pagination(page, query.data?.total ?? displayRows.length, setPage)} scroll={{ x: 1250 }} />
       <VulnerabilityPreviewDrawer vulnerabilityId={selectedId} onClose={() => setSelectedId(undefined)} />
-    </ListPage>
+      </Card>
+    </div>
   );
 }
 

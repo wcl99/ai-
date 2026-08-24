@@ -12,9 +12,10 @@ import { ReportOverviewPage, VulnerabilityOverviewPage } from './pages/OverviewP
 import { VulnerabilityDetailPage } from './pages/VulnerabilityDetailPage';
 import { PentestPage, PentestSessionPage } from './pages/PentestPage';
 
-export function App() {
+export function App({ localAuthBypass = false }: { localAuthBypass?: boolean }) {
   const location = useLocation();
   if (location.pathname === '/login') {
+    if (localAuthBypass) return <Navigate to="/overview" replace />;
     return <Routes><Route path="/login" element={<LoginPage />} /></Routes>;
   }
   return (

@@ -72,13 +72,30 @@ describe('management pages', () => {
       expect(screen.getByRole('tab', { name: tab })).toBeInTheDocument();
     }
 
+    expect(screen.getByText('审计日志设置')).toBeInTheDocument();
+    expect(screen.getByText('访问控制设置')).toBeInTheDocument();
+
     await interaction.click(screen.getByRole('tab', { name: 'AI 模型' }));
+    expect(screen.getAllByText('AI模型设置').length).toBeGreaterThanOrEqual(2);
     const modelName = screen.getByLabelText('模型名称');
     await interaction.clear(modelName);
     await interaction.type(modelName, 'deepseek-v4-flash');
     await interaction.click(screen.getByRole('button', { name: '保存设置' }));
 
     expect(localStorage.getItem('ai-security-management-settings-v1')).toContain('deepseek-v4-flash');
+
+    await interaction.click(screen.getByRole('tab', { name: '场景配置' }));
+    expect(screen.getByText('任务执行配置')).toBeInTheDocument();
+    expect(screen.getByText('弱口令默认密码')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /添\s*加/ })).toBeInTheDocument();
+
+    await interaction.click(screen.getByRole('tab', { name: '规则配置' }));
+    expect(screen.getByText('R001 未解除账号')).toBeInTheDocument();
+    expect(screen.getByText('规则配置（JSON）')).toBeInTheDocument();
+
+    await interaction.click(screen.getByRole('tab', { name: '模块管理' }));
+    expect(screen.getByText('工作台模块展示授权')).toBeInTheDocument();
+    expect(screen.getByText('应急响应')).toBeInTheDocument();
   });
 
   it('lists team members and creates a member through the real API contract', async () => {
@@ -98,9 +115,15 @@ describe('management pages', () => {
     expect(await screen.findByText('Platform Admin')).toBeInTheDocument();
     expect(screen.getByText('组织架构')).toBeInTheDocument();
     expect(screen.getByText('成员列表')).toBeInTheDocument();
+    expect(screen.getByText('研发中心')).toBeInTheDocument();
+    expect(screen.getByText('安全实验室')).toBeInTheDocument();
+    expect(screen.getByText('架构组')).toBeInTheDocument();
+    expect(screen.getByText('市场部')).toBeInTheDocument();
+    expect(screen.getByText('人力资源')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /添加成员/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /批量导入/ })).toBeDisabled();
 
-    await interaction.click(screen.getByRole('button', { name: /新增成员/ }));
+    await interaction.click(screen.getByRole('button', { name: /添加成员/ }));
     await interaction.type(screen.getByLabelText('姓名'), 'Lin Wei');
     await interaction.type(screen.getByLabelText('账号'), 'operator.lin');
     await interaction.type(screen.getByLabelText('初始密码'), 'simple-pass');
@@ -120,6 +143,11 @@ describe('management pages', () => {
 
     expect(screen.getByText('系统指纹')).toBeInTheDocument();
     expect(screen.getByText('授权状态')).toBeInTheDocument();
+    expect(screen.getByText('授权产品')).toBeInTheDocument();
+    expect(screen.getByText('授权对象')).toBeInTheDocument();
+    expect(screen.getByText('有效期至')).toBeInTheDocument();
+    expect(screen.getByText('剩余天数')).toBeInTheDocument();
+    expect(screen.getByText('测试次数')).toBeInTheDocument();
     expect(screen.getByText('上传授权文件')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '刷新状态' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '选择授权文件' })).toBeDisabled();

@@ -52,6 +52,7 @@ services:
       AGENT_TIMEOUT_SECONDS: ${AGENT_TIMEOUT_SECONDS:-35}
       DEMO_DATA_ENABLED: ${DEMO_DATA_ENABLED:-false}
       DEMO_DATA_DIR: /app/demo-data
+      DEMO_DATA_ORG_ID: ${DEMO_DATA_ORG_ID:-}
       CDNINFO_ENABLED: ${CDNINFO_ENABLED:-false}
       CDNINFO_BINARY: /opt/cdninfo/cdninfo
       CDNINFO_CONFIG: /opt/cdninfo/cdninfo.yaml

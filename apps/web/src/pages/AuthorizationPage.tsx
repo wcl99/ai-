@@ -36,8 +36,15 @@ export function AuthorizationPage() {
           <div className="material-fingerprint-actions"><Button icon={<CopyOutlined />} onClick={() => { void navigator.clipboard?.writeText(fingerprint); message.success('系统指纹已复制'); }}>复制指纹</Button><Button aria-label="下载 Request 文件" type="primary" icon={<DownloadOutlined />} onClick={downloadRequest}>下载 Request 文件</Button></div>
         </Card>
         <Card variant="borderless" className="material-license-status">
-          <header><span><SafetyCertificateOutlined /></span><div><h3>授权状态</h3><p>当前平台许可证信息</p></div></header>
-          <div className="material-license-empty"><SafetyCertificateOutlined /><strong>尚未导入授权文件</strong><p>授权功能开放后，可在下方上传许可证文件。</p><Tag color="orange">等待授权</Tag></div>
+          <header><span><SafetyCertificateOutlined /></span><div><h3>授权状态</h3><p>当前平台许可证信息</p></div><Tag color="orange">等待授权</Tag></header>
+          <dl className="material-license-details">
+            <div><dt>授权产品</dt><dd>AI Security Platform</dd></div>
+            <div><dt>授权对象</dt><dd>—</dd></div>
+            <div><dt>有效期至</dt><dd>—</dd></div>
+            <div><dt>剩余天数</dt><dd>—</dd></div>
+            <div><dt>测试次数</dt><dd>—</dd></div>
+          </dl>
+          <div className="material-license-hint"><SafetyCertificateOutlined /> 尚未导入授权文件</div>
         </Card>
       </div>
       <Card className="material-license-upload" variant="borderless">

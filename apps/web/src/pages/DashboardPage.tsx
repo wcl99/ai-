@@ -4,37 +4,38 @@ import {
   CodeOutlined,
   DatabaseOutlined,
   KeyOutlined,
+  LineChartOutlined,
+  HistoryOutlined,
+  ProfileOutlined,
   RadarChartOutlined,
   SettingOutlined,
   TeamOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Tag } from 'antd';
+import { Alert, Button, Card } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { useEffect, useState, type ReactNode } from 'react';
 import { getDashboardSummary, getVulnerabilityOverview, listAssets, listReports, listTasks, listVulnerabilities } from '../api/resources';
 import { MetricCard, SectionTitle } from '../components/Ui';
 import { RiskDonut } from '../components/DashboardVisuals';
 import { smoothLine } from '../components/dashboardVisualGeometry';
 import { displayPhase, sanitizeDisplayText } from '../vendorDisplay';
-import type { Metric } from '../types';
-import { dashboardDesignSize, dashboardScaleForViewport } from './dashboardScale';
+import type { Metric, TaskRecord } from '../types';
 
 const featureCards = [
-  { title: 'AI 渗透测试', desc: '智能化渗透测试与漏洞发现', icon: <RadarChartOutlined />, tone: 'red' },
-  { title: 'AI 应急响应', desc: '自动化研判与智能处置建议', icon: <ThunderboltOutlined />, tone: 'purple' },
-  { title: 'AI 代码审计', desc: '静态分析与逻辑漏洞挖掘', icon: <CodeOutlined />, tone: 'blue' },
-  { title: 'AI 数据分析', desc: '多维数据聚合与趋势洞察', icon: <BarChartOutlined />, tone: 'green' },
+  { title: 'AI 渗透测试', desc: '智能化渗透测试与漏洞复测', icon: <RadarChartOutlined />, tone: 'red', path: '/pentest' },
+  { title: 'AI 应急响应', desc: '自动化研判与智能处置建议', icon: <ThunderboltOutlined />, tone: 'purple', path: '/tasks' },
+  { title: 'AI 代码审计', desc: '静态分析与逻辑漏洞挖掘', icon: <CodeOutlined />, tone: 'blue', path: '/vulnerabilities' },
+  { title: 'AI 数据分析', desc: '多维数据聚合与趋势洞察', icon: <BarChartOutlined />, tone: 'green', path: '/reports/overview' },
 ];
 
 const quickLinks = [
-  ['资产中心', <DatabaseOutlined />],
-  ['报告中心', <BarChartOutlined />],
-  ['漏洞详情', <BugOutlined />],
-  ['系统设置', <SettingOutlined />],
-  ['团队管理', <TeamOutlined />],
-  ['授权管理', <KeyOutlined />],
+  ['资产中心', <DatabaseOutlined />, '/assets'],
+  ['报告中心', <BarChartOutlined />, '/reports/overview'],
+  ['漏洞详情', <BugOutlined />, '/vulnerabilities'],
+  ['系统设置', <SettingOutlined />, '/settings'],
+  ['团队管理', <TeamOutlined />, '/settings/team'],
+  ['授权管理', <KeyOutlined />, '/settings/authorization'],
 ] as const;
 
 function totalValue(total: number | undefined, isError = false) {
@@ -61,7 +62,6 @@ export function riskOverviewMetrics(
 }
 
 export function DashboardPage() {
-  const dashboardScale = useDashboardScale();
   const navigate = useNavigate();
   const [tasks, running, assets, vulnerabilities, high, reports] = useQueries({
     queries: [
@@ -106,23 +106,21 @@ export function DashboardPage() {
 
   const dashboardContent = (
     <div className="page dashboard-page material-dashboard">
-      {firstError && <Alert className="resource-error" type="error" showIcon message={firstError instanceof Error ? firstError.message : '总览数据加载失败'} action={<Button onClick={() => queries.forEach((query) => query.refetch())}>重试</Button>} />}
+      {firstError && <Alert className="resource-error dashboard-resource-error" type="error" showIcon message={firstError instanceof Error ? firstError.message : '总览数据加载失败'} action={<Button onClick={() => [...queries, dashboard].forEach((query) => query.refetch())}>重试</Button>} />}
       <div className="metric-grid metric-grid-five">{metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}</div>
 
       <div className="feature-grid">
         {featureCards.map((item) => (
           <Card key={item.title} variant="borderless" className={`feature-card tone-${item.tone}`}>
             <span className="feature-icon">{item.icon}</span><div><strong>{item.title}</strong><p>{item.desc}</p></div>
-            <Button type="primary" onClick={() => navigate('/pentest')}>工作台 →</Button>
+            <Button type="primary" onClick={() => navigate(item.path)}>工作台 →</Button>
           </Card>
         ))}
       </div>
 
       <div className="dashboard-main-grid">
         <DashboardSummaryCard isPending={dashboard.isPending} summary={dashboard.data?.aiSummary} />
-        <MaterialPanel className="trend-card dashboard-material-height" image="risk-trend.png" label="风险趋势">
-          {dashboard.isPending ? <TruthfulEmpty text="正在加载风险趋势..." /> : dashboard.data ? <div className="material-panel-data"><RiskTrend values={dashboard.data.riskTrend} /></div> : <TruthfulEmpty text="趋势暂不可用" />}
-        </MaterialPanel>
+        {dashboard.isPending ? <DashboardTrendCard values={[]} loading /> : <DashboardTrendCard values={dashboard.data?.riskTrend ?? []} />}
         <Card variant="borderless" className="risk-card dashboard-material-height">
           <SectionTitle icon={<BugOutlined />} title="风险概况" />
           <div className="risk-content"><RiskDonut total={Number(vulnerabilityTotal) || 0} segments={riskSegments.map(({ key, value, color }) => ({ key, value: Number(value) || 0, color }))} /><ul>{riskSegments.map(({ key, label, value, dot }) => <li key={key}><i className={`dot ${dot}`} />{label} <strong>{totalValue(value, allVulnerabilityOverview.isError && (key === 'high' ? high.isError : true))}</strong></li>)}</ul></div>
@@ -130,34 +128,14 @@ export function DashboardPage() {
       </div>
 
       <div className="dashboard-bottom-grid">
-        <MaterialPanel className="recent-tasks-card" image="recent-tasks.png" label="近期任务">
-          <button className="material-panel-link" type="button" onClick={() => navigate('/tasks')}>查看全部</button>
-          {tasks.isPending ? <TruthfulEmpty text="正在加载任务..." /> : tasks.isError ? <TruthfulEmpty text="任务数据不可用" /> : tasks.data.items.length === 0 ? <TruthfulEmpty text="暂无任务数据" /> : <div className="recent-task-list material-panel-data">{tasks.data.items.map((task, index) => <button className={`recent-task recent-task-tone-${index % 3}`} key={task.id} type="button" onClick={() => navigate(`/pentest/session/${task.id}`)}><i aria-hidden /><div className="recent-task-copy"><strong>{task.name}</strong><span>{formatDashboardTime(task.createdAt)}</span></div><div className="recent-task-progress"><span>进度 <b>{task.progress}%</b></span><div role="progressbar" aria-label={`${task.name}执行进度`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={task.progress}><i style={{ width: `${task.progress}%` }} /></div></div></button>)}</div>}
-        </MaterialPanel>
-        <MaterialPanel className="latest-activity-card" image="latest-activity.png" label="最新动态">
-          {tasks.isPending ? <TruthfulEmpty text="正在加载动态..." /> : tasks.isError ? <TruthfulEmpty text="任务动态不可用" /> : tasks.data.items.length === 0 ? <TruthfulEmpty text="暂无任务动态" /> : <div className="activity-timeline material-panel-data">{tasks.data.items.map((task) => { const tone = task.statusCode === 'FAILED' ? 'orange' : task.statusCode === 'SUCCEEDED' ? 'green' : 'blue'; return <button className={`activity activity-${tone}`} key={task.id} type="button" onClick={() => navigate(`/pentest/session/${task.id}`)}><i className="activity-node" aria-hidden /><div className="activity-copy"><div><Tag color={tone === 'green' ? 'success' : tone === 'orange' ? 'warning' : 'processing'}>{task.status}</Tag><strong>{task.name}</strong><time>{formatDashboardTime(task.updatedAt)}</time></div><p>当前阶段：{displayPhase(task.phase)}，执行进度 {task.progress}%</p></div></button>; })}</div>}
-        </MaterialPanel>
-        <Card variant="borderless"><SectionTitle icon={<BugOutlined />} title="快捷入口" /><div className="quick-grid">{quickLinks.map(([label, icon]) => <Button key={label} icon={icon}>{label}</Button>)}</div><p className="muted">报告总数：{totalValue(reports.data?.total, reports.isError)}</p></Card>
+        <RecentTasksCard tasks={tasks.data?.items ?? []} loading={tasks.isPending} unavailable={tasks.isError} onViewAll={() => navigate('/tasks')} onOpen={(id) => navigate(`/pentest/session/${id}`)} />
+        <LatestActivityCard tasks={tasks.data?.items ?? []} loading={tasks.isPending} unavailable={tasks.isError} onOpen={(id) => navigate(`/pentest/session/${id}`)} />
+        <Card variant="borderless"><SectionTitle icon={<BugOutlined />} title="快捷入口" /><div className="quick-grid">{quickLinks.map(([label, icon, path]) => <Button key={label} icon={icon} onClick={() => navigate(path)}>{label}</Button>)}</div><p className="muted">报告总数：{totalValue(reports.data?.total, reports.isError)}</p></Card>
       </div>
     </div>
   );
 
-  if (dashboardScale === null) return dashboardContent;
-
-  return <div className="dashboard-scale-viewport"><div className="dashboard-scale-frame" style={{ width: `${dashboardDesignSize.width * dashboardScale}px`, height: `${dashboardDesignSize.height * dashboardScale}px` }}><div className="dashboard-scale-canvas" style={{ transform: `scale(${dashboardScale})` }}>{dashboardContent}</div></div></div>;
-}
-
-function useDashboardScale(): number | null {
-  const readScale = () => typeof window === 'undefined' ? null : dashboardScaleForViewport({ width: window.innerWidth, height: window.innerHeight });
-  const [scale, setScale] = useState(readScale);
-
-  useEffect(() => {
-    const updateScale = () => setScale(readScale());
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-  }, []);
-
-  return scale;
+  return dashboardContent;
 }
 
 function TruthfulEmpty({ text }: { text: string }) {
@@ -187,24 +165,29 @@ export function DashboardAiSummary({ summary }: { summary: DashboardSummary }) {
   </div></>;
 }
 
-function MaterialPanel({ className, image, label, children }: { className: string; image: string; label: string; children: ReactNode }) {
-  return <section className={`overview-material-panel ${className}`} aria-label={label}><img src={`/material/overview/${image}`} alt="" aria-hidden /><span className="material-panel-accessible-title">{label}</span>{children}</section>;
-}
-
 function SummaryBlock({ tone, title, items }: { tone: 'danger' | 'warning' | 'safe'; title: string; items: string[] }) {
   return <section className={`dashboard-summary-block dashboard-summary-item ${tone}`}><img className="dashboard-summary-item-icon" src={`${summaryAssetRoot}/summary-${tone}.svg`} alt="" aria-hidden /><div><strong>{title}</strong><ul>{items.slice(0, 2).map((item) => <li key={item}>{item}</li>)}</ul></div></section>;
 }
 
-function RiskTrend({ values }: { values: Array<{ start: string; critical: number; high: number; medium: number; low: number }> }) {
+type TrendPoint = { start: string; critical: number; high: number; medium: number; low: number };
+
+export function DashboardTrendCard({ values, loading = false }: { values: TrendPoint[]; loading?: boolean }) {
+  return <section className="dashboard-node-card dashboard-trend-card dashboard-material-height" aria-labelledby="dashboard-trend-title">
+    <header className="dashboard-node-card-header"><span><LineChartOutlined /></span><h3 id="dashboard-trend-title">风险态势</h3><div className="dashboard-trend-tabs"><button className="active" type="button">风险态势</button><button type="button">代码审计</button><button type="button">数据分析</button></div></header>
+    {loading ? <TruthfulEmpty text="正在加载风险趋势..." /> : values.length ? <RiskTrend values={values} /> : <TruthfulEmpty text="趋势暂不可用" />}
+  </section>;
+}
+
+function RiskTrend({ values }: { values: TrendPoint[] }) {
   const series = [
     { key: 'critical', label: '严重', color: '#c92f39' },
     { key: 'high', label: '高危', color: '#ff8b32' },
     { key: 'medium', label: '中危', color: '#075bcc' },
     { key: 'low', label: '低危', color: '#087b5b' },
   ] as const;
-  const width = 620;
-  const height = 245;
-  const plot = { left: 40, right: 12, top: 14, bottom: 32 };
+  const width = 471;
+  const height = 226;
+  const plot = { left: 24, right: 1, top: 24, bottom: 25 };
   const maxValue = Math.max(1, ...values.flatMap((item) => series.map(({ key }) => item[key])));
   const ceiling = Math.max(4, Math.ceil(maxValue / 4) * 4);
   const x = (index: number) => plot.left + (values.length <= 1 ? (width - plot.left - plot.right) / 2 : index * (width - plot.left - plot.right) / (values.length - 1));
@@ -217,8 +200,29 @@ function RiskTrend({ values }: { values: Array<{ start: string; critical: number
       {values.map((item, index) => <text className="risk-axis-label" key={item.start} x={x(index)} y={height - 7} textAnchor="middle">{item.start.slice(5)}</text>)}
       {series.map(({ key, label, color }) => { const points = values.map((item, index) => ({ x: x(index), y: y(item[key]), value: item[key], date: item.start })); return <g className={`risk-series risk-series-${key}`} key={key}><path d={smoothLine(points, { minY: plot.top, maxY: height - plot.bottom })} stroke={color} /><g>{points.map((point) => <circle key={point.date} cx={point.x} cy={point.y} r="3.5" fill={color} tabIndex={0}><title>{`${point.date} ${label}：${point.value}`}</title></circle>)}</g></g>; })}
     </svg>
-    <div className="dashboard-risk-legend">{series.map((item) => <span key={item.key}><i style={{ background: item.color }} />{item.label}</span>)}</div>
   </div>;
+}
+
+type DashboardTaskCardProps = { tasks: TaskRecord[]; loading?: boolean; unavailable?: boolean; onOpen: (id: string) => void };
+
+export function RecentTasksCard({ tasks, loading = false, unavailable = false, onOpen, onViewAll }: DashboardTaskCardProps & { onViewAll: () => void }) {
+  return <section className="dashboard-node-card dashboard-recent-card" aria-labelledby="dashboard-recent-title">
+    <header className="dashboard-bottom-title"><span><ProfileOutlined /></span><h3 id="dashboard-recent-title">近期任务</h3><button type="button" onClick={onViewAll}>查看全部</button></header>
+    {loading ? <TruthfulEmpty text="正在加载任务..." /> : unavailable ? <TruthfulEmpty text="任务数据不可用" /> : tasks.length === 0 ? <TruthfulEmpty text="暂无任务数据" /> : <div className="dashboard-recent-list">{tasks.slice(0, 3).map((task, index) => <button className={`recent-tone-${index % 3}`} key={task.id} type="button" onClick={() => onOpen(task.id)}><span className="dashboard-recent-copy"><i aria-hidden /><span><strong title={task.name}>{task.name}</strong><time>{formatDashboardTime(task.createdAt)}</time></span></span><span className="dashboard-recent-progress"><em>进度 <b>{task.progress}%</b></em><i><b style={{ width: `${task.progress}%` }} /></i></span></button>)}</div>}
+  </section>;
+}
+
+export function LatestActivityCard({ tasks, loading = false, unavailable = false, onOpen }: DashboardTaskCardProps) {
+  return <section className="dashboard-node-card dashboard-activity-card" aria-labelledby="dashboard-activity-title">
+    <header className="dashboard-bottom-title"><span><HistoryOutlined /></span><h3 id="dashboard-activity-title">最新动态</h3></header>
+    {loading ? <TruthfulEmpty text="正在加载动态..." /> : unavailable ? <TruthfulEmpty text="任务动态不可用" /> : tasks.length === 0 ? <TruthfulEmpty text="暂无任务动态" /> : <div className="dashboard-activity-list">{tasks.slice(0, 3).map((task) => { const tone = task.statusCode === 'FAILED' ? 'orange' : task.statusCode === 'SUCCEEDED' ? 'green' : 'blue'; return <button className={`tone-${tone}`} key={task.id} type="button" onClick={() => onOpen(task.id)}><i aria-hidden /><span className="dashboard-activity-copy"><span><em>{task.status}</em><strong title={task.name}>{task.name}</strong><time>{formatDashboardClock(task.updatedAt)}</time></span><small>当前阶段：{displayPhase(task.phase)}，执行进度 {task.progress}%</small></span></button>; })}</div>}
+  </section>;
+}
+
+function formatDashboardClock(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(11, 16);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 function formatDashboardTime(value: string) {

@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     report_dir: Path = Path("data/reports")
     demo_data_enabled: bool = False
     demo_data_dir: Path = Path("数据")
+    demo_data_org_id: str | None = None
     static_dir: Path = Path("static")
     bootstrap_admin_username: str | None = None
     bootstrap_admin_password: str | None = None

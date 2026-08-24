@@ -11,6 +11,8 @@ import './styles.css';
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 });
+const localAuthBypass = import.meta.env.DEV
+  && import.meta.env.VITE_LOCAL_AUTH_BYPASS === 'true';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -26,9 +28,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       }}
     >
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
+        <AuthProvider localBypass={localAuthBypass}>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <App />
+            <App localAuthBypass={localAuthBypass} />
           </BrowserRouter>
         </AuthProvider>
       </QueryClientProvider>

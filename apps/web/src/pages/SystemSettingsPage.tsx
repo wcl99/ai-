@@ -1,17 +1,15 @@
 import {
   ApiOutlined,
   AppstoreOutlined,
-  DeleteOutlined,
   DownloadOutlined,
   FileProtectOutlined,
   KeyOutlined,
   LockOutlined,
-  PlusOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Input, InputNumber, Select, Switch, Tabs, message } from 'antd';
+import { Alert, Button, Card, Checkbox, Input, InputNumber, Select, Switch, Tabs, message } from 'antd';
 import { useState } from 'react';
 import { getOrganization, getRuntimeSettings } from '../api/resources';
 
@@ -33,7 +31,7 @@ type LocalSettings = {
   apiBaseUrl: string;
   modelName: string;
   maxConcurrentTasks: number;
-  weakCredentials: Array<{ username: string; password: string }>;
+  weakCredentials: Array<{ appName?: string; username: string; password: string }>;
   weakPasswordDictionary: string;
   highRiskPorts: string;
   inactivityDays: number;
@@ -59,8 +57,8 @@ const DEFAULT_SETTINGS: LocalSettings = {
   modelName: 'deepseek-v4-flash',
   maxConcurrentTasks: 5,
   weakCredentials: [
-    { username: 'admin', password: 'admin' },
-    { username: 'root', password: '123456' },
+    { appName: 'Jenkins Admin', username: 'admin', password: 'admin' },
+    { appName: 'PostgreSQL Default', username: 'postgres', password: '123456' },
   ],
   weakPasswordDictionary: '内置通用弱口令字典',
   highRiskPorts: '21, 22, 23, 3306, 3389, 6379',
@@ -108,6 +106,7 @@ export function ManagementSettingsPage() {
   const organization = useQuery({ queryKey: ['organization'], queryFn: getOrganization });
   const runtime = useQuery({ queryKey: ['runtime-settings'], queryFn: getRuntimeSettings });
   const [settings, setSettings] = useState<LocalSettings>(loadLocalSettings);
+  const [activeTab, setActiveTab] = useState('security');
 
   const patch = <K extends keyof LocalSettings>(key: K, value: LocalSettings[K]) => setSettings((current) => ({ ...current, [key]: value }));
   const save = () => {
@@ -162,35 +161,39 @@ export function ManagementSettingsPage() {
 
   const aiModel = (
     <div className="material-settings-single">
-      <SettingCard icon={<ApiOutlined />} title="AI 模型配置" description="配置咨询 Agent 使用的模型信息；密钥仍由服务端环境注入">
+      <SettingCard icon={<ApiOutlined />} title="AI模型设置" description="配置平台调用的模型服务">
         <div className="material-settings-form-grid">
           <label><span>模型平台</span><Select value={settings.modelPlatform} onChange={(value) => patch('modelPlatform', value)} options={[{ value: 'DeepSeek', label: 'DeepSeek' }, { value: 'OpenAI Compatible', label: 'OpenAI Compatible' }]} /></label>
           <label><span>API 地址</span><Input value={settings.apiBaseUrl} onChange={(event) => patch('apiBaseUrl', event.target.value)} /></label>
           <label><span>API Key</span><Input.Password value="" placeholder="由服务端安全配置，不在页面回显" disabled prefix={<KeyOutlined />} /></label>
           <label htmlFor="settings-model-name"><span>模型名称</span><Input id="settings-model-name" value={settings.modelName} onChange={(event) => patch('modelName', event.target.value)} /></label>
         </div>
-        <Alert showIcon type="info" message="本地配置" description="页面只保存非敏感显示配置；API Key 不写入浏览器。" />
       </SettingCard>
     </div>
   );
 
   const scenario = (
     <div className="material-settings-grid material-settings-grid--scenario">
-      <SettingCard icon={<SettingOutlined />} title="任务并发配置" description="限制同一时间运行的任务数量">
+      <SettingCard icon={<SettingOutlined />} title="任务执行配置" description="控制平台任务的并发执行数量">
         <SettingRow label="最大并发任务数"><InputNumber min={1} max={50} value={settings.maxConcurrentTasks} onChange={(value) => patch('maxConcurrentTasks', value ?? 5)} /></SettingRow>
       </SettingCard>
-      <SettingCard icon={<KeyOutlined />} title="弱口令默认凭据" description="用于授权场景中的弱口令安全验证">
-        <div className="material-credential-table">
-          <div><strong>用户名</strong><strong>密码</strong><span>操作</span></div>
-          {settings.weakCredentials.map((item, index) => <div key={`${item.username}-${index}`}><span>{item.username}</span><span>{item.password}</span><Button aria-label={`删除凭据 ${item.username}`} type="text" danger icon={<DeleteOutlined />} onClick={() => patch('weakCredentials', settings.weakCredentials.filter((_, row) => row !== index))} /></div>)}
+      <SettingCard icon={<KeyOutlined />} title="弱口令默认密码" description="维护授权测试使用的默认凭据">
+        <div className="material-credential-add">
+          <Input aria-label="应用名称" placeholder="应用名称(如: Tomcat)" />
+          <Input aria-label="用户名" placeholder="用户名" />
+          <Input.Password aria-label="密码" placeholder="密码" />
+          <Button onClick={() => patch('weakCredentials', [...settings.weakCredentials, { appName: 'New Application', username: 'user', password: 'password' }])}>添加</Button>
         </div>
-        <Button type="dashed" icon={<PlusOutlined />} onClick={() => patch('weakCredentials', [...settings.weakCredentials, { username: 'user', password: 'password' }])}>添加凭据</Button>
+        <div className="material-credential-table">
+          <div><strong>应用名称</strong><strong>用户名</strong><strong>密码</strong><span>操作</span></div>
+          {settings.weakCredentials.map((item, index) => <div key={`${item.username}-${index}`}><span>{item.appName ?? 'Default'}</span><span>{item.username}</span><span>••••••••</span><span><Button type="link" size="small">编辑</Button><Button aria-label={`删除凭据 ${item.username}`} type="link" size="small" danger onClick={() => patch('weakCredentials', settings.weakCredentials.filter((_, row) => row !== index))}>删除</Button></span></div>)}
+        </div>
       </SettingCard>
-      <SettingCard icon={<FileProtectOutlined />} title="通用弱口令字典" description="当前场景使用的字典来源">
-        <Input value={settings.weakPasswordDictionary} onChange={(event) => patch('weakPasswordDictionary', event.target.value)} />
+      <SettingCard icon={<FileProtectOutlined />} title="通用弱口令配置" description="用于调用服务的弱口令特征检测">
+        <Input.TextArea rows={4} value={settings.weakPasswordDictionary} onChange={(event) => patch('weakPasswordDictionary', event.target.value)} placeholder="每行一个弱口令字符" />
       </SettingCard>
-      <SettingCard icon={<SafetyCertificateOutlined />} title="高风险端口" description="端口预查阶段重点关注的端口">
-        <Input value={settings.highRiskPorts} onChange={(event) => patch('highRiskPorts', event.target.value)} />
+      <SettingCard icon={<SafetyCertificateOutlined />} title="高危端口配置" description="这些端口将被标记为高危端口">
+        <Input.TextArea rows={4} value={settings.highRiskPorts} onChange={(event) => patch('highRiskPorts', event.target.value)} placeholder="例如: 21,22,23,3389,445" />
       </SettingCard>
     </div>
   );
@@ -198,17 +201,23 @@ export function ManagementSettingsPage() {
   const rules = (
     <div className="material-rules-layout">
       <SettingCard icon={<FileProtectOutlined />} title="规则配置" description="管理基础安全规则与阈值">
-        <SettingRow label="不活跃账号阈值" hint="单位：天"><InputNumber min={1} max={365} value={settings.inactivityDays} onChange={(value) => patch('inactivityDays', value ?? 90)} /></SettingRow>
-        <SettingRow label="最小密码长度" hint="单位：位"><InputNumber min={6} max={64} value={settings.minimumPasswordLength} onChange={(value) => patch('minimumPasswordLength', value ?? 8)} /></SettingRow>
-        <SettingRow label="启用内置规则" hint="当前共 12 条安全规则"><Switch checked={settings.enabledRules} onChange={(value) => patch('enabledRules', value)} /></SettingRow>
+        <div className="material-rule-thresholds">
+          <label><span>长期未使用阈值 (天)</span><InputNumber min={1} max={365} value={settings.inactivityDays} onChange={(value) => patch('inactivityDays', value ?? 180)} /></label>
+          <label><span>最小密码长度阈值</span><InputNumber min={6} max={64} value={settings.minimumPasswordLength} onChange={(value) => patch('minimumPasswordLength', value ?? 12)} /></label>
+        </div>
+        <strong className="material-rule-label">启用规则</strong>
+        <div className="material-rule-checklist">
+          {['R001 未解除账号', 'R002 账号未使用', 'R003 非本单位体系标识', 'R004 重复遗留账号', 'R005 厂商账号超期', 'R006 默认账号', 'R007 弱口令疑似', 'R008 口令策略', 'R009 特权未约束', 'R010 认证A登录', 'R011 本地加密', 'R012 密码完整性'].map((rule) => <Checkbox key={rule} checked={settings.enabledRules} onChange={(event) => patch('enabledRules', event.target.checked)}>{rule}</Checkbox>)}
+        </div>
+        <strong className="material-rule-label">规则配置（JSON）</strong>
+        <Card className="material-json-preview" variant="borderless"><pre>{JSON.stringify({ enabled_rules: settings.enabledRules ? ['R001', 'R002', 'R003'] : [], thresholds: { unused_days: settings.inactivityDays, min_password_length: settings.minimumPasswordLength } }, null, 2)}</pre></Card>
       </SettingCard>
-      <Card className="material-json-preview" variant="borderless"><header>规则 JSON 预览</header><pre>{JSON.stringify({ inactivity_days: settings.inactivityDays, minimum_password_length: settings.minimumPasswordLength, enabled: settings.enabledRules }, null, 2)}</pre></Card>
     </div>
   );
 
   const modules = (
     <div className="material-settings-single">
-      <SettingCard icon={<AppstoreOutlined />} title="模块管理" description="控制平台导航中可使用的业务模块">
+      <SettingCard icon={<AppstoreOutlined />} title="工作台模块展示授权" description="控制工作台中可展示的业务模块">
         {([
           ['pentest', '渗透测试', '资产发现、漏洞探测与验证利用'],
           ['incident', '应急响应', '安全事件分析与处置'],
@@ -225,6 +234,8 @@ export function ManagementSettingsPage() {
       {(organization.isError || runtime.isError) && <Alert type="warning" showIcon message="部分服务端配置读取失败，本地设置仍可使用" />}
       <Tabs
         className="material-settings-tabs"
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={[
           { key: 'security', label: '认证与安全', children: security },
           { key: 'ai', label: 'AI 模型', children: aiModel },
@@ -233,7 +244,7 @@ export function ManagementSettingsPage() {
           { key: 'modules', label: '模块管理', children: modules },
         ]}
       />
-      <div className="material-settings-actions"><span>修改仅保存到当前浏览器，不会改变服务端敏感配置。</span><div><Button onClick={reset}>恢复默认</Button><Button type="primary" onClick={save}>保存当前设置</Button></div></div>
+      <div className="material-settings-actions"><span className="material-settings-action-icon"><SettingOutlined /></span><span><strong>{activeTab === 'security' ? '认证与安全设置' : activeTab === 'ai' ? 'AI模型设置' : activeTab === 'scenario' ? '场景配置' : activeTab === 'rules' ? '规则配置' : '模块管理设置'}</strong><small>当前修改仅保存非敏感配置，不会在浏览器中记录服务端密钥。</small></span><div><Button onClick={reset}>取消修改</Button><Button type="primary" onClick={save}>保存当前设置</Button></div></div>
     </div>
   );
 }

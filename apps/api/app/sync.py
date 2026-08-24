@@ -104,6 +104,59 @@ def is_report_packaging_error(message: str | None) -> bool:
     return bool(found) and not suffix.strip() and ";" not in prefix and "；" not in prefix
 
 
+def is_incomplete_phase_result(message: str | None) -> bool:
+    """Recognize terminal Xiaoyi responses that completed with no usable phase result."""
+    if not message:
+        return False
+    parts = [
+        part.strip()
+        for part in message.replace(";", "；").split("；")
+        if part.strip()
+    ]
+    return bool(parts) and all(
+        ("信息收集阶段" in part or "复测阶段" in part)
+        and ("未获得有效结果" in part or "未获取有效结果" in part)
+        and "已阻止推进" in part
+        for part in parts
+    )
+
+
+def apply_engine_error(task: Task, message: str | None) -> None:
+    task.error_message = message
+    if not message:
+        task.error_code = None
+        return
+    if task.status in {"SUCCEEDED", "PARTIAL_SUCCEEDED"} and is_incomplete_phase_result(message):
+        task.status = "PARTIAL_SUCCEEDED"
+        task.error_code = "XIAOYI_PARTIAL_RESULT"
+        return
+    task.error_code = "XIAOYI_TASK_FAILED"
+
+
+async def recover_incomplete_phase_results(session) -> None:
+    candidates = list(
+        await session.scalars(
+            select(Task).where(
+                Task.status == "SUCCEEDED",
+                Task.error_code == "XIAOYI_TASK_FAILED",
+                Task.error_message.is_not(None),
+            )
+        )
+    )
+    for task in candidates:
+        if not is_incomplete_phase_result(task.error_message):
+            continue
+        apply_engine_error(task, task.error_message)
+        session.add(
+            TaskEvent(
+                task_id=task.id,
+                event_type="partial_result_normalized",
+                message="任务已完成，但部分阶段未返回有效结果",
+                data_json={"status": task.status, "error_code": task.error_code},
+            )
+        )
+
+
 async def has_ready_report_fallback(session, task: Task) -> bool:
     report = await session.scalar(
         select(Report).where(
@@ -258,8 +311,7 @@ async def sync_children(session, client, parent: Task) -> tuple[list[dict], list
             await persist_vulnerabilities(session, parent, tools)
         if result.status == "FAILED" and not error_message and tools:
             error_message = summarize_tool_failures(tools)
-        child.error_message = error_message
-        child.error_code = "XIAOYI_TASK_FAILED" if error_message else None
+        apply_engine_error(child, error_message)
         if error_message:
             child_errors.append(error_message)
         await sync_report(session, child, result.raw)
@@ -283,6 +335,7 @@ async def sync_children(session, client, parent: Task) -> tuple[list[dict], list
 async def sync_once(settings: Settings) -> None:
     client = get_engine_client(settings)
     async with SessionLocal() as session:
+        await recover_incomplete_phase_results(session)
         active_tasks = list(
             await session.scalars(
                 select(Task).where(Task.status.in_(["QUEUED", "RUNNING", "CANCELLING"]))
@@ -326,10 +379,7 @@ async def sync_once(settings: Settings) -> None:
                         apply_engine_state(task, result)
                         task.raw_external = redact_sensitive(result.raw)
                         task.sync_failures = 0
-                        task.error_message = result.error_message
-                        task.error_code = (
-                            "XIAOYI_TASK_FAILED" if result.error_message else None
-                        )
+                        apply_engine_error(task, result.error_message)
                         context = plan.snapshot.get("xiaoyi_context")
                         scan_mode = (
                             context.get("scan_mode")
@@ -355,15 +405,11 @@ async def sync_once(settings: Settings) -> None:
                     apply_engine_state(task, result)
                     task.raw_external = redact_sensitive(result.raw)
                     task.sync_failures = 0
-                    task.error_message = result.error_message
-                    task.error_code = (
-                        "XIAOYI_TASK_FAILED" if result.error_message else None
-                    )
+                    apply_engine_error(task, result.error_message)
                     await sync_report(session, task, result.raw)
                     tools, child_errors = await sync_children(session, client, task)
                     if not task.error_message and child_errors:
-                        task.error_message = "；".join(child_errors)[:2000]
-                        task.error_code = "XIAOYI_TASK_FAILED"
+                        apply_engine_error(task, "；".join(child_errors)[:2000])
                     if task.status == "FAILED" and has_execution_evidence(tools):
                         task.status = "PARTIAL_SUCCEEDED"
                         task.error_code = "XIAOYI_PARTIAL_RESULT"

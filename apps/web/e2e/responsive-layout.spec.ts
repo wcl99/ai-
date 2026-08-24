@@ -98,3 +98,17 @@ test('keeps overview feature cards at their desktop proportions while zoomed', a
   expect(layout.titleWhiteSpace).toBe('nowrap');
   expect(layout.descriptionWhiteSpace).toBe('nowrap');
 });
+
+test('does not let overview metric cards overlap the feature row', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 960 });
+  await page.goto('/overview');
+  await expect(page.locator('.feature-card').first()).toBeVisible();
+
+  const layout = await page.evaluate(() => {
+    const metric = document.querySelector('.metric-card')!.getBoundingClientRect();
+    const feature = document.querySelector('.feature-card')!.getBoundingClientRect();
+    return { metricBottom: metric.bottom, featureTop: feature.top };
+  });
+
+  expect(layout.metricBottom).toBeLessThanOrEqual(layout.featureTop);
+});

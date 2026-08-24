@@ -2,6 +2,7 @@ import {
   ApiOutlined,
   ClockCircleOutlined,
   MessageOutlined,
+  RobotOutlined,
   SendOutlined,
   UserOutlined,
 } from '@ant-design/icons';
@@ -9,13 +10,18 @@ import { Alert, Button, Input, Progress, Tag } from 'antd';
 import { useMemo } from 'react';
 import type { TaskQAMessage } from '../api/pentest';
 import type { PentestToolEvent } from '../pages/pentestToolFeed';
+
+const taskStatusLabels: Record<string, string> = {
+  QUEUED: '排队中',
+  RUNNING: '执行中',
+  CANCELLING: '取消中',
+  SUCCEEDED: '已完成',
+  PARTIAL_SUCCEEDED: '部分完成',
+  FAILED: '失败',
+  CANCELLED: '已取消',
+};
 import {
-  buildTaskTimeline,
-  formatActivityRange,
   formatActivityTime,
-  groupTaskTools,
-  type TaskPhaseGroup,
-  type TaskToolSummary,
 } from '../pages/taskActivityTimeline';
 import { displayPhase, sanitizeDisplayText } from '../vendorDisplay';
 
@@ -31,6 +37,7 @@ type TaskConversationProps = {
   error?: string | null;
   onInputChange: (value: string) => void;
   onSend: () => void;
+  onToolSelect?: (tool: PentestToolEvent) => void;
 };
 
 const stateLabels = {
@@ -45,105 +52,55 @@ const stateColors = {
   running: 'blue',
 } as const;
 
-function ToolActivity({ tool }: { tool: TaskToolSummary }) {
-  return (
-    <details className={`task-tool-entry task-tool-entry--${tool.state}`}>
-      <summary>
-        <span className="task-tool-icon"><ApiOutlined /></span>
-        <span className="task-tool-name">
-          <strong>{tool.name}</strong>
-          <small>{formatActivityTime(tool.latestAt)}</small>
-        </span>
-        <span className="task-tool-count">调用 × {tool.callCount}</span>
-        <span className="task-tool-actions">
-          <Tag color={stateColors[tool.state]}>{stateLabels[tool.state]}</Tag>
-          <span className="task-disclosure-label task-disclosure-label--closed">查看调用</span>
-          <span className="task-disclosure-label task-disclosure-label--open">收起调用</span>
-        </span>
-      </summary>
-      <div className="task-tool-calls">
-        {tool.calls.map((call, index) => (
-          <article className="task-tool-call" key={call.id}>
-            <header>
-              <strong>第 {index + 1} 次调用</strong>
-              <time>{formatActivityTime(call.startedAt)}</time>
-              <Tag color={stateColors[call.state]}>{stateLabels[call.state]}</Tag>
-            </header>
-            <div className="task-tool-call-phase">阶段：{displayPhase(call.phase)}</div>
-            {call.steps.length ? (
-              <div className="orchestrator-steps">
-                {call.steps.map((step, stepIndex) => (
-                  <Tag key={`${step.label}:${stepIndex}`}>{step.label} · {step.status}</Tag>
-                ))}
-              </div>
-            ) : null}
-            {call.narratives.length ? (
-              <div className="orchestrator-narratives" aria-label="客户可读的执行说明">
-                {call.narratives.map((narrative, narrativeIndex) => (
-                  <section
-                    className={`orchestrator-narrative orchestrator-narrative--${narrative.state}`}
-                    key={`${narrative.actor}:${narrative.message}:${narrative.timestamp ?? narrativeIndex}`}
-                  >
-                    <header>
-                      <strong>{narrative.actor}</strong>
-                      <span>{narrative.state === 'waiting' ? '等待前置结果' : narrative.state === 'running' ? '正在执行' : narrative.state === 'completed' ? '已完成' : narrative.state === 'failed' ? '执行异常' : '状态更新'}</span>
-                    </header>
-                    <p className="orchestrator-narrative-message">{narrative.message}</p>
-                    <p className="orchestrator-narrative-explanation"><b>这一步在做什么：</b>{narrative.explanation}</p>
-                    {narrative.repeatCount > 1 ? <small>已合并 {narrative.repeatCount} 条过程更新</small> : null}
-                    {narrative.timestamp ? <time>{formatActivityTime(narrative.timestamp)}</time> : null}
-                  </section>
-                ))}
-              </div>
-            ) : null}
-            {call.error ? <div className="task-tool-call-error">{call.error}</div> : null}
-            {call.arguments ? (
-              <div className="orchestrator-payload">
-                <span>调用参数</span>
-                <pre>{JSON.stringify(call.arguments, null, 2)}</pre>
-              </div>
-            ) : null}
-            {call.resultPreview ? (
-              <div className="orchestrator-payload">
-                <span>接口原始返回</span>
-                <pre>{call.resultPreview}</pre>
-              </div>
-            ) : null}
-          </article>
-        ))}
-      </div>
-    </details>
-  );
+function explainToolActivity(tool: PentestToolEvent) {
+  const narrative = tool.narratives.find((item) => item.explanation.trim());
+  if (narrative) return narrative.explanation;
+  const identity = tool.name.toLowerCase();
+  if (/subfinder|subdomain|domain_by_company/.test(identity)) {
+    return '目的是枚举目标的公开子域名和关联入口，为后续服务识别与漏洞验证补全资产范围。';
+  }
+  if (/httpx|probe|fingerprint/.test(identity)) {
+    return '目的是确认目标入口是否可访问，并识别协议、状态和基础技术特征。';
+  }
+  if (/email/.test(identity)) {
+    return '目的是整理目标公开暴露的联系信息，用于识别可能存在的账号与身份风险。';
+  }
+  return `目的是完成 ${displayPhase(tool.phase)} 阶段的当前验证，并把结果交给后续步骤。`;
 }
 
-function PhaseActivity({ group }: { group: TaskPhaseGroup }) {
-  const state = group.failedCalls > 0 ? 'failed' : group.runningCalls > 0 ? 'running' : 'success';
+function ToolActivity({
+  tool,
+  onToolSelect,
+  showPhaseMarker,
+}: {
+  tool: PentestToolEvent;
+  onToolSelect?: (tool: PentestToolEvent) => void;
+  showPhaseMarker: boolean;
+}) {
   return (
-    <details className={`task-activity-entry task-phase-entry task-phase-entry--${state}`}>
-      <summary>
-        <span className="task-timeline-marker"><ApiOutlined /></span>
-        <span className="task-phase-title">
-          <strong>{group.label}</strong>
-          <time>{formatActivityRange(group.startedAt, group.updatedAt)}</time>
-        </span>
-        <span className="task-phase-metrics">
-          <span>{group.totalCalls} 次调用</span>
-          <span>{group.uniqueTools} 个工具</span>
-          {group.failedCalls ? <span className="task-phase-failed">{group.failedCalls} 次失败</span> : null}
-        </span>
-        <span className="task-phase-progress">
-          <strong>{group.progress}%</strong>
-          <Progress percent={group.progress} showInfo={false} size="small" />
-        </span>
-        <span className="task-phase-disclosure">
-          <span className="task-phase-disclosure--closed">展开详情</span>
-          <span className="task-phase-disclosure--open">收起详情</span>
-        </span>
-      </summary>
-      <div className="task-phase-tools">
-        {group.tools.map((tool) => <ToolActivity tool={tool} key={tool.key} />)}
+    <article className={`task-activity-entry task-tool-timeline-entry task-tool-entry--${tool.state}`}>
+      <div className="task-tool-intent">
+        {showPhaseMarker ? <span className="task-tool-intent-icon" aria-hidden="true"><RobotOutlined /></span> : null}
+        <p>
+          调用 <code>{tool.name}</code> 工具，{explainToolActivity(tool)}
+        </p>
       </div>
-    </details>
+      <button
+        aria-label={`打开 ${tool.name} 执行监控`}
+        className="task-tool-card"
+        type="button"
+        onClick={() => onToolSelect?.(tool)}
+      >
+        <span className="task-timeline-marker"><ApiOutlined /></span>
+        <span className="task-tool-card-icon" aria-hidden="true"><ApiOutlined /></span>
+        <span className="task-tool-card-copy">
+          <small>调用工具</small>
+          <strong>{tool.name}</strong>
+        </span>
+        <time>{formatActivityTime(tool.startedAt)}</time>
+        <Tag color={stateColors[tool.state]}>{stateLabels[tool.state]}</Tag>
+      </button>
+    </article>
   );
 }
 
@@ -175,17 +132,40 @@ export function TaskConversation({
   error,
   onInputChange,
   onSend,
+  onToolSelect,
 }: TaskConversationProps) {
   const safeProgress = Math.min(100, Math.max(0, Math.round(progress)));
   const entries = useMemo(
-    () => buildTaskTimeline(groupTaskTools(tools), messages),
+    () => [
+      ...tools.map((tool, index) => ({
+        kind: 'tool' as const,
+        id: `tool:${tool.id}`,
+        timestamp: tool.startedAt,
+        order: index,
+        tool,
+      })),
+      ...messages.map((message, index) => ({
+        kind: 'message' as const,
+        id: `message:${message.id}`,
+        timestamp: message.created_at,
+        order: tools.length + index,
+        message,
+      })),
+    ].sort((left, right) => {
+      const leftTime = Date.parse(left.timestamp ?? '');
+      const rightTime = Date.parse(right.timestamp ?? '');
+      if (!Number.isNaN(leftTime) && !Number.isNaN(rightTime)) return leftTime - rightTime || left.order - right.order;
+      if (!Number.isNaN(leftTime)) return -1;
+      if (!Number.isNaN(rightTime)) return 1;
+      return left.order - right.order;
+    }),
     [messages, tools],
   );
 
   return (
     <>
       <section
-        className="task-activity-timeline"
+        className="task-activity-timeline pentest-tool-timeline"
         role="log"
         aria-label="任务编排时间线"
         aria-live="polite"
@@ -197,22 +177,14 @@ export function TaskConversation({
             <p>工具调用、阶段进度和任务对话按时间统一展示</p>
           </div>
           <div className="task-activity-status">
-            <Tag color={status === 'FAILED' ? 'red' : status === 'SUCCEEDED' ? 'green' : 'blue'}>{status}</Tag>
+            <Tag color={status === 'FAILED' ? 'red' : status === 'SUCCEEDED' ? 'green' : status === 'PARTIAL_SUCCEEDED' ? 'gold' : 'blue'}>
+              {taskStatusLabels[status] ?? status}
+            </Tag>
             <strong>{safeProgress}%</strong>
             <time><ClockCircleOutlined /> {formatActivityTime(updatedAt)}</time>
           </div>
         </header>
         <div className="task-activity-stream">
-          {messages.length === 0 ? (
-            <article className="task-activity-entry task-message-entry task-message-entry--assistant task-intake-prompt">
-              <span className="task-timeline-marker"><MessageOutlined /></span>
-              <div>
-                <header><strong>平台任务助手</strong></header>
-                <p><b>任务已开始，您可以补充测试信息</b></p>
-                <p>如有白盒账号、特殊入口、测试限制或业务窗口，请在下方对话框发送；不回复不会影响任务继续执行。</p>
-              </div>
-            </article>
-          ) : null}
           {entries.length === 0 ? (
             <div className="task-activity-empty">
               <span className="task-timeline-marker"><ClockCircleOutlined /></span>
@@ -221,15 +193,29 @@ export function TaskConversation({
                 <p>收到阶段、工具或对话更新后会自动显示在这里。</p>
               </div>
             </div>
-          ) : entries.map((entry) => (
-            entry.kind === 'phase'
-              ? <PhaseActivity group={entry.group} key={entry.id} />
-              : <ConversationActivity message={entry.message} key={entry.id} />
-          ))}
+          ) : (() => {
+            const seenPhases = new Set<string>();
+            return entries.map((entry) => {
+              if (entry.kind === 'message') {
+                return <ConversationActivity message={entry.message} key={entry.id} />;
+              }
+              const phaseKey = displayPhase(entry.tool.phase).trim().toLowerCase();
+              const showPhaseMarker = !seenPhases.has(phaseKey);
+              seenPhases.add(phaseKey);
+              return (
+                <ToolActivity
+                  tool={entry.tool}
+                  key={entry.id}
+                  onToolSelect={onToolSelect}
+                  showPhaseMarker={showPhaseMarker}
+                />
+              );
+            });
+          })()}
         </div>
       </section>
 
-      <div className="task-conversation-composer task-conversation-composer--floating">
+      <div className="task-conversation-composer task-conversation-composer--floating pentest-composer">
         <div className="task-conversation-progress">
           <span>{displayPhase(phase)}</span>
           <strong>{safeProgress}%</strong>
@@ -260,7 +246,7 @@ export function TaskConversation({
             onClick={onSend}
           />
         </div>
-      </div>
+        </div>
     </>
   );
 }

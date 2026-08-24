@@ -12,7 +12,7 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.engine import EngineTask
 from app.errors import AppError
-from app.models import Report, Task, Vulnerability
+from app.models import Report, Task, TaskEvent, Vulnerability
 
 
 class ChildEngine:
@@ -94,6 +94,132 @@ async def test_sync_persists_child_tasks_and_redacts_engine_payload(authenticate
         f"/api/v1/reports/{listed.json()['data']['items'][0]['id']}/download"
     )
     assert unavailable.status_code == 404
+
+
+async def test_completed_task_with_incomplete_phase_result_is_partial_not_failed(
+    authenticated_client, monkeypatch
+):
+    class IncompletePhaseEngine:
+        async def create_task(self, payload: dict, request_id: str) -> EngineTask:
+            return EngineTask("incomplete-parent", "RUNNING", "SCANNING", 50, {})
+
+        async def get_task(
+            self, external_task_id: str, current_progress: float = 0
+        ) -> EngineTask:
+            return EngineTask(external_task_id, "SUCCEEDED", "FINISHED", 100, {})
+
+        async def get_children(self, external_task_id: str) -> list[EngineTask]:
+            return [
+                EngineTask(
+                    "incomplete-child",
+                    "SUCCEEDED",
+                    "FINISHED",
+                    100,
+                    {"reportUrl": "https://reports.example.test/result.zip"},
+                    "example.test",
+                    "复测阶段未获取有效结果，已阻止推进",
+                )
+            ]
+
+        async def get_tools(self, external_task_id: str) -> list[dict]:
+            return [
+                {
+                    "toolName": "tideFinger_tool",
+                    "phase": "INFO_COLLECTING",
+                    "success": True,
+                    "result": "target reachable",
+                }
+            ]
+
+        async def stop_task(self, external_task_id: str) -> None:
+            return None
+
+    task_id = await create_queued_task(
+        authenticated_client,
+        "Black-box incomplete result",
+        "black-box-incomplete-result",
+    )
+    monkeypatch.setattr(sync, "get_engine_client", lambda settings: IncompletePhaseEngine())
+
+    await sync.sync_once(get_settings())
+    await sync.sync_once(get_settings())
+
+    task = (await authenticated_client.get(f"/api/v1/tasks/{task_id}")).json()
+    children = (
+        await authenticated_client.get(f"/api/v1/tasks/{task_id}/children")
+    ).json()["data"]
+
+    assert task["status"] == "PARTIAL_SUCCEEDED"
+    assert task["error_code"] == "XIAOYI_PARTIAL_RESULT"
+    assert task["error_message"] == "复测阶段未获取有效结果，已阻止推进"
+    assert children[0]["status"] == "PARTIAL_SUCCEEDED"
+    assert children[0]["error_code"] == "XIAOYI_PARTIAL_RESULT"
+
+
+async def test_existing_incomplete_phase_results_are_normalized_without_rescan(
+    authenticated_client, monkeypatch
+):
+    task_id = await create_queued_task(
+        authenticated_client,
+        "Existing black-box incomplete result",
+        "existing-black-box-incomplete-result",
+    )
+    async with SessionLocal() as session:
+        parent = await session.get(Task, uuid.UUID(task_id))
+        parent.status = "SUCCEEDED"
+        parent.phase = "FINISHED"
+        parent.progress = 100
+        parent.external_task_id = "existing-incomplete-parent"
+        parent.error_code = "XIAOYI_TASK_FAILED"
+        parent.error_message = "复测阶段未获取有效结果，已阻止推进"
+        child = Task(
+            org_id=parent.org_id,
+            plan_id=parent.plan_id,
+            parent_id=parent.id,
+            created_by=parent.created_by,
+            request_id="existing-incomplete-child-request",
+            external_task_id="existing-incomplete-child",
+            name="Existing incomplete child",
+            status="SUCCEEDED",
+            phase="FINISHED",
+            progress=100,
+            error_code="XIAOYI_TASK_FAILED",
+            error_message="信息收集阶段未获得有效结果，已阻止推进",
+        )
+        session.add(child)
+        await session.commit()
+
+    class NoRescanEngine:
+        def __getattr__(self, name):
+            raise AssertionError(f"unexpected engine call: {name}")
+
+    monkeypatch.setattr(sync, "get_engine_client", lambda settings: NoRescanEngine())
+
+    await sync.sync_once(get_settings())
+    await sync.sync_once(get_settings())
+
+    async with SessionLocal() as session:
+        tasks = list(
+            await session.scalars(
+                select(Task).where(
+                    Task.external_task_id.in_(
+                        ["existing-incomplete-parent", "existing-incomplete-child"]
+                    )
+                )
+            )
+        )
+        events = list(
+            await session.scalars(
+                select(TaskEvent).where(
+                    TaskEvent.task_id.in_([task.id for task in tasks]),
+                    TaskEvent.event_type == "partial_result_normalized",
+                )
+            )
+        )
+
+    assert {task.status for task in tasks} == {"PARTIAL_SUCCEEDED"}
+    assert {task.error_code for task in tasks} == {"XIAOYI_PARTIAL_RESULT"}
+    assert len(events) == 2
 
 
 async def test_parent_progress_aggregates_child_progress(authenticated_client, monkeypatch):
@@ -432,7 +558,21 @@ async def test_task_tools_are_normalized(authenticated_client, monkeypatch):
     class ToolEngine:
         async def get_tools(self, external_task_id: str):
             assert external_task_id == "external-with-tools"
-            return [{"id": "nmap", "name": "Nmap", "status": "COMPLETED"}]
+            return [
+                {"id": "nmap", "name": "Nmap", "status": "COMPLETED"},
+                {
+                    "id": "status-1",
+                    "toolName": "scan_get_status",
+                    "arguments": '{"task_id":"scan-1"}',
+                    "result": '{"progress": 12}',
+                },
+                {
+                    "id": "status-2",
+                    "toolName": "scan_get_status",
+                    "arguments": '{"task_id":"scan-1"}',
+                    "result": '{"progress": 100}',
+                },
+            ]
 
     plan = await authenticated_client.post(
         "/api/v1/scan-plans",
@@ -457,8 +597,54 @@ async def test_task_tools_are_normalized(authenticated_client, monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["data"] == [
-        {"id": "nmap", "name": "Nmap", "status": "COMPLETED"}
+        {"id": "nmap", "name": "Nmap", "status": "COMPLETED"},
+        {
+            "id": "status-2",
+            "toolName": "scan_get_status",
+            "arguments": '{"task_id":"scan-1"}',
+            "result": '{"progress": 100}',
+        },
     ]
+
+
+async def test_task_tools_return_persisted_snapshot_without_external_task_id(
+    authenticated_client,
+):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": "Persisted tool history",
+            "targets": ["example.test"],
+            "asset_list": [{"host": "example.test", "hostType": "domain"}],
+        },
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+    task = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": plan.json()["id"], "request_id": "persisted-tool-history"},
+    )
+    snapshot = [
+        {
+            "id": "history-1",
+            "phase": "INFORMATION_GATHERING",
+            "toolName": "run_subfinder",
+            "success": True,
+        }
+    ]
+    async with SessionLocal() as session:
+        stored = await session.scalar(
+            select(Task).where(Task.id == uuid.UUID(task.json()["id"]))
+        )
+        stored.raw_external = {"persisted_tools": snapshot}
+        stored.external_task_id = None
+        await session.commit()
+
+    response = await authenticated_client.get(
+        f"/api/v1/tasks/{task.json()['id']}/tools"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"] == snapshot
 
 def test_engine_report_url_rejects_unsupported_or_credentialed_urls():
     assert sync.engine_report_url({"reportUrl": "ftp://engine.local/report.pdf"}) is None

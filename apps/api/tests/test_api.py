@@ -1130,6 +1130,59 @@ async def test_task_list_contract_includes_plan_and_creator_summaries(
     assert item["created_by_name"] == "Test Admin"
 
 
+async def test_task_list_excludes_engine_child_tasks_from_rows_and_metrics(
+    authenticated_client,
+):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": "Parent task only",
+            "test_type": "standard",
+            "targets": ["child-filter.example.test"],
+            "authorization_confirmed": True,
+        },
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+    parent_response = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": plan.json()["id"], "request_id": "parent-list-task"},
+    )
+    parent_id = uuid.UUID(parent_response.json()["id"])
+    async with SessionLocal() as session:
+        parent = await session.get(Task, parent_id)
+        parent.status = "RUNNING"
+        session.add(
+            Task(
+                org_id=parent.org_id,
+                plan_id=parent.plan_id,
+                parent_id=parent.id,
+                created_by=parent.created_by,
+                request_id="child-list-task",
+                external_task_id="child-list-external",
+                name="Synchronized engine child",
+                status="RUNNING",
+                phase="REPORT_GENERATING",
+                progress=90,
+            )
+        )
+        await session.commit()
+
+    response = await authenticated_client.get("/api/v1/tasks")
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert [item["id"] for item in data["items"]] == [str(parent_id)]
+    assert data["total"] == 1
+    assert data["metrics"] == {
+        "total": 1,
+        "queued": 0,
+        "running": 1,
+        "completed": 0,
+        "failed": 0,
+        "cancelled": 0,
+    }
+
+
 async def test_task_list_metrics_are_global_when_rows_are_filtered(
     authenticated_client,
 ):

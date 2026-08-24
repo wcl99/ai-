@@ -383,8 +383,8 @@ a { color: var(--primary); cursor: pointer; }
 @media (min-width:1024px){
   .app-content:has(.dashboard-scale-viewport){height:calc(100dvh - 66px);min-height:0;box-sizing:border-box;padding:12px 18px;overflow:hidden}
   .app-content:has(.dashboard-scale-viewport) .app-content-frame{height:100%}
-  .dashboard-scale-viewport{width:100%;height:100%;overflow:hidden;display:flex;justify-content:center;align-items:flex-start}
-  .dashboard-scale-frame{position:relative;flex:none;overflow:visible}
+  .dashboard-scale-viewport{width:100%;height:100%;min-height:0;overflow:hidden;display:flex;justify-content:center;align-items:flex-start}
+  .dashboard-scale-frame{position:relative;flex:none;overflow:hidden}
   .dashboard-scale-canvas{width:1280px;height:960px;transform-origin:top left}
   .dashboard-scale-canvas>.dashboard-page.material-dashboard{width:1280px;height:960px;margin:0;display:grid;grid-template-rows:126px 108px minmax(0,1fr) minmax(0,.9fr);gap:20px;overflow:visible}
   .app-content:not(.pentest-content) .dashboard-scale-canvas>.dashboard-page.material-dashboard>.metric-grid-five{grid-template-columns:repeat(5,minmax(0,1fr));gap:18px}
@@ -492,6 +492,107 @@ a { color: var(--primary); cursor: pointer; }
   .material-login-brand{top:132px}.login-card.material-login-card{width:700px;padding:68px 76px 50px}
 }
 
+/* Earlier overview contract retained for wide-screen compatibility. */
+@media (min-width:1024px){
+  .app-shell:not(.pentest-shell) .app-header{height:64px}
+  .app-content:has(.dashboard-page.material-dashboard){height:calc(100dvh - 64px);padding:24px;overflow:hidden}
+  .app-content:has(.dashboard-page.material-dashboard) .app-content-frame{height:100%;max-width:none}
+  .dashboard-page.material-dashboard{height:100%;grid-template-rows:122px 90px 340px 340px;gap:24px;overflow:hidden}
+  .material-dashboard>.metric-grid-five{grid-template-columns:repeat(5,minmax(0,1fr));gap:24px}
+  .material-dashboard>.feature-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}
+  .material-dashboard>.dashboard-main-grid,.material-dashboard>.dashboard-bottom-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;height:100%;min-height:0}
+  .material-dashboard>.dashboard-main-grid>*,.material-dashboard>.dashboard-bottom-grid>*{min-width:0;min-height:0;height:100%;aspect-ratio:auto}
+}
+
+/* Vulnerability list material: Figma nodes 1:4136 and 1:857. */
+.vulnerability-material-page{max-width:none!important;display:flex;flex-direction:column;gap:24px;min-height:0}
+.vulnerability-summary-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:24px}
+.vulnerability-summary-grid .metric-card{height:126px;min-height:126px;border:1px solid rgba(195,198,215,.45);border-radius:12px;background:#fff;box-shadow:0 4px 16px rgba(11,28,48,.05)}
+.vulnerability-summary-grid .metric-card .ant-card-body{padding:17px 24px}
+.vulnerability-summary-grid .metric-card strong{font-size:36px;line-height:44px;margin-top:8px}
+.vulnerability-data-card{margin:0;border-radius:12px;background:#fff;box-shadow:0 4px 16px rgba(11,28,48,.05);overflow:hidden}
+.vulnerability-data-card>.ant-card-body{padding:0}
+.vulnerability-toolbar{padding:20px 24px 16px;border-bottom:1px solid rgba(195,198,215,.45);display:flex;flex-direction:column;gap:16px}
+.vulnerability-filter-group,.vulnerability-action-group{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.vulnerability-search{width:320px!important;height:38px}
+.vulnerability-filter-group .ant-select{width:150px;height:38px}.vulnerability-filter-group .ant-picker{height:38px}
+.vulnerability-toolbar .ant-btn{height:38px;border-radius:8px;padding:0 18px}
+.vulnerability-toolbar .ant-btn-primary{background:#014ac6}
+.vulnerability-action-group{padding-top:2px}
+.vulnerability-action-group .ant-btn{font-weight:500;color:#434654;background:#fff;border-color:rgba(195,198,215,.6)}
+.vulnerability-label-preview{padding:14px 24px;background:#fbfcff;border-bottom:1px solid rgba(195,198,215,.45);display:flex;flex-direction:column;gap:12px}
+.vulnerability-preview-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:28px}
+.vulnerability-preview-title{width:64px;flex:none;color:#667085;font-size:13px;font-weight:600}
+.vulnerability-combo{display:inline-flex;align-items:center;gap:6px;padding-right:8px}
+.vulnerability-label-preview .ant-tag{margin-inline-end:0}
+.vulnerability-table{padding:0 12px 12px}.vulnerability-table .ant-table-thead>tr>th{background:#f7f9fd;color:#667085;font-weight:600;height:48px}.vulnerability-table .ant-table-tbody>tr>td{height:68px;color:#434654}.vulnerability-table .ant-table-tbody>tr:hover>td{background:#f7f9fd}
+.vulnerability-preview-notice{margin:12px 24px 0}
+.vulnerability-table .primary-cell strong{font-size:14px}.vulnerability-table .primary-cell span{font-size:12px;color:#98a2b3}
+@media(max-width:1400px){.vulnerability-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.vulnerability-toolbar{padding-inline:16px}}
+@media(max-width:900px){.vulnerability-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.vulnerability-search{width:100%!important}.vulnerability-filter-group{display:grid;grid-template-columns:1fr 1fr}.vulnerability-filter-group .ant-input-affix-wrapper{grid-column:1/-1}.vulnerability-filter-group .ant-picker{width:100%}}
+
+/* Last rule wins: fit overview rows to the actual Chrome viewport height. */
+@media (min-width:1024px){
+  .app-content:has(.dashboard-page.material-dashboard){height:calc(100dvh - 64px);overflow:hidden}
+  .app-content:has(.dashboard-page.material-dashboard) .app-content-frame{height:100%;min-height:0}
+  .dashboard-page.material-dashboard{height:100%;min-height:0;grid-template-rows:122px 90px minmax(0,1fr) minmax(0,1fr);gap:24px;overflow:hidden}
+  .material-dashboard>.dashboard-main-grid,.material-dashboard>.dashboard-bottom-grid{height:100%;min-height:0}
+  .material-dashboard>.dashboard-main-grid>*,.material-dashboard>.dashboard-bottom-grid>*{height:100%;min-height:0;overflow:hidden}
+  .dashboard-node-card.dashboard-recent-card,.dashboard-node-card.dashboard-activity-card{min-height:0}
+  .dashboard-recent-card .dashboard-recent-list,.dashboard-activity-card .dashboard-activity-list{height:100%;min-height:0}
+  .dashboard-recent-card .dashboard-recent-list>button{height:calc((100% - 24px)/3);min-height:0}
+  .dashboard-activity-card .dashboard-activity-list{gap:0;justify-content:space-between}
+  .dashboard-activity-card .dashboard-activity-list>button{height:calc((100% - 64px)/3);min-height:0}
+}
+
+/* Fit the dashboard to the user's actual browser viewport. The Figma heights
+   remain the large-screen reference; center and bottom rows share any shorter
+   viewport instead of forcing document scrolling. */
+@media (min-width:1024px){
+  .app-content:has(.dashboard-page.material-dashboard){overflow:hidden}
+  .dashboard-page.material-dashboard{grid-template-rows:122px 90px minmax(0,1fr) minmax(0,1fr);overflow:hidden}
+  .material-dashboard>.dashboard-main-grid,
+  .material-dashboard>.dashboard-bottom-grid{min-height:0;height:100%}
+  .material-dashboard>.dashboard-main-grid>* ,
+  .material-dashboard>.dashboard-bottom-grid>*{min-height:0;overflow:hidden}
+  .dashboard-node-card.dashboard-recent-card,
+  .dashboard-node-card.dashboard-activity-card{min-height:0}
+  .dashboard-recent-card .dashboard-recent-list,
+  .dashboard-activity-card .dashboard-activity-list{min-height:0;height:100%}
+  .dashboard-recent-card .dashboard-recent-list>button{min-height:0;height:calc((100% - 24px) / 3)}
+  .dashboard-activity-card .dashboard-activity-list{gap:0;justify-content:space-between}
+  .dashboard-activity-card .dashboard-activity-list>button{min-height:0;height:calc((100% - 64px) / 3)}
+}
+
+/* Current visible Figma bottom cards override the retired hidden-node rules above. */
+.dashboard-node-card.dashboard-recent-card,.dashboard-node-card.dashboard-activity-card{gap:24px;padding:25px}
+.dashboard-recent-card .dashboard-bottom-title,.dashboard-activity-card .dashboard-bottom-title{height:40px;align-items:center;gap:12px;padding:0}.dashboard-recent-card .dashboard-bottom-title button{align-self:auto;margin:0 0 0 auto;font-weight:500}
+.dashboard-recent-card .dashboard-recent-list{height:222px;gap:12px}.dashboard-recent-card .dashboard-recent-list>button{height:66px;flex-direction:row;align-items:center;justify-content:space-between;gap:18px;padding:13px;border-color:transparent;border-radius:16px;background:transparent}.dashboard-recent-card .dashboard-recent-progress{width:160px;height:40px;flex:0 1 160px;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px}.dashboard-recent-card .dashboard-recent-progress em{width:auto;flex:0;color:#434654;font-size:14px;font-weight:500;line-height:20px}.dashboard-recent-card .dashboard-recent-progress>i{width:124px;height:6px;flex:none}
+.dashboard-activity-card .dashboard-activity-list{height:227px;gap:32px;padding-left:48px}.dashboard-activity-card .dashboard-activity-list::before{top:1px;bottom:0;left:11px}.dashboard-activity-card .dashboard-activity-list>button{height:54px;display:block;padding:4px 0}.dashboard-activity-card .dashboard-activity-list>button>i{top:0;left:-48px;width:24px;height:24px;border:4px solid #014ac6;background:#fff;box-shadow:0 0 0 4px rgba(0,74,198,.05)}.dashboard-activity-card .dashboard-activity-list>button.tone-green>i{border-color:#006243;background:#fff;box-shadow:0 0 0 4px rgba(0,98,67,.05)}.dashboard-activity-card .dashboard-activity-list>button.tone-orange>i{border-color:#fb923c;background:#fff;box-shadow:0 0 0 4px rgba(251,146,60,.05)}
+@media(max-width:1500px) and (min-width:1024px){.dashboard-node-card.dashboard-recent-card,.dashboard-node-card.dashboard-activity-card{gap:14px;padding:15px}.dashboard-recent-card .dashboard-bottom-title,.dashboard-activity-card .dashboard-bottom-title{height:30px}.dashboard-recent-card .dashboard-recent-list{height:276px;gap:12px}.dashboard-recent-card .dashboard-recent-list>button{height:84px;padding:10px}.dashboard-recent-card .dashboard-recent-progress{width:100px;flex-basis:100px}.dashboard-recent-card .dashboard-recent-progress em{font-size:11px}.dashboard-recent-card .dashboard-recent-progress>i{width:90px}.dashboard-activity-card .dashboard-activity-list{height:276px;gap:38px;padding-left:38px}.dashboard-activity-card .dashboard-activity-list>button{height:66px}.dashboard-activity-card .dashboard-activity-list>button>i{left:-38px}}
+
+/* Visible bottom row: Figma nodes 1:2072 and 1:2132. */
+.dashboard-recent-card,.dashboard-activity-card{display:flex;flex-direction:column;gap:24px;padding:25px}
+.dashboard-recent-card .dashboard-bottom-title,.dashboard-activity-card .dashboard-bottom-title{height:40px;display:flex;align-items:center;justify-content:flex-start;gap:12px;padding:0}.dashboard-bottom-title>span{width:40px;height:40px;display:grid;flex:0 0 40px;place-items:center;border-radius:12px;color:#014ac6;background:rgba(1,74,198,.05);font-size:18px}.dashboard-bottom-title h3{font-size:18px;line-height:28px}.dashboard-recent-card .dashboard-bottom-title button{align-self:auto;margin:0 0 0 auto;font-size:12px;font-weight:500}
+.dashboard-recent-card .dashboard-recent-list{height:222px;display:flex;flex-direction:column;gap:12px}.dashboard-recent-list>button{height:66px;display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:18px;padding:13px;border:1px solid transparent;border-radius:16px}.dashboard-recent-copy{height:40px;display:flex;min-width:0;align-items:center;gap:16px}.dashboard-recent-copy>i{width:6px;height:40px;flex:0 0 6px;border-radius:999px;background:#014ac6;box-shadow:0 0 8px rgba(0,74,198,.3)}.recent-tone-1 .dashboard-recent-copy>i{background:#712ae2;box-shadow:0 0 8px rgba(113,42,226,.3)}.recent-tone-2 .dashboard-recent-copy>i{background:#fb923c;box-shadow:0 0 8px rgba(251,146,60,.3)}.dashboard-recent-copy>span{height:39px;display:flex;min-width:0;flex-direction:column;justify-content:space-between}.dashboard-recent-copy strong{overflow:hidden;color:#191b23;font-size:14px;font-weight:500;line-height:20px;text-overflow:ellipsis;white-space:nowrap}.dashboard-recent-copy time{color:#434654;font-size:11px;line-height:16px}.dashboard-recent-card .dashboard-recent-progress{width:160px;height:40px;display:flex;flex:0 1 160px;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px}.dashboard-recent-progress em{width:auto;flex:0;color:#434654;font-size:14px;font-weight:500;line-height:20px}.dashboard-recent-progress em b{color:#014ac6}.dashboard-recent-progress>i{width:124px;height:6px;flex:none;box-shadow:inset 0 1px 4px rgba(12,12,13,.05)}.dashboard-recent-progress>i>b{background:linear-gradient(90deg,rgba(1,74,198,.48),#014ac6);box-shadow:0 0 8px rgba(0,74,198,.3)}
+.dashboard-activity-card .dashboard-activity-list{position:relative;height:227px;display:flex;flex-direction:column;gap:32px;padding-left:48px}.dashboard-activity-list::before{top:1px;bottom:0;left:11px;width:2px}.dashboard-activity-list>button{height:54px;display:block;padding:4px 0;border:0}.dashboard-activity-list>button>i{top:0;left:-48px;width:24px;height:24px;border:4px solid #014ac6;background:#fff;box-shadow:0 0 0 4px rgba(0,74,198,.05)}.dashboard-activity-list>button.tone-green>i{border-color:#006243;background:#fff;box-shadow:0 0 0 4px rgba(0,98,67,.05)}.dashboard-activity-list>button.tone-orange>i{border-color:#fb923c;background:#fff;box-shadow:0 0 0 4px rgba(251,146,60,.05)}.dashboard-activity-copy{display:flex;min-width:0;flex-direction:column;gap:6px}.dashboard-activity-copy>span{height:20px;display:grid;grid-template-columns:max-content minmax(0,1fr) 48px;align-items:center;gap:8px}.dashboard-activity-copy em{padding:4px 8px;border-radius:4px;color:#014ac6;background:rgba(1,74,198,.1);font-size:10px;font-style:normal;line-height:12px;letter-spacing:1px;white-space:nowrap}.tone-green .dashboard-activity-copy em{color:#006243;background:rgba(0,98,67,.1)}.tone-orange .dashboard-activity-copy em{color:#fb923c;background:rgba(249,115,22,.1)}.dashboard-activity-copy strong{font-size:14px;font-weight:500;line-height:20px}.dashboard-activity-copy time{height:20px;padding:2px 8px;border-radius:4px;color:rgba(11,28,48,.68);background:#f3f3fe;font-size:10px;font-weight:700;line-height:16px;text-align:center}.dashboard-activity-copy small{font-size:12px;font-weight:500;line-height:20px}
+@media(max-width:1500px) and (min-width:1024px){.dashboard-recent-card,.dashboard-activity-card{gap:14px;padding:15px}.dashboard-recent-card .dashboard-bottom-title,.dashboard-activity-card .dashboard-bottom-title{height:30px}.dashboard-bottom-title>span{width:30px;height:30px;flex-basis:30px;font-size:14px}.dashboard-recent-card .dashboard-recent-list{height:276px;gap:12px}.dashboard-recent-list>button{height:84px;padding:10px}.dashboard-recent-copy{gap:8px}.dashboard-recent-copy strong{font-size:11px}.dashboard-recent-card .dashboard-recent-progress{width:100px;flex-basis:100px}.dashboard-recent-progress em{font-size:11px}.dashboard-recent-progress>i{width:90px}.dashboard-activity-card .dashboard-activity-list{height:276px;gap:38px;padding-left:38px}.dashboard-activity-list>button{height:66px}.dashboard-activity-list>button>i{left:-38px}.dashboard-activity-copy>span{grid-template-columns:max-content minmax(0,1fr) 42px;gap:5px}.dashboard-activity-copy em{padding-inline:5px;font-size:8px}.dashboard-activity-copy strong{font-size:11px}.dashboard-activity-copy time{padding-inline:4px;font-size:8px}.dashboard-activity-copy small{font-size:9px}}
+
+/* Native dashboard cards from Figma nodes 1:1957, 1:2222 and 1:2263. */
+.dashboard-node-card{height:100%;min-width:0;box-sizing:border-box;padding:25px;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.65);box-shadow:0 8px 32px rgba(1,74,198,.08);backdrop-filter:blur(6px);overflow:hidden}
+.dashboard-node-card-header{height:40px;display:flex;align-items:center;gap:12px}.dashboard-node-card-header>span{width:40px;height:40px;display:grid;flex:0 0 40px;place-items:center;border-radius:10px;color:#014ac6;background:#eef4ff;font-size:20px}.dashboard-node-card-header h3,.dashboard-bottom-title h3{margin:0;color:#191b23;font-size:18px;font-weight:600;line-height:28px;letter-spacing:0;white-space:nowrap}.dashboard-trend-tabs{height:31px;display:flex;gap:4px;margin-left:auto;padding:4px;border-radius:8px;background:#e7e7f3}.dashboard-trend-tabs button{height:23px;padding:4px 12px;border:0;border-radius:6px;color:#434654;background:transparent;font:500 10px/15px inherit;white-space:nowrap;cursor:pointer}.dashboard-trend-tabs button.active{color:#014ac6;background:#fff;box-shadow:0 1px 1px rgba(0,0,0,.05)}
+.dashboard-trend-card{display:flex;flex-direction:column;gap:24px}.dashboard-trend-card>.truthful-empty{flex:1;min-height:0}.dashboard-trend-card .dashboard-risk-trend{height:226px;min-height:0;display:block}.dashboard-trend-card .dashboard-risk-chart{width:100%;height:226px;min-height:0;overflow:visible}.dashboard-trend-card .risk-axis-label{font:600 11px/14px Inter,Arial,sans-serif}.dashboard-trend-card .risk-series path{stroke-width:3}.dashboard-trend-card .risk-series circle{opacity:0}.dashboard-trend-card .dashboard-risk-legend{display:none}
+.dashboard-bottom-title{height:52px;display:flex;align-items:flex-start;justify-content:space-between;padding-bottom:24px}.dashboard-bottom-title h3{color:#0b1c30;font-size:20px}.dashboard-bottom-title button{align-self:center;margin-top:-24px;padding:0;border:0;color:#004ac6;background:transparent;font-size:12px;font-weight:700;cursor:pointer}.dashboard-recent-list{height:248px;display:flex;flex-direction:column;gap:16px}.dashboard-recent-list>button{height:72px;min-width:0;display:flex;flex-direction:column;gap:8px;padding:17px;border:1px solid rgba(255,255,255,.2);border-radius:8px;color:inherit;background:rgba(255,255,255,.4);text-align:left;cursor:pointer}.dashboard-recent-meta{height:16px;display:flex;min-width:0;align-items:center;justify-content:space-between;gap:16px}.dashboard-recent-meta strong{min-width:0;overflow:hidden;color:#0b1c30;font-size:12px;line-height:16px;text-overflow:ellipsis;white-space:nowrap}.dashboard-recent-meta time{flex:0 0 auto;color:#434655;font-size:11px;font-weight:600;line-height:14px;white-space:nowrap}.dashboard-recent-progress{height:14px;display:flex;align-items:center;gap:16px}.dashboard-recent-progress>i{height:8px;display:block;flex:1;overflow:hidden;border-radius:999px;background:rgba(195,198,215,.2)}.dashboard-recent-progress b{height:100%;display:block;border-radius:999px;background:#004ac6}.dashboard-recent-progress em{width:30px;flex:0 0 30px;color:#004ac6;font-size:11px;font-style:normal;font-weight:700;line-height:14px;text-align:right}
+.dashboard-activity-card{display:flex;flex-direction:column;gap:24px;padding-bottom:81px}.dashboard-activity-card .dashboard-bottom-title{height:28px;padding:0}.dashboard-activity-list{position:relative;height:192px;display:flex;flex-direction:column;gap:24px}.dashboard-activity-list::before{content:'';position:absolute;top:8px;bottom:8px;left:7px;width:2px;background:rgba(195,198,215,.2)}.dashboard-activity-list>button{position:relative;height:30px;min-width:0;display:flex;align-items:flex-start;gap:14px;padding:0 0 0 28px;border:0;color:inherit;background:transparent;text-align:left;cursor:pointer}.dashboard-activity-list>button>i{position:absolute;z-index:1;top:4px;left:0;width:14px;height:14px;border-radius:50%;background:#004ac6;box-shadow:0 0 0 4px rgba(37,99,235,.2)}.dashboard-activity-list>button.tone-red>i{background:#ba1a1a;box-shadow:0 0 0 4px rgba(255,218,214,.2)}.dashboard-activity-list>button.tone-green>i{background:#087b5b;box-shadow:0 0 0 4px rgba(8,123,91,.16)}.dashboard-activity-list>button>span{display:flex;min-width:0;flex-direction:column}.dashboard-activity-list strong{overflow:hidden;color:#0b1c30;font-size:12px;line-height:16px;text-overflow:ellipsis;white-space:nowrap}.dashboard-activity-list small{overflow:hidden;color:#434655;font-size:11px;font-weight:600;line-height:14px;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:1500px) and (min-width:1024px){.dashboard-node-card{padding:15px}.dashboard-node-card-header h3,.dashboard-bottom-title h3{font-size:14px}.dashboard-node-card-header>span{width:30px;height:30px;flex-basis:30px;font-size:15px}.dashboard-trend-tabs{width:142px;flex:0 1 142px}.dashboard-trend-tabs button{min-width:0;flex:1;padding-inline:0;font-size:8px}.dashboard-trend-card{gap:14px}.dashboard-bottom-title{height:42px;padding-bottom:14px}.dashboard-bottom-title button{margin-top:-14px}.dashboard-recent-list{height:calc(100% - 42px);gap:10px}.dashboard-recent-list>button{height:calc((100% - 20px)/3);padding:10px}.dashboard-activity-card{gap:14px;padding-bottom:15px}.dashboard-activity-list{height:calc(100% - 28px);gap:12px}.dashboard-activity-list>button{height:calc((100% - 36px)/4)}.dashboard-recent-meta strong,.dashboard-activity-list strong{font-size:11px}.dashboard-recent-meta time,.dashboard-recent-progress em,.dashboard-activity-list small{font-size:9px}}
+
+/* Preserve the supplied panel artwork ratio at responsive widths; never stretch its embedded labels. */
+.overview-material-panel>img{object-fit:cover;object-position:left top}
+.overview-material-panel .material-panel-data{max-width:100%;box-sizing:border-box;overflow:hidden}
+.overview-material-panel .dashboard-risk-chart{max-width:100%;overflow:hidden}
+.overview-material-panel .recent-task{overflow:hidden}
+.overview-material-panel .recent-task-progress{overflow:hidden}
+
 /* Material component system: fluid desktop layout (1366px through 4K). */
 .simple-rows>div{grid-template-columns:minmax(0,1fr) 78px 92px 82px;min-height:42px}
 .simple-rows .overview-vulnerability-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -556,8 +657,8 @@ html,body,#root{min-width:0;overflow-x:auto}
 @media (min-width:1024px){
   .app-content:has(.dashboard-scale-viewport){height:calc(100dvh - 66px);min-height:0;box-sizing:border-box;padding:12px 18px;overflow:hidden}
   .app-content:has(.dashboard-scale-viewport) .app-content-frame{height:100%}
-  .dashboard-scale-viewport{width:100%;height:100%;overflow:hidden;display:flex;justify-content:center;align-items:flex-start}
-  .dashboard-scale-frame{position:relative;flex:none;overflow:visible}
+  .dashboard-scale-viewport{width:100%;height:100%;min-height:0;overflow:hidden;display:flex;justify-content:center;align-items:flex-start}
+  .dashboard-scale-frame{position:relative;flex:none;overflow:hidden}
   .dashboard-scale-canvas{width:1280px;height:960px;transform-origin:top left}
   .dashboard-scale-canvas>.dashboard-page.material-dashboard{width:1280px;height:960px;margin:0;display:grid;grid-template-rows:126px 108px minmax(0,1fr) minmax(0,.9fr);gap:20px;overflow:visible}
   .app-content:not(.pentest-content) .dashboard-scale-canvas>.dashboard-page.material-dashboard>.metric-grid-five{grid-template-columns:repeat(5,minmax(0,1fr));gap:18px}
@@ -582,8 +683,678 @@ html,body,#root{min-width:0;overflow-x:auto}
   .dashboard-scale-canvas .risk-donut{width:190px;height:190px;aspect-ratio:1}
 }
 
+/* Current Figma overview contract: 1920x1080 canvas, 260px aside and 64px header. */
+@media (min-width:1024px){
+  .app-shell:not(.pentest-shell) .app-header{height:64px}
+  .app-shell:not(.pentest-shell) .app-content{min-height:calc(100dvh - 64px)}
+  .app-content:has(.dashboard-page.material-dashboard){
+    height:calc(100dvh - 64px);
+    padding:24px;
+    overflow:hidden;
+  }
+  .app-content:has(.dashboard-page.material-dashboard) .app-content-frame{height:100%;max-width:none}
+  .dashboard-page.material-dashboard{
+    height:100%;
+    grid-template-rows:122px 90px minmax(0,1fr);
+    gap:24px;
+  }
+  .material-dashboard>.metric-grid-five,
+  .material-dashboard>.feature-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}
+  .material-dashboard>.metric-grid-five{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .material-dashboard>.dashboard-main-grid,
+  .material-dashboard>.dashboard-bottom-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;height:100%;min-height:0}
+  .material-dashboard>.dashboard-main-grid>* ,
+  .material-dashboard>.dashboard-bottom-grid>*{min-width:0;min-height:0;height:100%;aspect-ratio:auto}
+  .material-dashboard .metric-card,.material-dashboard .metric-card .ant-card-body,
+.material-dashboard .feature-card,.material-dashboard .feature-card .ant-card-body{height:100%;min-height:0}
+  }
+
+/* Final current-Figma override: overview uses the 1920x1080 artboard contract. */
+@media (min-width:1024px){
+  .app-shell:not(.pentest-shell) .app-header{height:64px}
+  .app-shell:not(.pentest-shell) .app-content{min-height:calc(100dvh - 64px)}
+  .app-content:has(.dashboard-page.material-dashboard){height:calc(100dvh - 64px);padding:24px;overflow:hidden}
+  .app-content:has(.dashboard-page.material-dashboard) .app-content-frame{height:100%;max-width:none}
+  .dashboard-page.material-dashboard{height:100%;grid-template-rows:122px 90px 340px 340px;gap:24px;overflow:hidden}
+  .material-dashboard>.metric-grid-five{grid-template-columns:repeat(5,minmax(0,1fr));gap:24px}
+  .material-dashboard>.feature-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}
+  .material-dashboard>.dashboard-main-grid,.material-dashboard>.dashboard-bottom-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;height:100%;min-height:0}
+  .material-dashboard>.dashboard-main-grid>*,.material-dashboard>.dashboard-bottom-grid>*{min-width:0;min-height:0;height:100%;aspect-ratio:auto}
+  .material-dashboard .metric-card,.material-dashboard .metric-card .ant-card-body,.material-dashboard .feature-card,.material-dashboard .feature-card .ant-card-body{height:100%;min-height:0}
+}
+
+/* Figma sidebar: keep the rail and supplied brand asset at their native geometry. */
+@media (min-width:1024px){
+  .app-shell:not(.pentest-shell) .app-sider{
+    width:260px!important;
+    min-width:260px!important;
+    max-width:260px!important;
+    flex:0 0 260px!important;
+    background:#eef3ff!important;
+  }
+  .app-shell:not(.pentest-shell) .app-sider + .ant-layout{margin-left:260px}
+  .app-shell:not(.pentest-shell) .material-brand{
+    width:260px;
+    height:80px;
+    margin:0;
+    padding:0;
+    background:transparent;
+  }
+  .app-shell:not(.pentest-shell) .material-brand img{display:block;width:260px;height:80px;object-fit:contain}
+  .app-shell:not(.pentest-shell) .app-sider>.ant-menu{
+    margin-top:20px;
+    padding:0 16px;
+    background:transparent;
+  }
+  .app-shell:not(.pentest-shell) .app-sider .ant-menu-item,
+  .app-shell:not(.pentest-shell) .app-sider .ant-menu-submenu-title{
+    height:44px;
+    line-height:44px;
+    margin:4px 0;
+    border-radius:8px;
+  }
+  .app-shell:not(.pentest-shell) .app-sider .ant-menu-item-selected,
+  .app-shell:not(.pentest-shell) .app-sider .ant-menu-submenu-selected>.ant-menu-submenu-title{
+    color:#014ac6!important;
+    background:rgba(1,74,198,.08)!important;
+  }
+}
+
+/* System settings rebuilt from Figma nodes 1:10412, 1:12597, 1:11919, 1:12263 and 1:11655. */
+.material-settings-page{width:100%;max-width:none!important;padding:0 0 24px;color:#191b23}
+.material-settings-page>.material-page-heading{min-height:64px;padding:0 8px 14px}
+.material-settings-page>.material-page-heading p{margin:0;color:rgba(67,70,84,.68);font-size:14px}
+.material-settings-page .material-page-actions{gap:24px}
+.material-settings-page .material-page-actions .ant-btn,.material-settings-page .material-settings-actions .ant-btn{height:38px;padding-inline:17px;border-radius:8px}
+.material-settings-tabs>.ant-tabs-nav{height:54px;margin:0 0 24px;padding:0;border-bottom:1px solid rgba(195,198,215,.32);background:transparent}
+.material-settings-tabs .ant-tabs-tab{min-width:auto;margin:0 40px 0 0!important;padding:16px 8px;color:rgba(67,70,84,.68)}
+.material-settings-tabs .ant-tabs-tab-btn{font-size:14px;font-weight:500}
+.material-settings-tabs .ant-tabs-tab-active .ant-tabs-tab-btn{font-weight:700}
+.material-settings-tabs .ant-tabs-ink-bar{height:4px!important;border-radius:0;background:#014ac6;box-shadow:0 0 12px rgba(0,82,217,.6)}
+.material-settings-grid,.material-settings-grid--scenario{gap:24px}
+.material-settings-single{width:100%;max-width:none}
+.material-settings-card{width:100%;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.82);box-shadow:0 8px 32px rgba(1,74,198,.08)}
+.material-settings-card>.ant-card-body{padding:0 24px 24px}
+.material-settings-card header{min-height:70px;gap:12px;border:0}
+.material-settings-card header>span{width:40px;height:40px;border-radius:12px;color:#014ac6;background:rgba(1,74,198,.05);font-size:20px}
+.material-settings-card h3{margin:0;color:#191b23;font-size:16px;font-weight:600}
+.material-settings-card header p{display:none}
+.material-settings-form-grid{gap:24px 56px;padding:8px 0 0}
+.material-settings-form-grid label{gap:9px;color:#191b23;font-size:13px}
+.material-settings-form-grid .ant-select,.material-settings-form-grid .ant-input,.material-settings-form-grid .ant-input-affix-wrapper,.material-settings-page .ant-input-number{height:38px;border:0;background:rgba(244,247,255,.68);box-shadow:inset 1px 2px 4px rgba(11,28,48,.1)}
+.material-settings-form-grid .ant-select-selector{border:0!important;background:rgba(244,247,255,.68)!important;box-shadow:inset 1px 2px 4px rgba(11,28,48,.1)!important}
+.material-settings-grid--scenario{grid-template-columns:repeat(2,minmax(0,1fr))}
+.material-settings-grid--scenario>.material-settings-card:nth-child(1),.material-settings-grid--scenario>.material-settings-card:nth-child(2){grid-column:1/-1}
+.material-credential-add{display:grid;grid-template-columns:1.15fr 1.15fr 1.15fr 72px;gap:14px;margin-bottom:14px}
+.material-credential-add .ant-input,.material-credential-add .ant-input-affix-wrapper{height:38px;background:rgba(244,247,255,.68)}
+.material-credential-table{margin:0;border:1px solid rgba(195,198,215,.25);border-radius:6px}
+.material-credential-table>div{grid-template-columns:1.4fr 1fr 1fr 140px;min-height:42px;padding:0 14px}
+.material-credential-table>div:first-child{background:#eef3ff}
+.material-settings-grid--scenario textarea{border:0;background:rgba(244,247,255,.68);box-shadow:inset 1px 2px 4px rgba(11,28,48,.1);resize:none}
+.material-rules-layout{display:block}
+.material-rule-thresholds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:56px;margin-bottom:18px}
+.material-rule-thresholds label{display:grid;gap:9px;color:#191b23;font-size:13px}
+.material-rule-thresholds .ant-input-number{width:100%}
+.material-rule-label{display:block;margin:14px 0 10px;font-size:13px}
+.material-rule-checklist{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 28px;padding:2px 0 8px}
+.material-rule-checklist .ant-checkbox-wrapper{margin-inline-start:0;color:#191b23;font-size:12px}
+.material-rules-layout .material-json-preview{margin:0;border-radius:8px;background:#2d313b;box-shadow:none}
+.material-rules-layout .material-json-preview pre{min-height:126px;padding:14px 18px;color:#37d780;font:12px/1.55 Consolas,monospace}
+.material-settings-single .material-setting-row{min-height:66px;margin-bottom:12px;padding:0 14px;border:1px solid rgba(195,198,215,.28);border-radius:16px;background:rgba(241,243,255,.18)}
+.material-settings-single .material-setting-row>div:last-child{width:auto}
+.material-settings-actions{position:static;min-height:104px;margin-top:24px;padding:14px 24px;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.82);box-shadow:0 8px 32px rgba(1,74,198,.08)}
+.material-settings-actions>.material-settings-action-icon{width:52px;height:52px;display:grid;place-items:center;flex:0 0 auto;border-radius:12px;color:#014ac6;background:rgba(1,74,198,.1);box-shadow:0 0 20px rgba(0,82,217,.15);font-size:24px}
+.material-settings-actions>span:nth-child(2){display:grid;gap:4px;color:#191b23;font-size:18px}
+.material-settings-actions>span:nth-child(2) small{color:rgba(67,70,84,.68);font-size:12px;font-weight:400}
+.material-settings-actions>div{gap:24px}
+@media(max-width:1100px){.material-settings-grid--scenario,.material-rule-thresholds{grid-template-columns:1fr}.material-settings-grid--scenario>.material-settings-card{grid-column:auto!important}.material-rule-checklist{grid-template-columns:repeat(2,minmax(0,1fr))}.material-credential-add{grid-template-columns:1fr 1fr}.material-settings-actions{align-items:flex-start;flex-wrap:wrap}.material-settings-actions>div{width:100%;justify-content:flex-end}}
+
 /* Summary rows keep their natural height; remaining space becomes even, dynamic separation. */
 .dashboard-ai-summary-content{display:flex;flex-direction:column;justify-content:space-between;gap:12px}
 .dashboard-ai-summary-content>.dashboard-summary-item{flex:0 0 auto}
+
+/* Desktop dashboard stays fluid: stretch the grid to the available width and
+   match the task-center metric height without applying a canvas transform. */
+@media (min-width:1024px){
+  .app-content:has(.dashboard-page.material-dashboard){height:calc(100dvh - 66px);min-height:0;box-sizing:border-box;padding:12px 18px;overflow:hidden}
+  .app-content:has(.dashboard-page.material-dashboard) .app-content-frame{height:100%;min-height:0}
+  .dashboard-page.material-dashboard{width:100%;max-width:none;height:100%;margin:0;display:grid;grid-template-rows:108px 90px minmax(0,1fr) minmax(0,.88fr);column-gap:10px;row-gap:14px;overflow:hidden}
+  .material-dashboard>.metric-grid,.material-dashboard>.feature-grid,.material-dashboard>.dashboard-bottom-grid{margin:0}
+  .app-content:not(.pentest-content) .dashboard-page.material-dashboard>.metric-grid-five{grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+  .app-content:not(.pentest-content) .dashboard-page.material-dashboard>.feature-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .app-content:not(.pentest-content) .dashboard-page.material-dashboard>.dashboard-main-grid,.app-content:not(.pentest-content) .dashboard-page.material-dashboard>.dashboard-bottom-grid{grid-template-columns:1.05fr 1.05fr 1fr;gap:10px}
+  .app-content:not(.pentest-content) .dashboard-page.material-dashboard>.dashboard-main-grid>.risk-card,.app-content:not(.pentest-content) .dashboard-page.material-dashboard>.dashboard-bottom-grid>:last-child{grid-column:auto}
+  .material-dashboard .metric-card,.material-dashboard .metric-card .ant-card-body{height:100%;min-height:0}
+  .app-content:not(.pentest-content) .dashboard-page.material-dashboard .metric-card,
+  .app-content:not(.pentest-content) .dashboard-page.material-dashboard .metric-card .ant-card-body{min-height:0}
+  .material-dashboard .metric-card .ant-card-body{padding:18px 24px}
+  .material-dashboard .feature-card,.material-dashboard .feature-card .ant-card-body{height:100%;min-height:0}
+  .material-dashboard .feature-card .ant-card-body{padding:12px 18px}
+  .material-dashboard .dashboard-main-grid,.material-dashboard .dashboard-bottom-grid{height:100%;min-height:0;margin-top:0}
+  .material-dashboard .overview-material-panel,.material-dashboard .dashboard-main-grid>.dashboard-material-height,.material-dashboard .dashboard-bottom-grid>.ant-card{height:100%;min-height:0;aspect-ratio:auto}
+  .material-dashboard .risk-card>.ant-card-body,.material-dashboard .dashboard-bottom-grid>.ant-card>.ant-card-body{height:100%;box-sizing:border-box;padding:18px}
+  .material-dashboard .dashboard-bottom-grid>.ant-card:last-child .section-title{margin-bottom:10px}
+  .material-dashboard .dashboard-bottom-grid>.ant-card:last-child .quick-grid{gap:10px}
+  .material-dashboard .dashboard-bottom-grid>.ant-card:last-child .quick-grid .ant-btn{height:44px}
+  .material-dashboard .dashboard-bottom-grid>.ant-card:last-child .muted{margin:10px 0 0}
+}
+
+/* Pentest material fidelity: entry workspace and three-column live session. */
+.pentest-welcome{padding-inline:0;background:radial-gradient(circle at 72% 52%,#e3ebff 0,#f4f7ff 35%,#f8faff 72%)}
+.pentest-welcome .hero-copy{width:min(780px,calc(100% - 400px));max-width:none;margin:0 0 0 clamp(150px,17.35%,288px);z-index:5}
+.pentest-welcome .hero-copy h1{margin-bottom:20px;font-size:36px;line-height:1.25;letter-spacing:0}
+.pentest-welcome .hero-copy>p{margin-bottom:44px;color:#586276;font-size:18px}
+.pentest-welcome .target-form{position:relative;z-index:6;min-height:220px;display:flex;flex-direction:column;padding:28px 24px 16px;border-radius:28px;background:rgba(255,255,255,.94)}
+.pentest-welcome .target-form>.ant-input{flex:1;min-height:88px}
+.pentest-welcome .target-form-footer{min-height:52px;gap:18px;padding-top:12px}
+.target-form-controls{min-width:0;display:flex;align-items:center;gap:12px}
+.material-compact-select{height:36px;display:flex;align-items:center;gap:4px;padding:0 8px;border:1px solid #dfe6f2;border-radius:7px;background:#fff;color:#344056;font-size:12px;white-space:nowrap}
+.material-compact-select>.material-inline-icon{width:16px;height:16px}
+.material-compact-select .ant-select{min-width:88px}
+.material-compact-select .ant-select-selector{padding-inline:0!important}
+.material-compact-select .ant-select-selection-item{font-size:12px;font-weight:500}
+.pentest-welcome .target-form-footer .ant-btn-primary{height:38px;border-radius:7px}
+.pentest-welcome .prompt-examples{margin-top:38px}
+.pentest-welcome .hero-visual{right:0;width:48%;height:82%;z-index:1;pointer-events:none}
+.pentest-welcome .expert-workspace{height:82%;z-index:1;pointer-events:none}
+.pentest-welcome .expert-workspace img{width:190%;left:-4%;bottom:0}
+
+.app-content:has(.execution-workbench--material){height:calc(100dvh - clamp(64px,3.5vw,76px));min-height:0;padding:0;overflow:hidden}
+.app-content:has(.execution-workbench--material) .app-content-frame{height:100%;max-width:none}
+.app-content .execution-workbench--material{width:100%;height:100%;min-height:0;margin:0;background:#f3f6ff;overflow:hidden}
+ .execution-workbench--material{grid-template-columns:328px minmax(0,1fr)}
+ .execution-workbench--material .task-rail{height:100%;min-height:0;display:grid;grid-template-rows:190px minmax(0,1fr);gap:16px;box-sizing:border-box;padding:22px 24px;overflow:hidden;background:rgba(255,255,255,.56)}
+.execution-workbench--material .task-rail .ant-card{min-height:0;margin:0;border:1px solid #e1e7f1;border-radius:9px;background:rgba(255,255,255,.95)}
+.execution-workbench--material .task-rail .ant-card-body{padding:20px 16px}
+.execution-workbench--material .task-list-card{height:100%;min-height:0;overflow:hidden}
+.execution-workbench--material .task-list-card .ant-card-body{height:100%;box-sizing:border-box;display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain}
+.execution-workbench--material .task-counts{margin:18px 0}
+.execution-workbench--material .task-list-caption{margin:-10px 0 14px;color:#7d899c;font-size:11px}
+.execution-workbench--material .task-list-search{flex:0 0 auto;margin:0 0 8px}
+.execution-workbench--material .task-list-search .ant-input-affix-wrapper{min-height:32px;border-color:#dfe6f1;border-radius:7px;background:#f7f9fd;box-shadow:none}
+.execution-workbench--material .task-list-search .ant-input{font-size:11px}
+.execution-workbench--material .task-list-pagination{display:flex;justify-content:center;flex:0 0 auto;margin:4px 0 10px}
+.execution-workbench--material .task-list-pagination .ant-pagination-item,.execution-workbench--material .task-list-pagination .ant-pagination-prev,.execution-workbench--material .task-list-pagination .ant-pagination-next{min-width:24px;height:24px;line-height:22px;margin-inline:2px;font-size:11px}
+.execution-workbench--material .session-task{margin:10px 0;padding:11px 10px;border-radius:7px;box-shadow:0 3px 10px rgba(33,67,130,.06)}
+ .execution-workbench--material .session-task-button{display:block;width:100%;font:inherit;text-align:left;cursor:pointer}
+ .execution-workbench--material .session-task-button:hover,.execution-workbench--material .session-task-button.is-active{border-left-width:5px;background:#eef4ff;box-shadow:0 5px 14px rgba(31,88,180,.14)}
+.execution-workbench--material .execution-stream{height:100%;min-width:0;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto;box-sizing:border-box;padding:22px 32px 16px;overflow:hidden}
+.execution-workbench--material .stream-title{min-height:42px;margin:0 0 8px;gap:12px}
+.execution-workbench--material .stream-title h2{min-width:0;margin:0;overflow:hidden;color:#16243a;font-size:16px;text-overflow:ellipsis;white-space:nowrap}
+.execution-workbench--material .task-activity-timeline{min-height:0;margin:0;border:0;border-radius:0;background:transparent;box-shadow:none;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.execution-workbench--material .task-activity-header{padding:18px 18px 20px;border-bottom:1px solid #e2e8f3;background:rgba(255,255,255,.62)}
+.execution-workbench--material .task-activity-stream{padding-bottom:20px}
+.execution-workbench--material .task-activity-entry{margin:0 8px;padding-top:20px;padding-bottom:20px;background:transparent}
+.execution-workbench--material .task-phase-entry>summary{grid-template-columns:minmax(180px,1fr) auto minmax(130px,170px) 68px;gap:14px}
+.execution-workbench--material .task-conversation-composer--floating{position:static;z-index:3;width:min(820px,calc(100% - 32px));max-width:none;box-sizing:border-box;margin:12px auto 0;padding:11px 14px;border-color:#7d9eff;border-radius:24px;background:#fff;box-shadow:0 10px 28px rgba(48,74,142,.14);backdrop-filter:none}
+.execution-workbench--material .task-conversation-input-row .ant-input{background:#f4f7fc}
+ .execution-monitor-backdrop{position:fixed;inset:clamp(64px,3.5vw,76px) 0 0;z-index:19;border:0;background:rgba(18,32,58,.12);cursor:default}
+ .execution-monitor-rail{position:fixed;top:clamp(64px,3.5vw,76px);right:0;bottom:0;z-index:20;width:328px;min-width:0;min-height:0;box-sizing:border-box;padding:22px 24px;border-left:1px solid #dfe6f3;background:rgba(255,255,255,.96);overflow-y:auto;overscroll-behavior:contain;transform:translateX(105%);visibility:hidden;pointer-events:none;transition:transform .2s ease,visibility 0s linear .2s;box-shadow:-18px 0 40px rgba(31,68,126,.12)}
+ .execution-monitor-rail.is-open{transform:translateX(0);visibility:visible;pointer-events:auto;transition-delay:0s}
+ .execution-workbench--material .execution-monitor{padding:0}
+.execution-workbench--material .execution-monitor>.ant-card{min-height:0;border:1px solid #e1e7f1;border-radius:9px;box-shadow:0 8px 24px rgba(31,68,126,.06)}
+.execution-workbench--material .execution-monitor>.ant-card>.ant-card-body{padding:16px}
+ .execution-workbench--material .execution-monitor h3{display:flex;align-items:center;gap:7px;margin:0 0 15px;padding-bottom:14px;border-bottom:1px solid #e6ebf3;font-size:14px}
+ .execution-workbench--material .execution-monitor h3 .ant-btn{margin-left:auto;padding:0 4px;font-size:18px;line-height:1}
+.current-tool-block>span,.current-tool-arguments>span,.current-tool-output>span{display:block;margin-bottom:7px;color:#455268;font-size:11px;font-weight:600}
+.execution-workbench--material .execution-monitor pre{max-height:124px;margin:0 0 12px;padding:10px;border-radius:7px;overflow:auto;color:#233349;font-size:11px;line-height:1.55;overflow-wrap:anywhere}
+.execution-workbench--material .current-tool-block>pre{color:#15243a;font-weight:600}
+.execution-workbench--material .monitor-metrics{gap:8px;margin:14px 0}
+.execution-workbench--material .monitor-metrics div{min-width:0;padding:10px 6px}
+.execution-workbench--material .monitor-metrics strong{max-width:100%;overflow:hidden;font-size:16px;text-overflow:ellipsis;white-space:nowrap}
+.execution-workbench--material .monitor-metrics small{max-width:100%;margin-top:3px;overflow:hidden;color:#98a2b2;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
+.execution-workbench--material .execution-monitor .output-preview{min-height:118px;max-height:172px;margin:0 0 14px;padding:11px;background:#1c1e22;color:#42dc7a;border:0;font-size:10px}
+.execution-workbench--material .live-findings{margin:14px 0;padding:12px;border-radius:8px}
+.execution-workbench--material .live-findings>header{gap:8px}
+.execution-workbench--material .live-findings>header strong{font-size:12px}
+.execution-workbench--material .live-findings>header .ant-tag{margin:0;font-size:9px}
+.execution-workbench--material .live-finding{padding:10px}
+.execution-workbench--material .live-finding-heading{grid-template-columns:minmax(0,1fr) auto;gap:6px}
+.execution-workbench--material .live-finding-heading time{grid-column:1/-1}
+
+@media (max-width:1440px) and (min-width:901px){
+  .pentest-welcome .hero-copy{width:min(680px,calc(100% - 320px));margin-left:clamp(100px,17.35%,205px)}
+  .pentest-welcome .hero-copy h1{font-size:31px}
+  .pentest-welcome .hero-copy>p{font-size:15px}
+   .execution-workbench--material{grid-template-columns:238px minmax(0,1fr)}
+  .execution-workbench--material .task-rail{padding:16px 12px}
+  .execution-workbench--material .execution-stream{padding:18px 18px 14px}
+   .execution-monitor-rail{width:300px;padding:16px 12px}
+  .execution-workbench--material .task-phase-entry>summary{grid-template-columns:minmax(0,1fr) auto}
+  .execution-workbench--material .task-phase-progress{max-width:180px}
+  .execution-workbench--material .task-phase-disclosure{display:none}
+}
+
+@media (max-width:900px){
+  .app-content:has(.execution-workbench--material){height:auto;overflow:visible}
+  .app-content .execution-workbench--material{height:auto;display:block;overflow:visible}
+  .execution-workbench--material .task-rail,.execution-workbench--material .execution-stream,.execution-monitor-rail{height:auto;overflow:visible}
+  .execution-workbench--material .task-rail{display:block;padding:16px;border-right:0;border-bottom:1px solid #dfe6f3}
+  .execution-workbench--material .task-rail .ant-card+ .ant-card{margin-top:14px}
+  .execution-workbench--material .task-list-card .ant-card-body{overflow:visible}
+  .execution-workbench--material .execution-stream{display:block;padding:18px 16px}
+  .execution-workbench--material .task-activity-timeline{overflow:visible}
+  .execution-workbench--material .task-conversation-composer--floating{margin-top:16px}
+   .execution-monitor-rail{top:0;width:min(100%,360px);padding:16px;border-left:0}
+  .execution-workbench--material .execution-monitor{padding:0}
+  .pentest-welcome{min-height:auto;display:block;padding:52px 20px 40px;overflow:visible}
+  .pentest-welcome .hero-copy{width:100%;margin:0}
+  .pentest-welcome .hero-visual{position:relative;width:100%;height:360px;margin-top:20px;z-index:1}
+  .pentest-welcome .target-form{min-height:250px}
+  .pentest-welcome .target-form-footer,.target-form-controls{align-items:stretch;flex-direction:column}
+  .material-compact-select{width:100%;box-sizing:border-box}
+  .pentest-welcome .target-form-footer .ant-btn-primary{width:100%}
+}
+
+/* Approved pentest material canvas: desktop geometry is anchored to the 1920x1080 SVG. */
+@media (min-width:901px){
+  .app-content:has(.pentest-material-canvas){
+    height:calc(100dvh - 64px);
+    min-height:0;
+    padding:0;
+    overflow:hidden;
+  }
+  .app-content:has(.pentest-material-canvas) .app-content-frame{
+    height:100%;
+    max-width:none;
+    overflow:hidden;
+  }
+  .pentest-material-canvas{
+    position:relative;
+    display:grid!important;
+    grid-template-columns:328px minmax(0,1fr)!important;
+    width:100%;
+    height:100%;
+    min-height:0;
+    margin:0;
+    overflow:hidden;
+    background:#f8f9ff;
+  }
+  .pentest-global-task-rail{
+    display:grid!important;
+    grid-template-rows:190px minmax(0,1fr)!important;
+    gap:16px;
+    height:100%;
+    min-height:0;
+    box-sizing:border-box;
+    padding:24px;
+    overflow:hidden;
+    background:#f7f8ff;
+  }
+  .pentest-global-task-rail>.ant-card{
+    min-height:0;
+    margin:0;
+    border:1px solid #e0e6f1;
+    border-radius:12px;
+    background:#fff;
+    box-shadow:0 8px 22px rgba(37,70,130,.06);
+  }
+  .pentest-global-task-rail>.ant-card>.ant-card-body{min-height:0;padding:20px 16px}
+  .pentest-global-task-rail>.ant-card h3{margin:0 0 14px;color:#15243b;font-size:16px;line-height:1.35}
+  .pentest-global-task-rail>.task-list-card>.ant-card-body{display:flex;flex-direction:column;height:100%;box-sizing:border-box;padding-bottom:0;overflow:hidden}
+  .pentest-global-task-rail .task-counts{margin:18px 0}
+  .pentest-global-task-rail .task-list-caption{margin:-10px 0 14px;color:#7d899c;font-size:11px}
+  .pentest-global-task-rail .task-list-search{flex:0 0 auto;margin:0 0 8px}
+  .pentest-global-task-rail .task-list-search .ant-input-affix-wrapper{min-height:32px;border-color:#dfe6f1;border-radius:7px;background:#f7f9fd;box-shadow:none}
+  .pentest-global-task-rail .task-list-search .ant-input{font-size:11px}
+  .pentest-global-task-rail .task-list-scroll{min-height:0;flex:1;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+  .pentest-global-task-rail .material-new-task-button{height:42px;padding:0;border:0;background:transparent;box-shadow:none;overflow:hidden}
+  .pentest-global-task-rail .material-new-task-button>span{display:block;width:100%;height:100%}
+  .pentest-global-task-rail .material-new-task-button svg{display:block;width:100%;height:100%}
+  .pentest-global-task-rail .session-task{display:grid;width:100%;height:88px;grid-template-rows:20px 18px 20px;align-content:center;margin:10px 0;padding:9px 10px;border-radius:7px;box-shadow:0 3px 10px rgba(33,67,130,.06);font:inherit;text-align:left;cursor:pointer;overflow:hidden}
+  .pentest-global-task-rail .session-task-button:hover,.pentest-global-task-rail .session-task-button.is-active{border-left-width:5px;background:#eef4ff;box-shadow:0 5px 14px rgba(31,88,180,.14)}
+  .pentest-global-task-rail .session-task-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;min-width:0}
+  .pentest-global-task-rail .session-task-title{min-width:0;flex:1 1 auto;overflow:hidden;white-space:nowrap;container-type:inline-size}
+  .pentest-global-task-rail .session-task-heading strong{display:inline-block;min-width:100%;font-size:11px;white-space:nowrap}
+  .pentest-global-task-rail .session-task-title:hover strong{animation:pentest-task-title-scroll 6s linear infinite alternate}
+  @keyframes pentest-task-title-scroll{from{transform:translateX(0)}to{transform:translateX(calc(100cqi - 100%))}}
+  .pentest-global-task-rail .session-task-heading .ant-tag{flex:0 0 auto;margin:0;padding-inline:5px;font-size:9px;line-height:17px}
+  .pentest-global-task-rail .session-task-meta-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;color:#8792a4;font-size:9px;line-height:14px}
+  .pentest-global-task-rail .session-task-target{display:flex;align-items:center;gap:5px;min-width:0;margin:0;color:inherit;font-size:inherit;line-height:inherit}
+  .pentest-global-task-rail .session-task-target>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pentest-global-task-rail .session-task-stage{max-width:76px;overflow:hidden;color:#8792a4;text-overflow:ellipsis;white-space:nowrap}
+  .pentest-global-task-rail .session-task-target-dot{width:7px;height:7px;flex:0 0 auto;border-radius:2px;background:#8fa3c5}
+  .pentest-global-task-rail .session-task.blue .session-task-target-dot{background:#2e71dd}
+  .pentest-global-task-rail .session-task.orange .session-task-target-dot{background:#ff8d2c}
+  .pentest-global-task-rail .session-task.green .session-task-target-dot{background:#12805e}
+  .pentest-global-task-rail .session-task.red .session-task-target-dot{background:#cf3640}
+  .pentest-global-task-rail .session-task-progress-row{display:grid;grid-template-columns:minmax(46px,1fr) auto minmax(84px,auto);align-items:center;gap:7px;margin:0;color:#7f899a;font-size:9px;line-height:14px}
+  .pentest-global-task-rail .session-task-progress-row .ant-progress{min-width:0;margin:0;line-height:1}
+  .pentest-global-task-rail .session-task-progress-row .ant-progress-outer{margin:0;padding:0}
+  .pentest-global-task-rail .session-task-progress-row .ant-progress-inner{height:4px;border-radius:4px;background:#e8edf4}
+  .pentest-global-task-rail .session-task-progress-row .ant-progress-bg{height:4px!important;border-radius:4px}
+  .pentest-global-task-rail .session-task-progress-row>strong{font-size:9px;color:#1f65ce}
+  .pentest-global-task-rail .session-task-progress-row>strong,.pentest-global-task-rail .session-task-progress-row>time{transform:translateY(2px)}
+  .pentest-global-task-rail .session-task.green .session-task-progress-row>strong{color:#12805e}
+  .pentest-global-task-rail .session-task.orange .session-task-progress-row>strong{color:#ed7b1d}
+  .pentest-global-task-rail .session-task.red .session-task-progress-row>strong{color:#cf3640}
+  .pentest-global-task-rail .session-task-progress-row>time{overflow:hidden;text-align:right;text-overflow:ellipsis;white-space:nowrap}
+  .pentest-global-task-rail .task-list-pagination-footer{flex:0 0 56px;display:flex;align-items:center;justify-content:center;margin:0 -16px;border-top:1px solid #e5eaf3;background:#fff}
+  .pentest-global-task-rail .task-list-pagination{display:flex;justify-content:center;margin:0}
+  .pentest-global-task-rail .task-list-pagination .ant-pagination-item,.pentest-global-task-rail .task-list-pagination .ant-pagination-prev,.pentest-global-task-rail .task-list-pagination .ant-pagination-next{min-width:24px;height:24px;line-height:22px;margin-inline:2px;font-size:11px}
+
+  .pentest-tool-stream{
+    position:relative;
+    display:block!important;
+    height:100%;
+    min-width:0;
+    min-height:0;
+    box-sizing:border-box;
+    padding:22px 328px 16px 8px!important;
+    overflow:hidden;
+  }
+  .pentest-tool-stream .stream-title{height:42px;min-height:42px;margin:0;gap:12px;align-items:center}
+  .pentest-tool-stream .stream-title h2{min-width:0;margin:0;overflow:hidden;color:#191b23;font-size:16px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}
+  .pentest-tool-stream .pentest-tool-timeline{height:calc(100% - 42px);min-height:0;margin:0;border:0;border-radius:0;background:transparent;box-shadow:none;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+  .pentest-tool-stream .task-activity-header{display:none}
+  .pentest-tool-stream .task-activity-stream{min-height:100%;padding:24px 0 92px}
+  .pentest-tool-stream .task-activity-stream::before{left:41px;top:0;bottom:0;border-left:1px solid #d7e2ff}
+  .pentest-tool-stream .task-activity-entry{margin:0;padding:22px 12px 22px 66px;border-bottom:0;background:transparent}
+  .pentest-tool-stream .task-timeline-marker{left:35px;top:27px;width:12px;height:12px;border:0;background:#075bd8;color:transparent;box-shadow:0 0 0 4px #e1eaff}
+  .pentest-tool-stream .task-message-entry>.task-timeline-marker{background:#712ae2;box-shadow:0 0 0 4px #eee9ff}
+  .pentest-tool-stream .task-tool-timeline-entry{border:0;background:transparent;box-shadow:none}
+  .pentest-tool-stream .task-tool-timeline-entry+.task-tool-timeline-entry{margin-top:0}
+  .pentest-tool-stream .task-tool-intent{position:relative;min-height:48px}
+  .pentest-tool-stream .task-tool-intent-icon{position:absolute;left:-50px;top:0;width:36px;height:36px;display:grid;place-items:center;border-radius:50%;background:#6f2be8;color:#fff;font-size:17px;box-shadow:0 0 0 5px #efe9ff}
+  .pentest-tool-stream .task-tool-intent p{max-width:74ch;margin:0;color:#28384f;font-size:13px;line-height:1.8}
+  .pentest-tool-stream .task-tool-intent code{padding:2px 6px;border-radius:3px;background:#edf4ff;color:#075bd8;font-family:inherit;font-size:12px}
+  .pentest-tool-stream .task-tool-card{position:relative;display:grid;grid-template-columns:38px minmax(0,1fr) auto auto;align-items:center;gap:12px;width:min(100%,640px);min-height:62px;margin:14px 0 0;padding:9px 14px;border:1px solid #c7d9f5;border-top:2px solid #6f9dea;border-radius:0;background:#fff;color:inherit;font:inherit;text-align:left;cursor:pointer;box-shadow:0 8px 18px rgba(33,67,130,.06);transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+  .pentest-tool-stream .task-tool-card:hover{border-color:#6f9dea;box-shadow:0 10px 22px rgba(33,67,130,.11);transform:translateY(-1px)}
+  .pentest-tool-stream .task-tool-card:active{transform:translateY(0)}
+  .pentest-tool-stream .task-tool-card:focus-visible{outline:2px solid #4c8cf1;outline-offset:2px}
+  .pentest-tool-stream .task-tool-card>.task-timeline-marker{left:-31px;top:50%;transform:translateY(-50%)}
+  .pentest-tool-stream .task-tool-card-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:8px;background:#edf4ff;color:#1768df;font-size:16px}
+  .pentest-tool-stream .task-tool-card-copy{display:flex;min-width:0;flex-direction:column;gap:3px}
+  .pentest-tool-stream .task-tool-card-copy small{color:#7a8799;font-size:10px}
+  .pentest-tool-stream .task-tool-card-copy strong{overflow:hidden;color:#172b4d;font-size:13px;text-overflow:ellipsis;white-space:nowrap}
+  .pentest-tool-stream .task-tool-card time{color:#8e99aa;font-size:10px;white-space:nowrap}
+  .pentest-tool-stream .task-tool-card .ant-tag{margin:0;white-space:nowrap}
+  .pentest-tool-stream .task-conversation-composer--floating{position:absolute;left:0;right:328px;bottom:24px;width:clamp(640px,49vw,940px);max-width:calc(100% - 48px);box-sizing:border-box;margin:0 auto;padding:0 12px;border:1px solid #7d9eff;border-radius:24px;background:#fff;box-shadow:0 10px 28px rgba(48,74,142,.14);backdrop-filter:none}
+  .pentest-material-canvas:has(.pentest-execution-drawer.is-open) .pentest-tool-stream .task-conversation-composer--floating{width:clamp(560px,40vw,768px)}
+  .pentest-tool-stream .pentest-composer .task-conversation-progress{display:none}
+  .pentest-tool-stream .pentest-composer .task-conversation-input-row{height:46px;align-items:center}
+  .pentest-tool-stream .pentest-composer .task-conversation-input-row .ant-input{background:transparent}
+  .pentest-tool-stream .pentest-composer .ant-btn{width:32px;height:32px}
+
+  .pentest-execution-toolbar{
+    position:absolute;
+    top:24px;
+    right:24px;
+    z-index:6;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+    width:280px;
+    height:54px;
+    box-sizing:border-box;
+    padding:8px 10px;
+    border:1px solid #e0e6f1;
+    border-radius:12px;
+    background:#fff;
+    box-shadow:0 8px 22px rgba(37,70,130,.06);
+  }
+  .pentest-execution-toolbar .ant-btn{width:32px;height:32px;padding:0;color:#49556b}
+  .pentest-execution-toolbar .ant-btn-primary{color:#fff;background:#eef3ff;border-color:#dbe6ff;box-shadow:none}
+  .pentest-toolbar-divider{width:1px;height:24px;margin:0 4px;background:#dfe5ef}
+  .pentest-execution-drawer{
+    position:absolute!important;
+    top:94px!important;
+    right:0!important;
+    bottom:0!important;
+    z-index:5;
+    width:328px!important;
+    min-width:0;
+    min-height:0;
+    box-sizing:border-box;
+    padding:0 24px;
+    border:0;
+    background:transparent;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    transform:translateX(105%);
+    visibility:hidden;
+    pointer-events:none;
+    transition:transform .2s ease,visibility 0s linear .2s;
+    box-shadow:none;
+  }
+  .pentest-execution-drawer.is-open{transform:translateX(0);visibility:visible;pointer-events:auto;transition-delay:0s}
+  .pentest-execution-drawer .execution-monitor{padding:0}
+  .pentest-execution-drawer .execution-monitor>.ant-card{min-height:898px;border:1px solid #e0e6f1;border-radius:12px;background:#fff;box-shadow:0 8px 22px rgba(37,70,130,.06)}
+  .pentest-execution-drawer .execution-monitor>.ant-card>.ant-card-body{padding:16px}
+  .pentest-execution-drawer .execution-monitor h3{display:flex;align-items:center;gap:7px;margin:0 0 15px;padding-bottom:14px;border-bottom:1px solid #e6ebf3;font-size:14px}
+  .pentest-execution-drawer .execution-monitor h3 .ant-btn{margin-left:auto;padding:0 4px;font-size:16px;line-height:1}
+  .pentest-execution-drawer .execution-monitor pre{max-height:124px;margin:0 0 12px;padding:10px;border-radius:7px;overflow:auto;color:#233349;font-size:11px;line-height:1.55;overflow-wrap:anywhere}
+  .pentest-execution-drawer .execution-monitor .output-preview{min-height:172px;max-height:172px;margin:0 0 14px;padding:11px;background:#1c1e22;color:#42dc7a;border:0;font-size:10px}
+}
+
+@media (max-width:1440px) and (min-width:901px){
+  .pentest-material-canvas{grid-template-columns:238px minmax(0,1fr)!important}
+  .pentest-global-task-rail{padding:16px 12px}
+  .pentest-tool-stream{padding:18px 300px 14px 18px!important}
+  .pentest-execution-toolbar{right:12px;width:276px}
+  .pentest-execution-drawer{width:300px!important;padding-inline:12px}
+  .pentest-tool-stream .task-conversation-composer--floating{width:clamp(500px,49vw,940px);max-width:calc(100% - 24px)}
+  .pentest-material-canvas:has(.pentest-execution-drawer.is-open) .pentest-tool-stream .task-conversation-composer--floating{width:clamp(480px,40vw,768px)}
+  .pentest-tool-stream .task-phase-entry>summary{grid-template-columns:minmax(0,1fr) auto}
+  .pentest-tool-stream .task-phase-progress{max-width:180px}
+  .pentest-tool-stream .task-phase-disclosure{display:none}
+}
+
+@media (max-width:900px){
+  .pentest-material-canvas{display:block!important;height:auto;min-height:100%;overflow:visible}
+  .pentest-global-task-rail,.pentest-tool-stream{height:auto;min-height:0;padding:16px!important;overflow:visible}
+  .pentest-global-task-rail{display:block!important}
+  .pentest-global-task-rail>.ant-card+.ant-card{margin-top:14px}
+  .pentest-global-task-rail .task-list-card .ant-card-body{height:auto;overflow:visible}
+  .pentest-global-task-rail .task-list-scroll{overflow:visible}
+  .pentest-global-task-rail .task-list-pagination-footer{margin:0 -16px}
+  .pentest-tool-stream .pentest-tool-timeline{height:auto;overflow:visible}
+  .pentest-tool-stream .task-activity-stream{padding-bottom:20px}
+  .pentest-tool-stream .pentest-composer{position:static;width:100%;margin-top:16px}
+  .pentest-execution-toolbar{position:static;width:100%;margin:0 16px 16px}
+  .pentest-execution-drawer{position:fixed!important;top:0!important;right:0!important;bottom:0!important;width:min(100%,360px)!important;padding:16px;background:#fff;transform:translateX(105%)}
+  .pentest-execution-drawer .execution-monitor>.ant-card{min-height:0}
+}
+
+/* Team and authorization pages from Figma nodes 1:10771/1:676 and 1:12877/1:1592. */
+.material-team-page,.material-authorization-page{width:100%;max-width:none!important}
+.material-team-page>.material-page-heading{position:absolute;top:0;left:312px;right:0;z-index:2;min-height:62px;padding:0 0 18px}
+.material-team-page>.material-page-heading p{color:rgba(67,70,84,.68);font-size:14px}
+.material-team-page .material-page-actions{gap:24px}
+.material-team-page .material-page-actions .ant-btn{height:38px;padding-inline:18px;border-radius:8px}
+.material-team-layout{grid-template-columns:288px minmax(0,1fr);gap:24px;min-height:968px}
+.material-team-tree{min-height:968px;padding:20px 16px;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.82);box-shadow:0 8px 32px rgba(1,74,198,.08)}
+.material-team-tree header{height:18px;justify-content:space-between;margin:0 0 24px;color:#191b23}
+.material-team-tree header>.anticon{display:none}
+.material-team-tree header::after{content:'+';color:#014ac6;font-size:24px;font-weight:300;line-height:18px}
+.material-team-tree .ant-input-affix-wrapper{height:38px;margin:0 0 24px;border:0;border-radius:8px;background:rgba(244,247,255,.68);box-shadow:inset 1px 2px 4px rgba(11,28,48,.1)}
+.material-org-tree,.material-org-branch{display:grid;gap:4px}
+.material-org-tree button{height:38px;display:grid;grid-template-columns:18px 18px minmax(0,1fr);align-items:center;gap:8px;padding:0 12px;border:0;border-radius:7px;color:#434654;background:transparent;text-align:left;cursor:pointer}
+.material-org-tree button.active{color:#014ac6;background:rgba(1,74,198,.08)}
+.material-org-branch{margin-left:24px}
+.material-org-branch--nested{margin-left:24px}
+.material-org-branch--nested button{grid-template-columns:18px minmax(0,1fr)}
+.material-team-main{padding-top:62px}
+.material-team-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-bottom:24px}
+.material-team-summary>div{height:104px;min-height:0;padding:18px 26px;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.82);box-shadow:0 8px 32px rgba(1,74,198,.06)}
+.material-team-table{border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.82);box-shadow:0 8px 32px rgba(1,74,198,.08)}
+.material-team-table>header{min-height:78px;padding:14px 18px;border-bottom:1px solid rgba(195,198,215,.24)}
+.material-team-table>header>div:last-child{flex:1;justify-content:flex-end}
+.material-team-status-filter{display:flex;align-items:center;gap:8px}
+.material-team-status-filter .ant-tag{margin:0}
+.material-team-status-filter .ant-select{width:116px}
+.material-team-table>header .ant-input-affix-wrapper{width:min(460px,52%);height:38px;border-color:#b8d2ff;background:rgba(244,247,255,.68)}
+.material-team-table>header .ant-btn{height:38px;padding-inline:22px;border-radius:8px}
+.material-team-table .ant-table-thead>tr>th{height:50px;background:#eef3ff;color:#434654}
+.material-team-table .ant-table-tbody>tr>td{height:72px}
+.material-team-table .ant-pagination{padding:0 18px 14px}
+.material-authorization-page>.material-page-heading{min-height:64px;padding:0 8px 16px}
+.material-authorization-page>.material-page-heading p{color:rgba(67,70,84,.68);font-size:14px}
+.material-authorization-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-bottom:24px}
+.material-authorization-summary>.ant-card{height:432px;min-height:0;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.82);box-shadow:0 8px 32px rgba(1,74,198,.08)}
+.material-authorization-summary>.ant-card>.ant-card-body{height:100%;box-sizing:border-box;padding:0 24px 24px}
+.material-authorization-summary header{min-height:78px;border:0}
+.material-authorization-summary header>span:first-child,.material-license-upload header>span{width:40px;height:40px;border-radius:12px;color:#014ac6;background:rgba(1,74,198,.05)}
+.material-authorization-summary header>.ant-tag{margin-left:auto}
+.material-fingerprint-label{margin:7px 0 20px!important}
+.material-fingerprint{height:216px;margin:0;padding:20px;border:1px solid rgba(195,198,215,.25);border-radius:16px;background:rgba(241,243,255,.24)}
+.material-fingerprint-actions{margin-top:24px;gap:24px}
+.material-license-details{margin:0}
+.material-license-details>div{height:46px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(195,198,215,.22)}
+.material-license-details dt{color:rgba(67,70,84,.68)}
+.material-license-details dd{margin:0;color:#191b23}
+.material-license-hint{height:44px;display:flex;align-items:center;gap:10px;margin-top:16px;padding:0 14px;border:1px solid #c9daf8;border-radius:8px;color:#014ac6;background:#f1f6ff}
+.material-license-upload{min-height:444px;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.82);box-shadow:0 8px 32px rgba(1,74,198,.08)}
+.material-license-upload>.ant-card-body{padding:0 24px 24px}
+.material-license-upload header{min-height:76px;padding:0;border:0}
+.material-upload-dropzone{min-height:224px;margin:0;border:1px dashed #cbd5e6;border-radius:12px;background:rgba(255,255,255,.35)}
+.material-license-upload-actions{margin-top:24px}
+.material-authorization-page .ant-btn{height:38px;border-radius:8px}
+@media(max-width:1200px){.material-team-page>.material-page-heading{position:static}.material-team-layout{grid-template-columns:1fr;min-height:0}.material-team-tree{min-height:auto}.material-team-main{padding-top:0}.material-authorization-summary{grid-template-columns:1fr}.material-authorization-summary>.ant-card{height:auto;min-height:380px}}
+
+/* Figma overview: fluid desktop canvas without the legacy fixed-size scale wrapper. */
+@media (min-width:1024px){
+  .app-content:has(.dashboard-page.material-dashboard){
+    height:calc(100dvh - 66px);
+    min-height:0;
+    box-sizing:border-box;
+    padding:12px 18px;
+    overflow:hidden
+  }
+  .app-content:has(.dashboard-page.material-dashboard) .app-content-frame{height:100%;min-height:0}
+  .dashboard-page.material-dashboard{
+    position:relative;
+    width:100%;
+    max-width:none;
+    height:100%;
+    min-width:0;
+    min-height:0;
+    margin:0;
+    display:grid;
+    grid-template-rows:122px 90px minmax(0,1fr) minmax(0,.92fr);
+    gap:14px;
+    overflow:hidden
+  }
+  .dashboard-resource-error{
+    position:absolute;
+    z-index:5;
+    top:8px;
+    left:0;
+    right:0;
+    margin:0;
+  }
+  .material-dashboard > *{min-width:0;min-height:0}
+  .material-dashboard>.metric-grid,
+  .material-dashboard>.feature-grid,
+  .material-dashboard>.dashboard-main-grid,
+  .material-dashboard>.dashboard-bottom-grid{width:100%;margin:0;min-width:0;min-height:0}
+  .material-dashboard>.metric-grid-five{grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+  .material-dashboard>.feature-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  .material-dashboard>.dashboard-main-grid,
+  .material-dashboard>.dashboard-bottom-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;height:100%}
+  .material-dashboard>.dashboard-main-grid>*,
+  .material-dashboard>.dashboard-bottom-grid>*{width:100%;height:100%;min-width:0;min-height:0;aspect-ratio:auto}
+  .material-dashboard .metric-card,
+  .material-dashboard .metric-card .ant-card-body,
+  .material-dashboard .feature-card,
+  .material-dashboard .feature-card .ant-card-body{height:100%;min-height:0}
+  .material-dashboard .overview-material-panel,
+  .material-dashboard .dashboard-main-grid>.risk-card,
+  .material-dashboard .dashboard-bottom-grid>.ant-card{height:100%;min-height:0;aspect-ratio:auto}
+  .material-dashboard .risk-card>.ant-card-body,
+  .material-dashboard .dashboard-bottom-grid>.ant-card>.ant-card-body{height:100%;min-height:0;box-sizing:border-box}
+}
+
+/* Final current-Figma overview contract: 1920x1080 artboard. */
+@media (min-width:1024px){
+  .app-shell:not(.pentest-shell) .app-header{height:64px}
+  .app-content:has(.dashboard-page.material-dashboard){height:calc(100dvh - 64px);padding:24px;overflow:hidden}
+  .app-content:has(.dashboard-page.material-dashboard) .app-content-frame{height:100%;max-width:none}
+  .dashboard-page.material-dashboard{height:100%;grid-template-rows:122px 90px 340px 340px;gap:24px;overflow:hidden}
+  .material-dashboard>.metric-grid-five{grid-template-columns:repeat(5,minmax(0,1fr));gap:24px}
+  .material-dashboard>.feature-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}
+  .material-dashboard>.dashboard-main-grid,.material-dashboard>.dashboard-bottom-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;height:100%;min-height:0}
+  .material-dashboard>.dashboard-main-grid>*,.material-dashboard>.dashboard-bottom-grid>*{min-width:0;min-height:0;height:100%;aspect-ratio:auto}
+  .dashboard-node-card.dashboard-recent-card,.dashboard-node-card.dashboard-activity-card{gap:24px;padding:25px}
+  .dashboard-recent-card .dashboard-bottom-title,.dashboard-activity-card .dashboard-bottom-title{height:40px;align-items:center;gap:12px;padding:0}
+  .dashboard-recent-card .dashboard-bottom-title button{align-self:auto;margin:0 0 0 auto;font-weight:500}
+  .dashboard-recent-card .dashboard-recent-list{height:222px;gap:12px}
+  .dashboard-recent-card .dashboard-recent-list>button{height:66px;flex-direction:row;align-items:center;justify-content:space-between;gap:18px;padding:13px;border-color:transparent;border-radius:16px;background:transparent}
+  .dashboard-recent-card .dashboard-recent-progress{width:160px;height:40px;flex:0 1 160px;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px}
+  .dashboard-recent-card .dashboard-recent-progress em{width:auto;flex:0;color:#434654;font-size:14px;font-weight:500;line-height:20px}
+  .dashboard-recent-card .dashboard-recent-progress em b{display:inline;height:auto;border-radius:0;background:transparent}
+  .dashboard-recent-card .dashboard-recent-progress>i{width:124px;height:6px;flex:none}
+  .dashboard-activity-card .dashboard-activity-list{height:227px;gap:32px;padding-left:48px}
+  .dashboard-activity-card .dashboard-activity-list::before{top:1px;bottom:0;left:11px}
+  .dashboard-activity-card .dashboard-activity-list>button{height:54px;display:block;padding:4px 0}
+  .dashboard-activity-card .dashboard-activity-list>button>i{top:0;left:-48px;width:24px;height:24px;border:4px solid #014ac6;background:#fff;box-shadow:0 0 0 4px rgba(0,74,198,.05)}
+  .dashboard-activity-card .dashboard-activity-list>button.tone-green>i{border-color:#006243;background:#fff;box-shadow:0 0 0 4px rgba(0,98,67,.05)}
+  .dashboard-activity-card .dashboard-activity-list>button.tone-orange>i{border-color:#fb923c;background:#fff;box-shadow:0 0 0 4px rgba(251,146,60,.05)}
+}
+@media(max-width:1500px) and (min-width:1024px){
+  .dashboard-node-card.dashboard-recent-card,.dashboard-node-card.dashboard-activity-card{gap:14px;padding:15px}
+  .dashboard-recent-card .dashboard-bottom-title,.dashboard-activity-card .dashboard-bottom-title{height:30px}
+  .dashboard-recent-card .dashboard-recent-list{height:274px;gap:12px}
+  .dashboard-recent-card .dashboard-recent-list>button{height:84px;padding:10px}
+  .dashboard-recent-card .dashboard-recent-progress{width:100px;flex-basis:100px}
+  .dashboard-recent-card .dashboard-recent-progress em{font-size:11px}
+  .dashboard-recent-card .dashboard-recent-progress>i{width:90px}
+  .dashboard-activity-card .dashboard-activity-list{height:276px;gap:38px;padding-left:38px}
+  .dashboard-activity-card .dashboard-activity-list>button{height:66px}
+  .dashboard-activity-card .dashboard-activity-list>button>i{left:-38px}
+}
+
+/* Final viewport-fit override: browser chrome reduces the CSS viewport below the
+   screenshot's 1080px image height. Share the remaining space between the two
+   large dashboard rows instead of forcing 340px each. */
+@media (min-width:1024px){
+  .app-content:has(.dashboard-page.material-dashboard){
+    height:calc(100dvh - 64px);
+    min-height:0;
+    overflow:hidden;
+  }
+  .app-content:has(.dashboard-page.material-dashboard) .app-content-frame{
+    height:100%;
+    min-height:0;
+  }
+  .dashboard-page.material-dashboard{
+    height:100%;
+    min-height:0;
+    grid-template-rows:122px 90px minmax(0,1fr) minmax(0,1fr);
+    gap:24px;
+    overflow:hidden;
+  }
+  .material-dashboard>.dashboard-main-grid,
+  .material-dashboard>.dashboard-bottom-grid{
+    height:100%;
+    min-height:0;
+  }
+  .material-dashboard>.dashboard-main-grid>*,
+  .material-dashboard>.dashboard-bottom-grid>*{
+    height:100%;
+    min-height:0;
+    overflow:hidden;
+  }
+  .dashboard-node-card.dashboard-recent-card,
+  .dashboard-node-card.dashboard-activity-card{min-height:0;}
+  .dashboard-recent-card .dashboard-recent-list,
+  .dashboard-activity-card .dashboard-activity-list{
+    height:100%;
+    min-height:0;
+  }
+  .dashboard-recent-card .dashboard-recent-list>button{
+    height:calc((100% - 24px)/3);
+    min-height:0;
+  }
+  .dashboard-activity-card .dashboard-activity-list{
+    gap:0;
+    justify-content:space-between;
+  }
+  .dashboard-activity-card .dashboard-activity-list>button{
+    height:calc((100% - 64px)/3);
+    min-height:0;
+  }
+}
 
 

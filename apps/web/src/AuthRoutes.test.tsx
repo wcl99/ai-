@@ -26,18 +26,18 @@ function response(body: unknown, status = 200) {
   });
 }
 
-function renderRoute(path: string) {
+function renderRoute(path: string, localAuthBypass = false) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
+      <AuthProvider localBypass={localAuthBypass}>
         <MemoryRouter
           initialEntries={[path]}
           future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
         >
-          <App />
+          <App localAuthBypass={localAuthBypass} />
           <LocationProbe />
         </MemoryRouter>
       </AuthProvider>
@@ -97,6 +97,17 @@ describe('authenticated routes', () => {
     renderRoute('/tasks');
 
     expect(await screen.findByRole('heading', { name: '系统登录' })).toBeInTheDocument();
+  });
+
+  it('bypasses local login without requesting the current user', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response({}));
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderRoute('/login', true);
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/overview'));
+    expect(screen.getByText('本地管理员')).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => String(input) === '/api/v1/auth/me')).toBe(false);
   });
 
   it('clears an expired session when a resource request returns 401', async () => {

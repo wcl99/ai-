@@ -48,7 +48,7 @@ const tools: PentestToolEvent[] = [
   {
     id: 'emails:1',
     name: 'get_emails',
-    phase: 'INFORMATION_GATHERING',
+    phase: 'SCANNING',
     state: 'running',
     steps: [],
     narratives: [],
@@ -57,14 +57,15 @@ const tools: PentestToolEvent[] = [
 ];
 
 describe('TaskConversation', () => {
-  it('positions phase markers against the timeline row instead of the summary content', () => {
-    expect(taskStyles).toContain('.task-phase-entry>summary{display:grid;');
-    expect(taskStyles).not.toContain('.task-phase-entry>summary{position:relative;');
+  it('centers tool markers on the timeline rail', () => {
+    expect(taskStyles).toContain('.task-activity-stream::before{left:41px;');
+    expect(taskStyles).toMatch(/task-tool-card>\.task-timeline-marker\{left:-31px/);
   });
 
-  it('renders grouped tools and QA messages in one timestamped timeline', () => {
+  it('renders each tool call as a timeline item with a customer-readable explanation', () => {
     const onInputChange = vi.fn();
     const onSend = vi.fn();
+    const onToolSelect = vi.fn();
     const view = render(
       <TaskConversation
         messages={messages}
@@ -77,31 +78,34 @@ describe('TaskConversation', () => {
         sending={false}
         onInputChange={onInputChange}
         onSend={onSend}
+        onToolSelect={onToolSelect}
       />,
     );
 
     const timeline = screen.getByRole('log', { name: '任务编排时间线' });
     expect(view.container.querySelectorAll('.task-activity-timeline')).toHaveLength(1);
     expect(view.container.querySelector('.task-conversation')).not.toBeInTheDocument();
-    expect(within(timeline).getByText('信息收集')).toBeInTheDocument();
-    expect(within(timeline).getByText('3 次调用')).toBeInTheDocument();
-    expect(within(timeline).getByText('2 个工具')).toBeInTheDocument();
-    expect(within(timeline).getByText('调用 × 2')).toBeInTheDocument();
-    expect(within(timeline).getByText('2026-08-03 10:00:00 — 2026-08-03 10:04:00'))
-      .toBeInTheDocument();
+    expect(view.container.querySelectorAll('.task-tool-timeline-entry')).toHaveLength(3);
+    expect(view.container.querySelectorAll('.task-tool-intent')).toHaveLength(3);
+    expect(view.container.querySelectorAll('.task-tool-intent-icon')).toHaveLength(2);
+    expect(view.container.querySelectorAll('.task-tool-card')).toHaveLength(3);
+    expect(view.container.querySelector('.task-phase-entry')).not.toBeInTheDocument();
+    expect(view.container.querySelector('.task-tool-intent')?.textContent?.trim()).toMatch(
+      /^调用 run_subfinder 工具，目的是枚举目标的公开子域名/,
+    );
+    expect(within(timeline).getAllByText('run_subfinder')).toHaveLength(4);
+    expect(within(timeline).getAllByText(/目的是枚举目标的公开子域名/).length).toBeGreaterThan(0);
+    expect(within(timeline).queryByText('查看调用')).not.toBeInTheDocument();
+    expect(within(timeline).queryByText('收起调用')).not.toBeInTheDocument();
+    expect(view.container.querySelector('details')).not.toBeInTheDocument();
+    expect(view.container.querySelector('.task-tool-calls')).not.toBeInTheDocument();
     expect(within(timeline).getByText('为什么失败？')).toBeInTheDocument();
     expect(within(timeline).getByText('平台任务助手')).toBeInTheDocument();
     expect(within(timeline).queryByText(/小易/)).not.toBeInTheDocument();
     expect(within(timeline).getByText('2026-08-03 10:05:00')).toBeInTheDocument();
 
-    const phaseDetails = within(timeline).getByText('信息收集').closest('details');
-    expect(phaseDetails).not.toHaveAttribute('open');
-    expect(phaseDetails?.querySelector('.task-phase-disclosure')).toHaveTextContent('展开详情');
-    const toolDetails = within(timeline).getByText('run_subfinder').closest('details');
-    expect(toolDetails).not.toHaveAttribute('open');
-    expect(toolDetails?.querySelector('.task-tool-actions')).toHaveTextContent('查看调用');
-    expect(toolDetails).toContainElement(within(timeline).getByText('temporary failure'));
-    expect(toolDetails).toContainElement(within(timeline).getByText(/www\.example\.test/));
+    fireEvent.click(screen.getAllByRole('button', { name: '打开 run_subfinder 执行监控' })[0]);
+    expect(onToolSelect).toHaveBeenCalledWith(tools[0]);
 
     expect(view.container.querySelector('.task-conversation-composer--floating'))
       .toBeInTheDocument();
@@ -131,8 +135,8 @@ describe('TaskConversation', () => {
     );
 
     expect(screen.getByText('正在等待平台返回任务编排信息')).toBeInTheDocument();
-    expect(screen.getByText('任务已开始，您可以补充测试信息')).toBeInTheDocument();
-    expect(screen.getByText(/白盒账号、特殊入口、测试限制或业务窗口/)).toBeInTheDocument();
+    expect(screen.queryByText('任务已开始，您可以补充测试信息')).not.toBeInTheDocument();
+    expect(screen.queryByText(/白盒账号、特殊入口、测试限制或业务窗口/)).not.toBeInTheDocument();
     expect(screen.getByText('问题发送失败')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '发送任务问题' })).toBeDisabled();
   });

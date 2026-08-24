@@ -2,14 +2,27 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { RiskDonut } from '../components/DashboardVisuals';
 import { smoothLine } from '../components/dashboardVisualGeometry';
 import { dashboardScaleForViewport } from './dashboardScale';
-import { DashboardAiSummary, DashboardSummaryCard, riskOverviewMetrics } from './DashboardPage';
+import { DashboardAiSummary, DashboardSummaryCard, DashboardTrendCard, LatestActivityCard, RecentTasksCard, riskOverviewMetrics } from './DashboardPage';
 
 describe('dashboard visual contracts', () => {
-  it('uses a proportional desktop scale when the overview height is constrained', () => {
-    expect(dashboardScaleForViewport({ width: 1569, height: 912 })).toBeCloseTo(0.856, 3);
+  it('renders dashboard data cards as native layouts without material screenshot overlays', () => {
+    const trend = renderToStaticMarkup(<DashboardTrendCard values={[]} />);
+    const recent = renderToStaticMarkup(<RecentTasksCard tasks={[]} onOpen={() => undefined} onViewAll={() => undefined} />);
+    const activity = renderToStaticMarkup(<LatestActivityCard tasks={[]} onOpen={() => undefined} />);
+
+    expect(trend).toContain('dashboard-node-card');
+    expect(trend).toContain('dashboard-trend-tabs');
+    expect(recent).toContain('dashboard-node-card');
+    expect(recent).not.toContain('recent-tasks.png');
+    expect(activity).toContain('dashboard-node-card');
+    expect(activity).not.toContain('latest-activity.png');
   });
 
-  it('keeps the responsive dashboard layout when proportional scaling would be too small', () => {
+  it('keeps the dashboard in fluid layout mode instead of scaling the canvas', () => {
+    expect(dashboardScaleForViewport({ width: 1569, height: 912 })).toBeNull();
+  });
+
+  it('keeps fluid layout mode at the narrow desktop breakpoint', () => {
     expect(dashboardScaleForViewport({ width: 1024, height: 912 })).toBeNull();
   });
 

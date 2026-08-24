@@ -8,7 +8,6 @@ import {
   PlusOutlined,
   SearchOutlined,
   TeamOutlined,
-  UserOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Form, Input, Modal, Select, Switch, Table, Tag, Tooltip, message } from 'antd';
@@ -79,17 +78,23 @@ export function TeamPage() {
 
   return (
     <div className="page management-page material-team-page">
-      <div className="material-page-heading"><div><h2>团队管理</h2><p>管理组织成员、角色与账号状态。</p></div><div className="material-page-actions"><Tooltip title="暂未开放"><Button disabled icon={<ImportOutlined />}>批量导入</Button></Tooltip><Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>新增成员</Button></div></div>
+      <div className="material-page-heading"><div><h2>团队管理</h2><p>团队管理 - 管理组织架构、成员账号与角色权限</p></div><div className="material-page-actions"><Tooltip title="暂未开放"><Button disabled icon={<ImportOutlined />}>批量导入</Button></Tooltip><Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>添加成员</Button></div></div>
       <div className="material-team-layout">
         <aside className="material-team-tree">
           <header><ApartmentOutlined /><strong>组织架构</strong></header>
-          <Input allowClear prefix={<SearchOutlined />} placeholder="搜索部门" />
-          <div className="material-org-root"><span><DownOutlined /> 云盾智意</span><Tag>{users.data?.total ?? 0}</Tag></div>
-          <button className="active" type="button"><TeamOutlined /> 全部成员 <b>{users.data?.total ?? 0}</b></button>
-          <button type="button"><UserOutlined /> 平台管理组 <b>{items.filter((item) => item.role === 'admin').length}</b></button>
-          <button type="button"><UserOutlined /> 安全服务组 <b>{items.filter((item) => item.role !== 'admin' && !item.is_digital_human).length}</b></button>
-          <button type="button"><UserOutlined /> 智能体账号 <b>{items.filter((item) => item.is_digital_human).length}</b></button>
-          <small>组织编号<br />{items[0]?.org_id ?? '正在读取…'}</small>
+          <Input allowClear prefix={<SearchOutlined />} placeholder="搜索关键词" />
+          <nav className="material-org-tree" aria-label="组织架构">
+            <button className="active" type="button"><DownOutlined /><ApartmentOutlined /> 全部组织</button>
+            <div className="material-org-branch">
+              <button type="button"><DownOutlined /><TeamOutlined /> 研发中心</button>
+              <div className="material-org-branch material-org-branch--nested">
+                <button type="button"><span />安全实验室</button>
+                <button type="button"><span />架构组</button>
+              </div>
+              <button type="button"><span /><TeamOutlined /> 市场部</button>
+              <button type="button"><span /><TeamOutlined /> 人力资源</button>
+            </div>
+          </nav>
         </aside>
         <main className="material-team-main">
           <div className="material-team-summary">
@@ -97,7 +102,7 @@ export function TeamPage() {
             <div><span>部门成员</span><strong>{users.data?.total ?? '—'}</strong><small>启用 {items.filter((item) => item.is_active).length} 人</small></div>
           </div>
           <section className="material-team-table">
-            <header><h3 className="sr-only">成员列表</h3><div><span>用户状态</span><Select value={status} onChange={setStatus} options={[{ value: 'all', label: '全部' }, { value: 'active', label: '活跃' }, { value: 'disabled', label: '未激活' }]} /></div><div><Input allowClear prefix={<SearchOutlined />} placeholder="搜索用户名、姓名或邮箱..." value={keyword} onChange={(event) => setKeyword(event.target.value)} /><Button type="primary">搜索</Button><Button onClick={() => { setKeyword(''); setStatus('all'); }}>重置</Button></div></header>
+            <header><h3 className="sr-only">成员列表</h3><div className="material-team-status-filter"><Tag color="orange">管理员</Tag><Tag color="blue">测试员</Tag><Tag color="purple">审计员</Tag><Select aria-label="用户状态" value={status} onChange={setStatus} options={[{ value: 'all', label: '全部状态' }, { value: 'active', label: '活跃' }, { value: 'disabled', label: '未激活' }]} /></div><div><Input allowClear prefix={<SearchOutlined />} placeholder="搜索用户名、姓名或邮箱..." value={keyword} onChange={(event) => setKeyword(event.target.value)} /><Button type="primary">搜索</Button><Button onClick={() => { setKeyword(''); setStatus('all'); }}>重置</Button></div></header>
             {users.isError && <Alert type="error" showIcon message={users.error.message} action={<Button onClick={() => users.refetch()}>重试</Button>} />}
             <Table rowKey="id" columns={columns} dataSource={visibleItems} loading={users.isPending} locale={{ emptyText: '暂无团队成员' }} pagination={{ current: page, pageSize: 20, total: users.data?.total ?? 0, showSizeChanger: false, showTotal: (total) => `共 ${total} 名成员`, onChange: setPage }} scroll={{ x: 1050 }} />
           </section>
