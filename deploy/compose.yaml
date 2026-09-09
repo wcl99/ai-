@@ -1,0 +1,104 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aisec
+      POSTGRES_USER: aisec
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aisec -d aisec"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    stop_grace_period: 30s
+    cpus: "1.0"
+    mem_limit: 1g
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    image: ${API_IMAGE:-ai-security-platform-api:local}
+    restart: unless-stopped
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    environment:
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-production}
+      DATABASE_USERNAME: aisec
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: aisec
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in deploy/.env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      ENGINE_MODE: ${ENGINE_MODE:-mock}
+      ENGINE_RETRY_LIMIT: ${ENGINE_RETRY_LIMIT:-2}
+      XIAOYI_BASE_URL: ${XIAOYI_BASE_URL:-https://yundun2.test.cqxy-ai.com}
+      XIAOYI_PRECHECK_WS_URL: ${XIAOYI_PRECHECK_WS_URL:-}
+      XIAOYI_TOKEN: ${XIAOYI_TOKEN:-}
+      XIAOYI_ORG_ID: ${XIAOYI_ORG_ID:-}
+      XIAOYI_USER_ID: ${XIAOYI_USER_ID:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.deepseek.com/v1}
+      MODEL_TYPE: ${MODEL_TYPE:-deepseek-v4-flash}
+      AGENT_TIMEOUT_SECONDS: ${AGENT_TIMEOUT_SECONDS:-35}
+      DEMO_DATA_ENABLED: ${DEMO_DATA_ENABLED:-false}
+      DEMO_DATA_DIR: /app/demo-data
+      DEMO_DATA_ORG_ID: ${DEMO_DATA_ORG_ID:-}
+      CDNINFO_ENABLED: ${CDNINFO_ENABLED:-false}
+      CDNINFO_BINARY: /opt/cdninfo/cdninfo
+      CDNINFO_CONFIG: /opt/cdninfo/cdninfo.yaml
+      CDNINFO_STORE: /opt/cdninfo/isecdb
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?set BOOTSTRAP_ADMIN_PASSWORD in deploy/.env}
+      TICKET_WEBHOOK_URL: ${TICKET_WEBHOOK_URL:-}
+      TICKET_WEBHOOK_SECRET: ${TICKET_WEBHOOK_SECRET:-}
+      RETEST_WEBHOOK_URL: ${RETEST_WEBHOOK_URL:-}
+      SLA_ESCALATION_HOURS: ${SLA_ESCALATION_HOURS:-72}
+    command:
+      - sh
+      - -c
+      - >-
+        export DATABASE_URL="$$(python -c 'import os; from urllib.parse import quote;
+        values = [quote(os.environ["DATABASE_USERNAME"], safe=""),
+        quote(os.environ["DATABASE_PASSWORD"], safe=""), os.environ["DATABASE_HOST"],
+        os.environ["DATABASE_PORT"], quote(os.environ["DATABASE_NAME"], safe="")];
+        print("postgresql+asyncpg://{}:{}@{}:{}/{}".format(*values))')" &&
+        alembic upgrade head &&
+        exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    stop_grace_period: 30s
+    cpus: "1.0"
+    mem_limit: 1g
+    volumes:
+      - report_data:/app/data/reports
+      - ${DEMO_DATA_DIR_HOST:-./demo-data}:/app/demo-data:ro
+      - ${CDNINFO_DIR:-../../cdninfo}:/opt/cdninfo:ro
+
+volumes:
+  postgres_data:
+  report_data:

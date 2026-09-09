@@ -1,4 +1,10 @@
 import '@testing-library/jest-dom/vitest';
+import { message } from 'antd';
+import { afterEach } from 'vitest';
+
+afterEach(() => {
+  message.destroy();
+});
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -12,4 +18,9 @@ Object.defineProperty(window, 'matchMedia', {
     removeEventListener: () => undefined,
     dispatchEvent: () => false,
   }),
+});
+
+const getComputedStyle = window.getComputedStyle.bind(window);
+Object.defineProperty(window, 'getComputedStyle', {
+  value: (element: Element) => getComputedStyle(element),
 });
