@@ -1,10 +1,45 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { RiskDonut } from '../components/DashboardVisuals';
 import { smoothLine } from '../components/dashboardVisualGeometry';
 import { dashboardScaleForViewport } from './dashboardScale';
-import { DashboardAiSummary, DashboardSummaryCard, DashboardTrendCard, LatestActivityCard, RecentTasksCard, riskOverviewMetrics } from './DashboardPage';
+import { DashboardAiSummary, DashboardSummaryCard, DashboardTrendCard, LatestActivityCard, RecentTasksCard, riskOverviewMetrics, staticTrendData, withRecentTrendDates } from './DashboardPage';
 
 describe('dashboard visual contracts', () => {
+  it('switches the trend chart to static code audit and data analysis data', async () => {
+    const user = userEvent.setup();
+    render(<DashboardTrendCard values={[{ start: '2026-09-01', critical: 1, high: 2, medium: 3, low: 4 }]} />);
+
+    expect(screen.getByLabelText('风险趋势图')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '代码审计' }));
+    expect(screen.getByLabelText('代码审计趋势图')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '代码审计' })).toHaveClass('active');
+    const auditChart = screen.getByLabelText('代码审计趋势图');
+    expect(auditChart.textContent).toMatch(/\d{2}-\d{2}/);
+
+    await user.click(screen.getByRole('button', { name: '数据分析' }));
+    expect(screen.getByLabelText('数据分析趋势图')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '数据分析' })).toHaveClass('active');
+  });
+
+  it('gives the static trend tabs visible peaks and dips', () => {
+    for (const values of Object.values(staticTrendData)) {
+      const series = values.map((point) => point.high);
+      const directions = series.slice(1).map((value, index) => Math.sign(value - series[index]));
+      expect(directions).toContain(1);
+      expect(directions).toContain(-1);
+      expect(Math.max(...series) - Math.min(...series)).toBeGreaterThanOrEqual(35);
+    }
+  });
+
+  it('labels trend values with the seven days ending today', () => {
+    const values = staticTrendData.audit;
+    expect(withRecentTrendDates(values, new Date(2026, 8, 8)).map((point) => point.start)).toEqual([
+      '09-02', '09-03', '09-04', '09-05', '09-06', '09-07', '09-08',
+    ]);
+  });
+
   it('renders dashboard data cards as native layouts without material screenshot overlays', () => {
     const trend = renderToStaticMarkup(<DashboardTrendCard values={[]} />);
     const recent = renderToStaticMarkup(<RecentTasksCard tasks={[]} onOpen={() => undefined} onViewAll={() => undefined} />);
@@ -24,6 +59,12 @@ describe('dashboard visual contracts', () => {
 
   it('keeps fluid layout mode at the narrow desktop breakpoint', () => {
     expect(dashboardScaleForViewport({ width: 1024, height: 912 })).toBeNull();
+  });
+
+  it('keeps the risk chart in the fixed Figma coordinate system', () => {
+    const markup = renderToStaticMarkup(<DashboardTrendCard values={[{ start: '2026-08-21', critical: 8, high: 16, medium: 24, low: 32 }]} />);
+    expect(markup).toContain('viewBox="0 0 471 226"');
+    for (const label of ['100', '75', '50', '25', '0']) expect(markup).toContain(`>${label}</text>`);
   });
 
   it('uses a continuous cubic curve with no hard line joins', () => {

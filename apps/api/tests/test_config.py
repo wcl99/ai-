@@ -63,6 +63,13 @@ def test_production_requires_database_password():
         settings.validate_runtime_security()
 
 
+def test_production_demo_data_requires_explicit_organization_scope():
+    settings = production_settings(demo_data_enabled=True, demo_data_org_id=None)
+
+    with pytest.raises(ValueError, match="DEMO_DATA_ORG_ID"):
+        settings.validate_runtime_security()
+
+
 def test_production_rejects_empty_database_password():
     settings = production_settings(database_password="")
 

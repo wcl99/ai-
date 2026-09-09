@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
     engine_mode: Literal["mock", "xiaoyi"] = "mock"
     xiaoyi_base_url: str = "http://127.0.0.1:49980"
+    xiaoyi_precheck_ws_url: str | None = None
     xiaoyi_token: str | None = None
     xiaoyi_org_id: int | None = Field(default=None, ge=1, le=2_147_483_647)
     xiaoyi_user_id: str | None = None
@@ -51,6 +52,10 @@ class Settings(BaseSettings):
     static_dir: Path = Path("static")
     bootstrap_admin_username: str | None = None
     bootstrap_admin_password: str | None = None
+    ticket_webhook_url: str | None = None
+    ticket_webhook_secret: SecretStr | None = None
+    retest_webhook_url: str | None = None
+    sla_escalation_hours: int = Field(default=72, ge=1, le=8760)
 
     @field_validator("xiaoyi_org_id", mode="before")
     @classmethod
@@ -104,6 +109,8 @@ class Settings(BaseSettings):
             or not self.database_password.get_secret_value()
         ):
             raise ValueError("DATABASE_PASSWORD is required in production")
+        if self.demo_data_enabled and not self.demo_data_org_id:
+            raise ValueError("DEMO_DATA_ORG_ID is required when DEMO_DATA_ENABLED is true in production")
         if (
             self.database_password
             and self.database_password.get_secret_value().lower().startswith(

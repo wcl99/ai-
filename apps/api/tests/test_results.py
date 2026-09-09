@@ -338,6 +338,43 @@ async def test_document_start_plan_accepts_numeric_plan_id(authenticated_client)
     assert body["target_count"] == 1
 
 
+async def test_document_start_plan_is_idempotent_when_request_id_repeats(authenticated_client):
+    created = await authenticated_client.post(
+        "/api/ai/create-test-plan",
+        json={"plan_name": "幂等启动计划", "org_id": 1, "test_type": "discovery", "targets": ["https://example.test"]},
+    )
+    payload = {"plan_id": created.json()["plan_id"], "org_id": 1, "request_id": "start-idempotent-001"}
+
+    first = await authenticated_client.post("/api/ai/start-test-plan", json=payload)
+    second = await authenticated_client.post("/api/ai/start-test-plan", json=payload)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    tasks = await authenticated_client.get("/api/v1/tasks?keyword=start-idempotent-001")
+    assert tasks.json()["data"]["total"] == 1
+
+
+async def test_document_start_plan_is_idempotent_without_request_id(authenticated_client):
+    created = await authenticated_client.post(
+        "/api/ai/create-test-plan",
+        json={
+            "plan_name": "缺省幂等启动计划",
+            "org_id": 1,
+            "test_type": "discovery",
+            "targets": ["https://example.test"],
+        },
+    )
+    payload = {"plan_id": created.json()["plan_id"], "org_id": 1}
+
+    first = await authenticated_client.post("/api/ai/start-test-plan", json=payload)
+    second = await authenticated_client.post("/api/ai/start-test-plan", json=payload)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    tasks = await authenticated_client.get("/api/v1/tasks")
+    assert tasks.json()["data"]["total"] == 1
+
+
 async def test_document_plan_can_start_after_platform_cdn_preparation(
     authenticated_client, monkeypatch
 ):

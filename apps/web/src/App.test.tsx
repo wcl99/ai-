@@ -228,26 +228,22 @@ describe('App', () => {
     expect(container.querySelectorAll('.dashboard-summary-block')).toHaveLength(3);
     expect(container.querySelectorAll('.dashboard-risk-chart .risk-series path')).toHaveLength(4);
     expect(container.querySelector('.dashboard-risk-bars')).not.toBeInTheDocument();
-    expect(
-      [...container.querySelectorAll<HTMLImageElement>('.overview-material-panel > img')].map((image) => image.src),
-    ).toEqual([
-      expect.stringContaining('/material/overview/risk-trend.png'),
-      expect.stringContaining('/material/overview/recent-tasks.png'),
-      expect.stringContaining('/material/overview/latest-activity.png'),
-    ]);
+    expect(container.querySelector('.dashboard-risk-chart')).toBeInTheDocument();
+    expect(container.querySelector('.dashboard-bottom-grid')).toBeInTheDocument();
     expect(container.querySelector('img[src*="/material/overview/ai-summary.png"]')).not.toBeInTheDocument();
     expect(container.querySelectorAll('.dashboard-summary-card img[src*="/material/overview/components/"]')).toHaveLength(5);
-    expect(container.querySelectorAll('.recent-task > i')).toHaveLength(1);
-    expect(screen.getByRole('progressbar', { name: 'API 近期任务执行进度' })).toHaveAttribute('aria-valuenow', '42');
-    expect(container.querySelectorAll('.activity-timeline .activity-node')).toHaveLength(1);
+    expect(container.querySelectorAll('.dashboard-recent-list > button')).toHaveLength(1);
+    expect(container.querySelectorAll('.dashboard-recent-list > button .dashboard-recent-copy > i')).toHaveLength(1);
+    expect(screen.getByText('42%')).toBeInTheDocument();
+    expect(container.querySelectorAll('.dashboard-activity-list > button')).toHaveLength(1);
     expect(
       [...container.querySelectorAll<HTMLImageElement>('.metric-card img')].map((image) => image.src),
     ).toEqual([
-      expect.stringContaining('/ui-icons/metric-task.png'),
+      expect.stringContaining('/ui-icons/dashboard-task-total.svg'),
       expect.stringContaining('/ui-icons/metric-task-clock.png'),
       expect.stringContaining('/ui-icons/metric-warning.png'),
       expect.stringContaining('/ui-icons/metric-database.png'),
-      expect.stringContaining('/ui-icons/metric-vulnerability-total.png'),
+      expect.stringContaining('/ui-icons/metric-danger.png'),
     ]);
   });
 
@@ -272,18 +268,47 @@ describe('App', () => {
   ])('uses the exported metric icons on %s', async (path, icons) => {
     const { container } = renderRoute(path);
     await screen.findByRole('button', { name: '用户菜单' });
-    const sources = [...container.querySelectorAll<HTMLImageElement>('.metric-card img')].map((image) => image.src);
-    expect(sources).toEqual(icons.map((icon) => expect.stringContaining(`/ui-icons/${icon}.png`)));
+    const sources = [...container.querySelectorAll<HTMLImageElement>('.figma-vulnerability-metric-art, .figma-report-metric img, .metric-card img')].map((image) => image.src);
+    if (path === '/vulnerabilities') {
+      expect(sources).toHaveLength(6);
+      expect(sources.every((source) => source.includes('/figma/vulnerability-list/'))).toBe(true);
+    } else if (path === '/reports') {
+      expect(sources).toHaveLength(6);
+      expect(sources.every((source) => source.includes('/figma/report-list/'))).toBe(true);
+    } else {
+      expect(sources).toEqual(icons.map((icon) => expect.stringContaining(`/ui-icons/${icon}.png`)));
+    }
   });
 
   it('renders the new overview routes', async () => {
-    renderRoute('/vulnerabilities/overview');
+    const { container } = renderRoute('/vulnerabilities/overview');
     expect(await screen.findByText('AI 风险一览')).toBeInTheDocument();
-    expect(screen.getAllByText('整体修复进度')).not.toHaveLength(0);
-    expect(screen.getByRole('radio', { name: '当日' })).toBeInTheDocument();
+    expect(await screen.findByText('整体修复进度')).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: '当日' })).not.toBeInTheDocument();
     expect(await screen.findByText('AI漏洞扫描')).toBeInTheDocument();
     expect(screen.queryByText(/小易/)).not.toBeInTheDocument();
     expect(await screen.findByText('优先修复严重和高危漏洞')).toBeInTheDocument();
+    const page = container.querySelector('[data-testid="figma-vulnerability-overview"]');
+    expect(page).toBeInTheDocument();
+    expect(page?.querySelectorAll('[data-vulnerability-metric]')).toHaveLength(5);
+    expect(page?.querySelectorAll('[data-vulnerability-analysis]')).toHaveLength(6);
+    expect(page?.querySelectorAll('[data-vulnerability-list]')).toHaveLength(2);
+    expect(page?.querySelectorAll('[data-vulnerability-ai]')).toHaveLength(1);
+    expect(page?.querySelectorAll('.figma-vuln-ai-recommendations article')).toHaveLength(1);
+    expect(page).not.toHaveClass('vulnerability-overview');
+    expect(container.querySelector('.app-header h2')).toHaveTextContent('漏洞总览');
+    expect(screen.queryByText('修复任务与 SLA')).not.toBeInTheDocument();
+    expect(page?.querySelector('[data-vulnerability-remediation]')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['/vulnerabilities/management/remediation', '修复任务与 SLA'],
+    ['/vulnerabilities/management/sla', 'SLA 管理'],
+  ])('renders vulnerability management route %s', async (path, heading) => {
+    const { container } = renderRoute(path);
+    expect(await screen.findByRole('heading', { name: heading, level: 1 })).toBeInTheDocument();
+    expect(container.querySelector('.app-header h2')).toHaveTextContent(heading);
+    expect(container.querySelector('[data-vulnerability-management-page]')).toBeInTheDocument();
   });
 
   it('renders report trend, distributions, and insights', async () => {

@@ -5,6 +5,7 @@ import json
 
 import pytest
 from pydantic import ValidationError
+from websockets.exceptions import InvalidStatus
 
 from app.config import Settings, get_settings
 from app.engine import (
@@ -467,6 +468,27 @@ async def test_xiaoyi_precheck_receive_has_a_total_timeout(monkeypatch):
     assert not _contains_deprecated_fields({"targets": ["example.test"]})
 
 
+async def test_xiaoyi_precheck_maps_rejected_handshake(monkeypatch):
+    async def reject_connection(*args, **kwargs):
+        response = type("Response", (), {"status_code": 400})()
+        raise InvalidStatus(response)
+
+    monkeypatch.setattr("app.engine.websockets.connect", reject_connection)
+    settings = Settings(
+        jwt_secret="test-secret-that-is-at-least-32-characters",
+        engine_mode="xiaoyi",
+        engine_timeout_seconds=1,
+        xiaoyi_base_url="https://xiaoyi.example",
+    )
+
+    with pytest.raises(AppError) as captured:
+        async with XiaoyiEngineClient(settings).precheck_session():
+            pass
+
+    assert captured.value.code == "ENGINE_REJECTED"
+    assert captured.value.message == "小易预查连接被拒绝，请检查接口地址或上游网关配置"
+
+
 async def test_xiaoyi_precheck_session_reuses_one_socket(monkeypatch):
     sent_messages: list[dict] = []
     connect_urls: list[str] = []
@@ -511,6 +533,7 @@ async def test_xiaoyi_precheck_session_reuses_one_socket(monkeypatch):
         engine_mode="xiaoyi",
         engine_timeout_seconds=1,
         xiaoyi_base_url="https://xiaoyi.example",
+        xiaoyi_precheck_ws_url="wss://xiaoyi-ws.example/custom/precheck",
     )
 
     async with XiaoyiEngineClient(settings).precheck_session() as session:
@@ -526,7 +549,7 @@ async def test_xiaoyi_precheck_session_reuses_one_socket(monkeypatch):
 
     assert first["action"] == "can_subdomain_result"
     assert second["action"] == "can_port_result"
-    assert connect_urls == ["wss://xiaoyi.example/api/osCore/ws/asset-can"]
+    assert connect_urls == ["wss://xiaoyi-ws.example/custom/precheck"]
     assert sent_messages == [
         {"action": "can_subdomain", "domains": ["example.test"]},
         {

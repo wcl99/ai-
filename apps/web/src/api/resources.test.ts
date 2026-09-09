@@ -1,6 +1,7 @@
 import {
   createUser,
   createAsset,
+  getVulnerability,
   getReportOverview,
   getVulnerabilityOverview,
   getOrganization,
@@ -31,6 +32,28 @@ function page(items: unknown[]) {
 
 describe('resource API', () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it('maps backend AI risk summary and remediation into vulnerability detail', async () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      id,
+      plan_id: '22222222-2222-4222-8222-222222222222',
+      task_id: null,
+      asset_key: 'demo.example.com',
+      title: 'SQL 注入漏洞',
+      severity: 'critical',
+      status: 'OPEN',
+      description: '基础漏洞描述',
+      created_at: '2026-08-24T09:12:00Z',
+      updated_at: '2026-08-24T09:12:00Z',
+      data_json: { ai_risk_summary: 'AI 分析确认存在数据库越权风险', vuln_suggestions: '使用参数化查询并限制数据库权限' },
+    })));
+
+    const detail = await getVulnerability(id);
+
+    expect(detail.aiRiskSummary).toBe('AI 分析确认存在数据库越权风险');
+    expect(detail.remediation).toBe('使用参数化查询并限制数据库权限');
+  });
 
   it('maps overview analytics and sends the selected range and timezone', async () => {
     const fetchMock = vi.fn()
@@ -74,7 +97,7 @@ describe('resource API', () => {
 
     expect(vulnerabilities).toMatchObject({
       range: 'today', riskDistribution: [{ key: 'high', label: '高危', count: 1 }],
-      sourceDistribution: [{ key: 'xiaoyi', label: '平台回传', count: 3 }],
+      sourceDistribution: [{ key: 'xiaoyi', label: '小易回传', count: 3 }],
     });
     expect(reports).toMatchObject({
       metrics: { monthlyNew: { value: 3, changePercent: 50 }, pendingConfirmation: { value: 2 } },

@@ -44,6 +44,7 @@ from .engine import (
 from .errors import AppError
 from .models import AiLog, Asset, AuditLog, Organization, QAMessage, Report, ScanPlan, ScanPlanMessage, Task, TaskEvent, User, Vulnerability, XiaoyiPlanMapping
 from .overview_analytics import DEFAULT_TIMEZONE, aggregate_trend
+from .integrations import overdue, post_signed
 from .risk_assessment import RiskAssessmentResult, fallback_assessment, run_risk_assessment
 from .schemas import (
     AiAssetUpload,
@@ -55,6 +56,7 @@ from .schemas import (
     AiVulnerabilityUpload,
     ApiEnvelope,
     AssetCreate,
+    AssetBulkCreate,
     AuditLogRead,
     AssetRead,
     AssetUpdate,
@@ -90,6 +92,7 @@ from .schemas import (
     UserRead,
     UserUpdate,
     VulnerabilityListRead,
+    VulnerabilityAction,
     VulnerabilityOverviewRead,
     VulnerabilityRead,
     VulnerabilityUpdate,
@@ -531,6 +534,8 @@ async def list_assets(page: int = Query(1, ge=1), page_size: int = Query(20, ge=
 
 @app.post("/api/v1/assets", response_model=AssetRead, status_code=201)
 async def add_asset(payload: AssetCreate, user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session)):
+    if payload.plan_id is not None and await session.scalar(select(ScanPlan.id).where(ScanPlan.id == payload.plan_id, ScanPlan.org_id == user.org_id)) is None:
+        raise AppError(404, "PLAN_NOT_FOUND", "Scan plan not found")
     asset = Asset(org_id=user.org_id, plan_id=payload.plan_id, asset_key=payload.asset_key or payload.address.lower(), asset_type=payload.asset_type, address=payload.address, service=payload.service, owner=payload.owner, authorized=payload.authorized, data_json=payload.data)
     session.add(asset)
     await session.flush()
@@ -538,6 +543,26 @@ async def add_asset(payload: AssetCreate, user: User = Depends(require_roles("ad
     await session.commit()
     await session.refresh(asset)
     return asset
+
+@app.post("/api/v1/assets/bulk", response_model=list[AssetRead], status_code=201)
+async def add_assets_bulk(payload: AssetBulkCreate, user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session)):
+    plan_ids = {item.plan_id for item in payload.assets if item.plan_id is not None}
+    if plan_ids:
+        owned_plan_ids = set(await session.scalars(select(ScanPlan.id).where(ScanPlan.id.in_(plan_ids), ScanPlan.org_id == user.org_id)))
+        if owned_plan_ids != plan_ids:
+            raise AppError(404, "PLAN_NOT_FOUND", "Scan plan not found")
+    created = []
+    for item in payload.assets:
+        asset = Asset(org_id=user.org_id, plan_id=item.plan_id, asset_key=item.asset_key or item.address.lower(), asset_type=item.asset_type, address=item.address, service=item.service, owner=item.owner, authorized=item.authorized, data_json=item.data)
+        session.add(asset)
+        created.append(asset)
+    await session.flush()
+    for asset in created:
+        await add_audit(session, user, "asset.create", "asset", asset.id)
+    await session.commit()
+    for asset in created:
+        await session.refresh(asset)
+    return created
 
 
 @app.patch("/api/v1/assets/{asset_id}", response_model=AssetRead)
@@ -1443,6 +1468,90 @@ async def update_vulnerability(vulnerability_id: uuid.UUID, payload: Vulnerabili
     return item
 
 
+@app.post("/api/v1/vulnerabilities/{vulnerability_id}/actions", response_model=VulnerabilityRead)
+async def act_on_vulnerability(vulnerability_id: uuid.UUID, payload: VulnerabilityAction, user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    item = await read_vulnerability(vulnerability_id, user, session, settings)
+    if isinstance(item, VulnerabilityRead):
+        raise AppError(409, "DEMO_DATA_READ_ONLY", "Demo vulnerabilities are read-only")
+    data = dict(item.data_json or {})
+    now = datetime.now(UTC).isoformat()
+    if payload.action == "favorite":
+        data["favorite"] = bool(payload.value)
+    elif payload.action == "assign":
+        data["assignee_name"] = str(payload.value or "").strip() or None
+    elif payload.action == "retest":
+        item.status = "RETESTING"
+        data["manual_retest"] = True
+    elif payload.action == "close_retest":
+        item.status = "OPEN"
+        data["manual_retest"] = False
+        data["retest_closed_at"] = now
+    elif payload.action == "set_due_date":
+        due_date = str(payload.value or "").strip()
+        if not due_date:
+            raise AppError(422, "DUE_DATE_REQUIRED", "Due date cannot be empty")
+        data["due_date"] = due_date
+    elif payload.action == "add_report":
+        data["report_status"] = "已加入报告"
+    elif payload.action == "create_ticket":
+        data["ticket_id"] = str(payload.value or f"TICKET-{str(item.id)[:8].upper()}")
+        settings = get_settings()
+        try:
+            data["ticket_synced"] = await post_signed(settings.ticket_webhook_url, settings.ticket_webhook_secret.get_secret_value() if settings.ticket_webhook_secret else None, "vulnerability.ticket.create", {"id": str(item.id), "title": item.title, "severity": item.severity, "asset_key": item.asset_key, "ticket_id": data["ticket_id"]})
+        except Exception as exc:
+            data["ticket_sync_error"] = str(exc)
+    elif payload.action == "ignore":
+        item.status = "FIXED"
+        data["resolution"] = "ignored"
+    elif payload.action == "false_positive":
+        item.status = "FIXED"
+        data["resolution"] = "false_positive"
+    elif payload.action == "comment":
+        comment = str(payload.value or "").strip()
+        if not comment:
+            raise AppError(422, "COMMENT_REQUIRED", "Comment cannot be empty")
+        comments = list(data.get("comments") or [])
+        comments.append({"text": comment, "author": user.username, "created_at": now})
+        data["comments"] = comments
+    history = list(data.get("action_history") or [])
+    history.append({"action": payload.action, "value": payload.value, "actor": user.username, "created_at": now})
+    data["action_history"] = history
+    item.data_json = data
+    await add_audit(session, user, f"vulnerability.{payload.action}", "vulnerability", item.id, {"value": payload.value})
+    await session.commit()
+    await session.refresh(item)
+    return item
+
+@app.post("/api/v1/vulnerabilities/{vulnerability_id}/retest-result", response_model=VulnerabilityRead)
+async def vulnerability_retest_result(vulnerability_id: uuid.UUID, passed: bool = Query(...), user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    item = await read_vulnerability(vulnerability_id, user, session, settings)
+    if isinstance(item, VulnerabilityRead):
+        raise AppError(409, "DEMO_DATA_READ_ONLY", "Demo vulnerabilities are read-only")
+    data = dict(item.data_json or {})
+    item.status = "FIXED" if passed else "OPEN"
+    data.update({"manual_retest": False, "retest_result": "passed" if passed else "failed", "retest_at": datetime.now(UTC).isoformat()})
+    item.data_json = data
+    await add_audit(session, user, "vulnerability.retest_result", "vulnerability", item.id, {"passed": passed})
+    await session.commit()
+    await session.refresh(item)
+    return item
+
+@app.post("/api/v1/vulnerabilities/sla/escalate", response_model=dict)
+async def escalate_overdue_vulnerabilities(user: User = Depends(require_roles("admin", "operator", "security_expert")), session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    items = list(await session.scalars(select(Vulnerability).where(Vulnerability.org_id == user.org_id, Vulnerability.status.in_(["OPEN", "FIXING", "RETESTING"]))))
+    count = 0
+    now = datetime.now(UTC)
+    for item in items:
+        data = dict(item.data_json or {})
+        if overdue(data, now, settings.sla_escalation_hours):
+            data["sla_escalated"] = True
+            data["escalated_at"] = now.isoformat()
+            item.data_json = data
+            count += 1
+    await session.commit()
+    return {"escalated": count}
+
+
 @app.delete("/api/v1/vulnerabilities/{vulnerability_id}", response_model=ApiEnvelope[None])
 async def delete_vulnerability(
     vulnerability_id: uuid.UUID,
@@ -2092,6 +2201,15 @@ async def precheck_socket(websocket: WebSocket):
                 await handle_messages(precheck_session)
         else:
             await handle_messages()
+    except AppError as exc:
+        await websocket.send_json(
+            {
+                "action": "can_error",
+                "success": False,
+                "code": exc.code,
+                "message": exc.message,
+            }
+        )
     except WebSocketDisconnect:
         return
 
@@ -2177,8 +2295,9 @@ async def ai_start_plan(payload: AiPlanStart, user: User = Depends(digital_user_
         plan.time_limit = payload.time_limit
     if payload.description:
         plan.description = payload.description
+    request_id = payload.request_id or f"plan-start-{plan.id}"
     await create_task(
-        session, plan, user, enforce_cdn_guard=get_settings().cdninfo_enabled
+        session, plan, user, request_id=request_id, enforce_cdn_guard=get_settings().cdninfo_enabled
     )
     return {
         "success": True,
@@ -2264,7 +2383,15 @@ async def ai_upload_vulnerability(payload: AiVulnerabilityUpload, user: User = D
     severity = str(
         payload.severity or data.get("severity") or data.get("level") or "medium"
     ).lower()
-    item = Vulnerability(org_id=user.org_id, plan_id=context.plan.id, task_id=task.id if task else None, asset_key=asset_key, title=payload.title or str(data.get("title") or data.get("name") or "Untitled vulnerability"), severity=severity, description=data.get("description"), data_json=data)
+    title = payload.title or str(data.get("title") or data.get("name") or "Untitled vulnerability")
+    duplicate = await session.scalar(select(Vulnerability).where(Vulnerability.org_id == user.org_id, Vulnerability.asset_key == asset_key, Vulnerability.title == title, Vulnerability.severity == severity, Vulnerability.status != "FIXED").order_by(Vulnerability.updated_at.desc()))
+    if duplicate:
+        duplicate.data_json = {**(duplicate.data_json or {}), "duplicate_count": int((duplicate.data_json or {}).get("duplicate_count", 1)) + 1, "last_seen_at": datetime.now(UTC).isoformat()}
+        await session.commit()
+        return ai_result_response_data(payload, user, "漏洞已归并", vulnerability_id=str(duplicate.id))
+    data["priority_score"] = {"critical": 100, "high": 80, "medium": 55, "low": 25}.get(severity, 10)
+    data["duplicate_count"] = 1
+    item = Vulnerability(org_id=user.org_id, plan_id=context.plan.id, task_id=task.id if task else None, asset_key=asset_key, title=title, severity=severity, description=data.get("description"), data_json=data)
     session.add(item)
     await session.flush()
     record_callback_resource(

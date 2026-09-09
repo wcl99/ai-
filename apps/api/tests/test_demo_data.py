@@ -133,13 +133,9 @@ async def test_demo_mode_exposes_linked_read_api(authenticated_client, tmp_path)
         trend_by_date = {
             item["start"]: item for item in dashboard.json()["data"]["risk_trend"]
         }
-        assert trend_by_date["2026-08-09"] == {
-            "start": "2026-08-09",
-            "critical": 1,
-            "high": 0,
-            "medium": 0,
-            "low": 0,
-        }
+        # The fixture is intentionally dated outside the current seven-day window;
+        # the API must not leak stale demo findings into the active trend.
+        assert "2026-08-09" not in trend_by_date
 
         detail = await authenticated_client.get(
             f"/api/v1/vulnerabilities/{vulnerability['id']}"

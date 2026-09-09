@@ -13,6 +13,7 @@ import app.main as main_module
 from app.auth import create_token, password_hash
 from app.config import get_settings
 from app.db import SessionLocal
+from app.errors import AppError
 from app.models import Organization, Report, ScanPlan, Task, User, Vulnerability, XiaoyiPlanMapping
 from app.risk_assessment import RiskAssessmentResult
 from app.schemas import DomainPrecheckRequest, PortPrecheckRequest
@@ -984,6 +985,53 @@ async def test_precheck_socket_reuses_one_upstream_session(monkeypatch):
         "can_port_result",
     ]
 
+
+async def test_precheck_socket_returns_upstream_connection_error(monkeypatch):
+    class FailingSession:
+        async def __aenter__(self):
+            raise AppError(502, "ENGINE_AUTH_FAILED", "小易预查连接被拒绝，请检查 XIAOYI_TOKEN 和接口地址")
+
+        async def __aexit__(self, *_):
+            return False
+
+    class FakeClient:
+        def precheck_session(self):
+            return FailingSession()
+
+    class FakeWebSocket:
+        def __init__(self):
+            self.sent = []
+
+        async def accept(self):
+            return None
+
+        async def close(self, code=1000):
+            self.close_code = code
+
+        async def send_json(self, message):
+            self.sent.append(message)
+
+        async def receive_json(self):
+            raise AssertionError("precheck_socket should fail before receiving a payload")
+
+    async def fake_websocket_user(websocket, settings):
+        return SimpleNamespace(role="admin")
+
+    monkeypatch.setattr(main_module, "websocket_user", fake_websocket_user)
+    monkeypatch.setattr(main_module, "get_engine_client", lambda settings: FakeClient())
+    websocket = FakeWebSocket()
+
+    await main_module.precheck_socket(websocket)
+
+    assert websocket.sent == [
+        {
+            "action": "can_error",
+            "success": False,
+            "code": "ENGINE_AUTH_FAILED",
+            "message": "小易预查连接被拒绝，请检查 XIAOYI_TOKEN 和接口地址",
+        }
+    ]
+
 async def test_request_id_cannot_be_reused_for_another_plan(authenticated_client):
     plans = []
     for name in ("First idempotent plan", "Second idempotent plan"):
@@ -1314,6 +1362,66 @@ async def test_vulnerability_can_be_deleted_within_the_current_organization(
     assert (
         await authenticated_client.get(f"/api/v1/vulnerabilities/{vulnerability_id}")
     ).status_code == 404
+
+
+async def test_vulnerability_actions_persist_detail_state(authenticated_client):
+    async with SessionLocal() as session:
+        user = await session.scalar(select(User).where(User.username == "admin"))
+        plan = ScanPlan(org_id=user.org_id, created_by=user.id, name="Action contract", test_type="standard", status="READY", snapshot={})
+        session.add(plan)
+        await session.flush()
+        vulnerability = Vulnerability(org_id=user.org_id, plan_id=plan.id, title="Action finding", severity="critical", status="OPEN", data_json={})
+        session.add(vulnerability)
+        await session.commit()
+        vulnerability_id = vulnerability.id
+
+    response = await authenticated_client.post(f"/api/v1/vulnerabilities/{vulnerability_id}/actions", json={"action": "assign", "value": "安全专家"})
+    assert response.status_code == 200
+    assert response.json()["data_json"]["assignee_name"] == "安全专家"
+    response = await authenticated_client.post(f"/api/v1/vulnerabilities/{vulnerability_id}/actions", json={"action": "retest"})
+    assert response.status_code == 200
+    assert response.json()["status"] == "RETESTING"
+    for action, value in [
+        ("favorite", True),
+        ("add_report", None),
+        ("create_ticket", None),
+        ("comment", "请安排人工复测"),
+        ("ignore", None),
+        ("false_positive", None),
+    ]:
+        payload = {"action": action}
+        if value is not None:
+            payload["value"] = value
+        response = await authenticated_client.post(f"/api/v1/vulnerabilities/{vulnerability_id}/actions", json=payload)
+        assert response.status_code == 200
+
+    data = response.json()["data_json"]
+    assert data["favorite"] is True
+    assert data["report_status"] == "已加入报告"
+    assert data["ticket_id"].startswith("TICKET-")
+    assert data["comments"][0]["text"] == "请安排人工复测"
+    assert data["resolution"] == "false_positive"
+    assert len(data["action_history"]) == 8
+
+
+async def test_vulnerability_due_date_and_close_retest_actions_update_state(authenticated_client):
+    async with SessionLocal() as session:
+        user = await session.scalar(select(User).where(User.username == "admin"))
+        plan = ScanPlan(org_id=user.org_id, created_by=user.id, name="Action edge contract", test_type="standard", status="READY", snapshot={})
+        session.add(plan)
+        await session.flush()
+        vulnerability = Vulnerability(org_id=user.org_id, plan_id=plan.id, title="Action edge finding", severity="high", status="RETESTING", data_json={})
+        session.add(vulnerability)
+        await session.commit()
+        vulnerability_id = vulnerability.id
+
+    due = await authenticated_client.post(f"/api/v1/vulnerabilities/{vulnerability_id}/actions", json={"action": "set_due_date", "value": "2026-09-01T12:00"})
+    closed = await authenticated_client.post(f"/api/v1/vulnerabilities/{vulnerability_id}/actions", json={"action": "close_retest"})
+
+    assert due.status_code == 200
+    assert due.json()["data_json"]["due_date"] == "2026-09-01T12:00"
+    assert closed.status_code == 200
+    assert closed.json()["status"] == "OPEN"
 
 
 async def test_task_qa_messages_are_scoped_and_persisted(authenticated_client, monkeypatch):

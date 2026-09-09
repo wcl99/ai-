@@ -88,20 +88,83 @@ const tools = [
   },
 ];
 
-const vulnerabilities = [{
-  id: '33333333-3333-4333-8333-333333333333',
+const previewVulnerabilityId = '00000000-0000-4000-8000-000000000139';
+type PreviewAction = { action: string; value: unknown; actor: string; created_at: string };
+type PreviewComment = { author: string; text: string; created_at: string };
+type PreviewData = Record<string, unknown> & {
+  manual_retest: boolean;
+  assignee_name: string | null;
+  report_status: string;
+  favorite: boolean;
+  ticket_id?: string;
+  resolution?: string;
+  action_history: PreviewAction[];
+  comments: PreviewComment[];
+};
+type PreviewVulnerability = {
+  id: string;
+  plan_id: string;
+  task_id: string;
+  asset_key: string;
+  title: string;
+  severity: string;
+  status: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+  task_name: string;
+  tags: string[];
+  data_json: PreviewData;
+};
+
+const initialPreviewVulnerability: PreviewVulnerability = {
+  id: previewVulnerabilityId,
   plan_id: planId,
   task_id: sessionId,
-  asset_key: 'https://www.anshun12345.com',
-  title: '后台登录接口存在弱口令风险',
-  severity: 'high',
+  asset_key: 'http://139.198.31.136:81',
+  title: 'HTTP方法滥用导致越权修改与权限提升 (BOLA + Mass Assignment)',
+  severity: 'critical',
   status: 'OPEN',
-  description: '登录接口缺少有效的口令强度与尝试次数限制。',
-  created_at: '2026-08-19T08:02:00Z',
+  description: 'PUT /api/user接口仅校验登录token存在性，未校验资源归属和操作权限。任意登录用户可通过指定任意id修改其他用户资料，并可通过修改role字段实现权限提升。',
+  created_at: '2026-08-09T21:27:29Z',
   updated_at: now,
-  task_name: taskNames[0],
-  tags: ['身份认证', '待复测'],
-}];
+  task_name: '139.198.31.136:81渗透测试',
+  tags: ['BOLA', 'Mass Assignment', '越权访问', '建议人工复测'],
+  data_json: {
+    source_tool: 'AI渗透测试',
+    http_url: 'http://139.198.31.136:81/api/user',
+    http_method: 'PUT',
+    payload: 'PUT /api/user {"id":5,"username":"adminsc","nickName":"HACKED_BY_NORMAL_USER","sex":"男","address":"武汉","phone":"18672191141","role":1}',
+    http_request: 'GET http://139.198.31.136:81/ HTTP/1.1\nHost: 139.198.31.136:81\nProxy-Connection: Keep-Alive\nReferer: http://139.198.31.136:81/\nX-Requested-With: XMLHttpRequest\nAccept: application/json, text/plain, */*\nUser-Agent: Mozilla/5.0',
+    http_response: 'HTTP/1.1 200 OK\nServer: nginx/1.31.3\nContent-Type: text/html\nConnection: keep-alive\n\n<!DOCTYPE html><html><head><title>vue_demo</title></head><body><div id="app"></div></body></html>',
+    ai_risk_summary: '普通登录用户能够修改任意用户资料，并可篡改 role 字段将自身提升为管理员。该问题同时具备对象级越权与批量赋值特征，可能导致管理员账户接管、权限体系失效和业务数据被未授权修改，应优先修复并安排人工复测。',
+    analysis: '通过MITM代理测试并注册普通用户获取真实token。使用普通用户token调用PUT /api/user修改管理员用户id=5的资料，接口返回成功，随后查询确认修改生效；将自身role从0改为1同样成功。',
+    vuln_suggestions: '1) 在PUT /api/user接口中校验当前登录用户与目标id是否一致，或校验操作权限；2) 服务端忽略客户端提交的role等敏感字段，仅允许修改白名单字段；3) 对管理操作增加角色权限校验。',
+    cvss_score: 9.8,
+    manual_retest: true,
+    assignee_name: null,
+    team_name: '安全运营组',
+    business_name: '图书管理系统',
+    report_status: '未加入报告',
+    favorite: false,
+    action_history: [],
+    comments: [],
+  },
+};
+
+let previewVulnerability = structuredClone(initialPreviewVulnerability);
+const vulnerabilities = [previewVulnerability];
+
+function vulnerabilityDetail() {
+  return Object.fromEntries(
+    Object.entries(previewVulnerability).filter(([key]) => key !== 'task_name' && key !== 'tags'),
+  );
+}
+
+export function resetLocalPreviewVulnerability() {
+  previewVulnerability = structuredClone(initialPreviewVulnerability);
+  vulnerabilities[0] = previewVulnerability;
+}
 
 const assets = [{
   id: '44444444-4444-4444-8444-444444444444',
@@ -147,15 +210,15 @@ const dashboardSummary = {
     reports: reports.length,
   },
   ai_summary: {
-    warnings: ['当前有 1 个未关闭漏洞。'],
-    priority_findings: ['优先检查 1 个异常任务及 1 个严重或高危漏洞。'],
-    remediation: ['优先处置高危漏洞，完成修复后安排复测。'],
+    warnings: ['当前有 1 个未关闭的严重漏洞。'],
+    priority_findings: ['优先处置越权修改与权限提升漏洞。'],
+    remediation: ['完成接口鉴权与字段白名单修复后安排人工复测。'],
     source: 'fallback',
   },
   risk_trend: Array.from({ length: 7 }, (_, index) => ({
     start: `2026-08-${String(13 + index).padStart(2, '0')}`,
-    critical: 0,
-    high: index === 6 ? 1 : 0,
+    critical: index === 6 ? 1 : 0,
+    high: 0,
     medium: 0,
     low: 0,
   })),
@@ -167,8 +230,8 @@ const vulnerabilityOverview = {
   granularity: 'day',
   metrics: {
     total: 1,
-    critical: 0,
-    high: 1,
+    critical: 1,
+    high: 0,
     medium: 0,
     low: 0,
     unknown: 0,
@@ -177,19 +240,19 @@ const vulnerabilityOverview = {
     fixed: 0,
   },
   risk_distribution: [
-    { key: 'critical', label: '严重', count: 0 },
-    { key: 'high', label: '高危', count: 1 },
+    { key: 'critical', label: '严重', count: 1 },
+    { key: 'high', label: '高危', count: 0 },
     { key: 'medium', label: '中危', count: 0 },
     { key: 'low', label: '低危', count: 0 },
   ],
-  source_distribution: [{ key: 'httpx_probe', label: 'httpx_probe', count: 1 }],
+  source_distribution: [{ key: 'ai_pentest', label: 'AI渗透测试', count: 1 }],
   trend: dashboardSummary.risk_trend.map(({ start, high }) => ({ start, count: high })),
-  recommendations: ['优先修复后台登录接口弱口令风险。'],
+  recommendations: ['优先修复 /api/user 的对象级鉴权与敏感字段批量赋值问题。'],
 };
 
 export type LocalPreviewResponse = { status: number; body: unknown };
 
-export function getLocalPreviewResponse(rawUrl: string): LocalPreviewResponse | null {
+export function getLocalPreviewResponse(rawUrl: string, method = 'GET', requestBody?: Record<string, unknown>): LocalPreviewResponse | null {
   const url = new URL(rawUrl, 'http://localhost');
   const path = url.pathname;
   const envelope = (data: unknown): LocalPreviewResponse => ({
@@ -225,7 +288,10 @@ export function getLocalPreviewResponse(rawUrl: string): LocalPreviewResponse | 
     });
   }
   if (path === '/api/v1/vulnerabilities') {
-    return envelope({ items: vulnerabilities, total: 1, page: 1, page_size: 20 });
+    const listItems = vulnerabilities.map((item) => Object.fromEntries(
+      Object.entries(item).filter(([key]) => key !== 'data_json'),
+    ));
+    return envelope({ items: listItems, total: listItems.length, page: 1, page_size: 20 });
   }
   if (path === '/api/v1/assets') {
     return envelope({ items: assets, total: assets.length, page: 1, page_size: 1 });
@@ -235,23 +301,32 @@ export function getLocalPreviewResponse(rawUrl: string): LocalPreviewResponse | 
   }
   if (path === '/api/v1/dashboard/summary') return envelope(dashboardSummary);
   if (path === '/api/v1/vulnerabilities/overview') return envelope(vulnerabilityOverview);
-  if (path === `/api/v1/vulnerabilities/${vulnerabilities[0].id}`) {
-    const vulnerability = vulnerabilities[0];
-    const item: Record<string, unknown> = { ...vulnerability };
-    delete item.task_name;
-    delete item.tags;
-    return {
-      status: 200,
-      body: {
-        ...item,
-        data_json: {
-          source_tool: 'httpx_probe',
-          http_url: vulnerability.asset_key,
-          vuln_suggestions: '启用强口令策略、登录限速和多因素认证，并完成复测。',
-          cvss_score: 8.1,
-        },
-      },
-    };
+  if (path === `/api/v1/vulnerabilities/${previewVulnerabilityId}` && method === 'GET') {
+    return { status: 200, body: vulnerabilityDetail() };
+  }
+  if (path === `/api/v1/vulnerabilities/${previewVulnerabilityId}` && method === 'PATCH') {
+    if (typeof requestBody?.status === 'string') previewVulnerability.status = requestBody.status;
+    previewVulnerability.updated_at = new Date().toISOString();
+    return { status: 200, body: vulnerabilityDetail() };
+  }
+  if (path === `/api/v1/vulnerabilities/${previewVulnerabilityId}/actions` && method === 'POST') {
+    const action = typeof requestBody?.action === 'string' ? requestBody.action : '';
+    const value = requestBody?.value;
+    const data = previewVulnerability.data_json;
+    if (action === 'favorite') data.favorite = value === true;
+    if (action === 'assign') data.assignee_name = typeof value === 'string' ? value : null;
+    if (action === 'retest') { previewVulnerability.status = 'RETESTING'; data.manual_retest = true; }
+    if (action === 'add_report') data.report_status = '已加入报告';
+    if (action === 'create_ticket') data.ticket_id = `TICKET-${previewVulnerabilityId.slice(-3)}`;
+    if (action === 'ignore') { previewVulnerability.status = 'FIXED'; data.resolution = 'ignored'; }
+    if (action === 'false_positive') { previewVulnerability.status = 'FIXED'; data.resolution = 'false_positive'; }
+    const createdAt = new Date().toISOString();
+    if (action === 'comment' && typeof value === 'string' && value.trim()) {
+      data.comments.push({ author: '本地管理员', text: value.trim(), created_at: createdAt });
+    }
+    data.action_history.push({ action, value, actor: '本地管理员', created_at: createdAt });
+    previewVulnerability.updated_at = createdAt;
+    return { status: 200, body: vulnerabilityDetail() };
   }
   return null;
 }

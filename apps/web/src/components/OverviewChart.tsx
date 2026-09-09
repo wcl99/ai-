@@ -5,17 +5,18 @@ type OverviewChartProps = {
   label: string;
   values: ChartValue[];
   centerLabel?: string;
+  displayTotal?: number;
 };
 
 const palette = ['#075bcc', '#ff9138', '#c52c32', '#c8cddd', '#7357e8'];
 
-export function OverviewChart({ kind, label, values, centerLabel = '' }: OverviewChartProps) {
+export function OverviewChart({ kind, label, values, centerLabel = '', displayTotal }: OverviewChartProps) {
   return kind === 'donut'
-    ? <DonutChart label={label} centerLabel={centerLabel} values={values} />
+    ? <DonutChart label={label} centerLabel={centerLabel} values={values} displayTotal={displayTotal} />
     : <BarChart label={label} values={values} />;
 }
 
-function DonutChart({ label, centerLabel, values }: Omit<OverviewChartProps, 'kind'>) {
+function DonutChart({ label, centerLabel, values, displayTotal }: Omit<OverviewChartProps, 'kind'>) {
   const total = values.reduce((sum, item) => sum + item.value, 0);
   const circumference = 2 * Math.PI * 40;
   let offset = 0;
@@ -42,7 +43,7 @@ function DonutChart({ label, centerLabel, values }: Omit<OverviewChartProps, 'ki
             );
           })}
         </svg>
-        <div className="material-donut-center"><span>{centerLabel}</span><strong>{total}</strong></div>
+        <div className="material-donut-center"><span>{centerLabel}</span><strong>{displayTotal ?? total}</strong></div>
       </div>
       <div className="material-chart-legend">
         {values.map((item, index) => (

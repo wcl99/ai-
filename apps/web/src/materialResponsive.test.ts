@@ -20,6 +20,20 @@ describe('material responsive layout', () => {
     expect(styles).toMatch(/\.app-shell\s*\{[^}]*overflow-x\s*:\s*hidden/s);
   });
 
+  it('keeps expanded sidebar navigation vertically scrollable', () => {
+    expect(styles).toMatch(/\.app-shell \.app-sider>\.ant-layout-sider-children\s*\{[^}]*height\s*:\s*100%[^}]*display\s*:\s*flex[^}]*flex-direction\s*:\s*column[^}]*overflow\s*:\s*hidden/s);
+    expect(styles).toMatch(/\.app-shell \.app-sider>\.ant-layout-sider-children>\.ant-menu\s*\{[^}]*flex\s*:\s*1 1 auto[^}]*overflow-y\s*:\s*auto[^}]*overscroll-behavior\s*:\s*contain/s);
+  });
+
+  it('aligns the nested vulnerability management title with sibling menu items', () => {
+    expect(styles).toMatch(/\.app-sider \.ant-menu-sub \.ant-menu-submenu-title\s*\{[^}]*margin-inline\s*:\s*16px[^}]*padding-left\s*:\s*36px\s*!important/s);
+  });
+
+  it('keeps the management title aligned while retaining indentation for its child menu items', () => {
+    expect(styles).toMatch(/\.app-sider \.ant-menu-root > \.ant-menu-submenu > \.ant-menu-sub > \.ant-menu-submenu > \.ant-menu-submenu-title\s*\{[^}]*padding-left\s*:\s*36px\s*!important/s);
+    expect(styles).toMatch(/\.app-sider \.ant-menu-root > \.ant-menu-submenu > \.ant-menu-sub > \.ant-menu-submenu > \.ant-menu-sub > \.ant-menu-item\s*\{[^}]*padding-left\s*:\s*56px\s*!important/s);
+  });
+
   it('keeps the material canvas fluid on 2K and 4K displays', () => {
     expect(styles).toContain('@media (min-width:2400px)');
     expect(styles).toContain('@media (min-width:3200px)');
@@ -49,9 +63,9 @@ describe('material responsive layout', () => {
     expect(styles).toMatch(/\.overview-material-panel \.dashboard-summary-block ul\{font-size\s*:\s*11px/s);
   });
 
-  it('fits the desktop overview within one viewport without page scrolling', () => {
-    expect(styles).toContain('@media (min-width:1024px) and (max-height:1000px)');
-    expect(styles).toMatch(/\.dashboard-page\.material-dashboard\{[^}]*height\s*:\s*calc\(100dvh - 102px\)[^}]*overflow\s*:\s*hidden/s);
-    expect(styles).toMatch(/\.material-dashboard \.overview-material-panel\{[^}]*height\s*:\s*100%[^}]*aspect-ratio\s*:\s*auto/s);
+  it('lets the desktop overview scroll without compressing its Figma rows', () => {
+    expect(styles).toMatch(/\.app-content:has\(\.dashboard-page\.material-dashboard\)\{[^}]*height\s*:\s*auto[^}]*overflow-y\s*:\s*auto/s);
+    expect(styles).toMatch(/\.dashboard-page\.material-dashboard\{[^}]*height\s*:\s*auto[^}]*grid-template-rows\s*:\s*122px 90px 340px 340px[^}]*overflow\s*:\s*visible/s);
+    expect(styles).toMatch(/\.material-dashboard \.dashboard-trend-card \.dashboard-risk-trend\{[^}]*aspect-ratio\s*:\s*471\s*\/\s*226[^}]*overflow\s*:\s*hidden/s);
   });
 });

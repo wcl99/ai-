@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
@@ -152,6 +152,9 @@ class AssetCreate(BaseModel):
 class AssetUpdate(BaseModel):
     authorized: bool | None = None
     owner: str | None = Field(default=None, max_length=120)
+
+class AssetBulkCreate(BaseModel):
+    assets: list[AssetCreate] = Field(min_length=1, max_length=500)
 
 
 class AssetRead(ORMModel):
@@ -363,6 +366,11 @@ class VulnerabilityUpdate(BaseModel):
     status: Literal["OPEN", "FIXING", "RETESTING", "FIXED"]
 
 
+class VulnerabilityAction(BaseModel):
+    action: Literal["favorite", "assign", "retest", "close_retest", "set_due_date", "add_report", "create_ticket", "ignore", "false_positive", "comment"]
+    value: Annotated[str, Field(max_length=1000)] | bool | None = None
+
+
 class VulnerabilityRead(ORMModel):
     id: uuid.UUID
     plan_id: uuid.UUID
@@ -539,6 +547,7 @@ class AiPlanCreate(BaseModel):
 class AiPlanStart(BaseModel):
     plan_id: uuid.UUID | int
     org_id: uuid.UUID | int | None = None
+    request_id: str | None = Field(default=None, min_length=8, max_length=80)
     time_limit: int | None = Field(default=None, ge=1, le=1440)
     description: str | None = Field(default=None, max_length=4000)
 

@@ -27,7 +27,7 @@ export function SeverityTag({ severity, className }: { severity: string; classNa
   return <Tag className={className} color={severityTagColors[label]}>{label}</Tag>;
 }
 
-export function MetricCard({ metric }: { metric: Metric }) {
+export function MetricCard({ metric, nodeId }: { metric: Metric; nodeId?: string }) {
   const negative = metric.trend?.startsWith('-') ?? false;
   const metricIcons: Record<string, string> = {
     任务总数: 'metric-task',
@@ -55,17 +55,17 @@ export function MetricCard({ metric }: { metric: Metric }) {
   };
   const icon = metric.icon ?? metricIcons[metric.label];
   return (
-    <Card className={`metric-card tone-${metric.tone}`} variant="borderless">
+    <Card className={`metric-card tone-${metric.tone}`} variant="borderless" data-node-id={nodeId}>
       <div className="metric-top">
         <span>{metric.label}</span>
         {metric.trend && (
-          <Tag color={negative ? 'green' : metric.tone === 'red' ? 'red' : 'blue'}>
+          <Tag data-node-id={metric.label === '任务总数' ? '1:1756' : undefined} color={negative ? 'green' : metric.tone === 'red' ? 'red' : 'blue'}>
             {negative ? <ArrowDownOutlined /> : <ArrowUpOutlined />} {metric.trend}
           </Tag>
         )}
       </div>
       <strong>{metric.value}</strong>
-      {icon && <i><img src={'/ui-icons/' + icon + '.png'} alt="" /></i>}
+      {icon && <i style={metric.label === '任务总数' || metric.label === '进行中任务' || metric.label === '高危风险' || metric.label === '资产总数' || metric.label === '漏洞总数' ? { width: 72, height: 80, right: -7.8, bottom: -10, display: 'block' } : undefined}><img style={metric.label === '任务总数' || metric.label === '进行中任务' || metric.label === '高危风险' || metric.label === '资产总数' || metric.label === '漏洞总数' ? { width: 72, height: 80, maxWidth: 'none', maxHeight: 'none', objectFit: 'fill' } : undefined} src={icon.startsWith('http') ? icon : '/ui-icons/' + icon + (icon.endsWith('.svg') || icon.endsWith('.png') ? '' : '.png')} alt="" /></i>}
     </Card>
   );
 }

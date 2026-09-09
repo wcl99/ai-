@@ -28,6 +28,9 @@ a { color: var(--primary); cursor: pointer; }
 .app-sider .ant-menu-item-selected { color: #0054c8 !important; font-weight: 600; background: #dee7fa !important; }
 .app-sider .ant-menu-sub.ant-menu-inline { background: transparent !important; }
 .app-sider .ant-menu-sub .ant-menu-item { width: calc(100% - 32px); height: 38px; line-height: 38px; margin-inline: 16px; padding-left: 36px !important; }
+.app-sider .ant-menu-sub .ant-menu-submenu-title { width: calc(100% - 32px); margin-inline: 16px; padding-left: 36px !important; }
+.app-sider .ant-menu-root > .ant-menu-submenu > .ant-menu-sub > .ant-menu-submenu > .ant-menu-submenu-title { padding-left: 36px !important; }
+.app-sider .ant-menu-root > .ant-menu-submenu > .ant-menu-sub > .ant-menu-submenu > .ant-menu-sub > .ant-menu-item { padding-left: 56px !important; }
 .app-sider .ant-menu-item-icon, .app-sider .ant-menu-submenu-title .anticon { font-size: 18px; }
 .design-nav-icon { position: relative; display: inline-block; width: 20px; height: 20px; flex: 0 0 20px; }
 .design-nav-icon img { position: absolute; inset: 0; width: 20px; height: 20px; object-fit: contain; }
@@ -322,6 +325,14 @@ a { color: var(--primary); cursor: pointer; }
 .material-data-heading h3{margin:0 0 5px;color:#142944;font-size:17px}
 .material-data-heading p{margin:0;color:#8a95a6;font-size:12px}
 .assets-page .filter-bar{min-height:66px}
+.assets-page .data-card,.asset-management-page .data-card{border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.65);box-shadow:0 8px 32px rgba(1,74,198,.08);backdrop-filter:blur(6px)}
+.assets-page .filter-bar,.asset-management-page .detail-heading{border-color:rgba(195,198,215,.3)}
+.assets-page .filter-bar .ant-input,.assets-page .filter-bar .ant-input-affix-wrapper,.assets-page .filter-bar .ant-select-selector,.assets-page .filter-bar .ant-btn{height:38px!important;border-color:rgba(195,198,215,.4)!important;border-radius:8px!important;box-shadow:0 1px 1px rgba(11,28,48,.06)}
+.assets-page .ant-table-thead>tr>th{background:rgba(239,244,255,.5);color:#434654;font-size:12px;font-weight:500;border-bottom-color:rgba(195,198,215,.3)}
+.assets-page .ant-table-tbody>tr>td{height:72px;border-bottom-color:rgba(195,198,215,.3);color:#434654}
+.assets-page .ant-table-tbody>tr:hover>td{background:rgba(239,244,255,.35)}
+.assets-page .table-toolbar{background:rgba(239,244,255,.5);border-bottom:1px solid rgba(195,198,215,.3)}
+.asset-management-page .asset-management-actions{display:flex;gap:12px;flex-wrap:wrap;padding-top:16px}.asset-management-page .asset-management-actions .ant-btn{height:38px;border-radius:8px;color:#014ac6;border-color:rgba(1,74,198,.28)}
 .material-vulnerability-drawer .ant-drawer-header{position:absolute;inset:0 0 auto;z-index:5;height:64px;padding:0;border:0;background:transparent;pointer-events:none}
 .material-vulnerability-drawer-root .ant-drawer-content-wrapper,.material-vulnerability-drawer-root.ant-drawer-open .ant-drawer-content-wrapper{transition:none!important;transform:none!important}.material-vulnerability-drawer-root .ant-drawer-mask{transition:none!important}
 .material-vulnerability-drawer .ant-drawer-title{opacity:0}.material-vulnerability-drawer .ant-drawer-close{position:absolute;top:12px;right:12px;z-index:8;width:40px;height:40px;margin:0;color:#727d90;pointer-events:auto}
@@ -483,6 +494,67 @@ a { color: var(--primary); cursor: pointer; }
 .detail-history ol{grid-template-columns:repeat(3,1fr)}
 .detail-actions-card{grid-area:actions}.detail-actions-card>div{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:18px}.detail-actions-card .ant-btn{height:62px;display:grid;place-items:center;padding:8px;border-color:#dbe6f7;color:#075bcc;background:#fff}.detail-actions-card .ant-btn:disabled{color:#aab4c3}.detail-page-state{min-height:420px;display:grid;place-items:center;color:#7b8798}
 @media(max-width:1250px){.vulnerability-detail-page{grid-template-columns:1fr;grid-template-areas:'back' 'error' 'identity' 'risk' 'summary' 'info' 'content' 'actions'}.detail-identity-card{grid-template-columns:58px minmax(180px,1fr) auto auto}.detail-title-tags{grid-column:2/3}.detail-identity-card>.ant-btn:nth-last-child(-n+2){display:none}.detail-info-card dl{display:grid;grid-template-columns:1fr 1fr}.detail-overview-panel>dl{grid-template-columns:repeat(2,1fr)}}
+
+/* Vulnerability detail material: Figma nodes 27:38 and 1:989. */
+.vulnerability-detail-page{max-width:none!important;min-height:calc(100dvh - 112px);grid-template-columns:320px minmax(0,1fr);grid-template-areas:'back back' 'error error' 'identity identity' 'risk summary' 'info content' 'actions content';gap:12px 16px;padding:0 0 24px}
+.detail-back-link{height:28px;padding:0 4px;color:#667085;font-size:13px;text-align:left}
+.detail-identity-card{min-height:86px;padding:16px 20px;border-radius:12px;background:#fff;border:1px solid rgba(195,198,215,.45);box-shadow:0 4px 16px rgba(11,28,48,.05)}
+.detail-shield{width:44px;height:44px;border-radius:10px;background:#e7eefe;color:#014ac6;font-size:22px}.detail-title-copy h1{font-size:20px;color:#1b2b45}.detail-title-tags{gap:8px}.detail-identity-card>.ant-btn{height:38px;border-radius:8px}.detail-identity-card>.ant-btn-primary{background:#014ac6}
+.detail-ai-summary{min-height:162px;padding:24px;border-radius:12px;background:linear-gradient(120deg,#fff 62%,#edf4ff);border:1px solid rgba(255,255,255,.6);box-shadow:0 8px 32px rgba(1,74,198,.08)}
+.detail-risk-card{min-height:162px;padding:20px;border-radius:12px;background:#e7eefe;box-shadow:none}.detail-risk-card h2{font-size:14px}.detail-risk-card>strong{font-size:42px;color:#1b2b45}.detail-info-card,.detail-content-card,.detail-actions-card{border:1px solid rgba(195,198,215,.35);box-shadow:0 4px 16px rgba(11,28,48,.05)}
+.detail-info-card h2,.detail-actions-card h2{padding:18px 20px;font-size:15px}.detail-info-card dl>div{min-height:44px;padding:0 18px}.detail-info-card dd{font-size:12px}
+.detail-content-card{min-height:560px}.detail-tabs{height:54px;padding:0 20px}.detail-tabs button{padding:0 18px;font-size:13px}.detail-overview-panel,.detail-panel{padding:22px 26px}
+.detail-actions-card>div{grid-template-columns:1fr 1fr;gap:10px;padding:14px}.detail-actions-card .ant-btn{height:48px;font-size:12px}
+@media(max-width:1250px){.vulnerability-detail-page{grid-template-columns:1fr;grid-template-areas:'back' 'error' 'identity' 'risk' 'summary' 'info' 'content' 'actions';}.detail-info-card dl{display:grid;grid-template-columns:1fr 1fr}}
+
+/* Detail typography contract: keep Chinese glyph metrics stable and prevent
+   inherited dashboard letter-spacing rules from shifting labels. */
+.vulnerability-detail-page,
+.vulnerability-detail-page button,
+.vulnerability-detail-page .ant-btn,
+.vulnerability-detail-page .ant-tag{
+  font-family:"Source Han Sans SC","Noto Sans CJK SC","Microsoft YaHei",Arial,sans-serif;
+  letter-spacing:0;
+}
+
+.vulnerability-detail-page h1,
+.vulnerability-detail-page h2,
+.vulnerability-detail-page h3,
+.vulnerability-detail-page p,
+.vulnerability-detail-page dl,
+.vulnerability-detail-page dt,
+.vulnerability-detail-page dd{margin-top:0;letter-spacing:0;word-break:break-word}
+.detail-identity-card{grid-template-rows:auto auto;align-content:center;line-height:1.4}
+.detail-title-copy h1{margin:0 0 6px;line-height:28px;font-weight:600;letter-spacing:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-title-copy p{margin:0;line-height:18px;white-space:nowrap}
+.detail-title-tags{align-self:end;line-height:20px}
+.detail-title-tags .ant-tag{line-height:20px;padding-inline:8px}
+.detail-ai-summary h2,.detail-risk-card h2,.detail-info-card h2,.detail-overview-panel h2{line-height:22px;font-weight:600;letter-spacing:0}
+.detail-ai-summary>p,.detail-overview-panel>p{margin:16px 0;line-height:24px;font-size:14px;color:#434654}
+.detail-summary-signals{align-items:center;line-height:20px}
+.detail-summary-signals span{line-height:20px;white-space:nowrap}
+.detail-risk-card>strong{display:block;margin:12px 0 4px;line-height:48px;letter-spacing:0}
+.detail-risk-card>em{display:block;margin:0 0 10px;line-height:20px}
+.detail-info-card dd{line-height:20px;text-align:right}
+.detail-info-card dd .ant-tag{line-height:18px}
+.detail-overview-panel>dl{margin:20px 0 0}
+.detail-overview-panel>dl>div{min-height:70px;display:flex;flex-direction:column;justify-content:center;gap:6px}
+.detail-overview-panel dt{line-height:16px}.detail-overview-panel dd{margin:0;line-height:20px}
+
+/* Figma node 1:989 drawer primitives. */
+.material-vulnerability-drawer .ant-drawer-content{background:#f7f9fd}
+.material-vulnerability-drawer .ant-drawer-header{height:74px;padding:18px 20px;border-bottom:1px solid #e6ebf3;background:#fff}
+.material-vulnerability-drawer .ant-drawer-title{font-family:"Source Han Sans SC","Microsoft YaHei",sans-serif;font-size:16px;line-height:24px;color:#15243b}
+.material-vulnerability-drawer .ant-drawer-body{padding:12px 20px 86px}
+.material-drawer-meta{gap:8px}
+.material-drawer-meta>div{min-height:48px;padding:0 12px;border:1px solid rgba(195,198,215,.35);border-radius:8px;background:#fff;display:grid;grid-template-columns:18px minmax(0,1fr);align-items:center;column-gap:8px}
+.material-drawer-meta dt{width:18px;height:18px;display:grid;place-items:center;color:#8a94a6;font-size:14px}
+.material-drawer-meta .node-detail-icon{display:block;width:16px;height:16px;object-fit:contain;opacity:.8}
+.material-drawer-meta dd{min-width:0;margin:0;display:flex;align-items:center;justify-content:space-between;gap:12px;line-height:20px}
+.material-drawer-meta dd>span{color:#8792a5;font-size:12px;white-space:nowrap}
+.material-drawer-meta dd>strong{min-width:0;max-width:310px;overflow:hidden;color:#25344b;font-size:12px;font-weight:600;text-align:right;text-overflow:ellipsis;white-space:nowrap}
+.material-drawer-meta dd .ant-tag{height:24px;margin:0;padding:2px 10px;border:1px solid rgba(251,146,60,.35);border-radius:999px;background:rgba(251,146,60,.08);color:#fb923c;font-size:12px;line-height:18px}
+
 @media(max-width:720px){.detail-identity-card{grid-template-columns:48px 1fr;grid-template-rows:auto}.detail-shield{grid-row:auto}.detail-title-tags{grid-column:1/-1;grid-row:auto}.detail-identity-card>.ant-btn,.detail-identity-card>.ant-dropdown-trigger{grid-row:auto}.detail-tabs button{padding-inline:14px}.detail-info-card dl,.detail-overview-panel>dl{grid-template-columns:1fr}.detail-history ol{grid-template-columns:1fr;gap:18px}.detail-history li:not(:last-child)::after{display:none}.detail-actions-card>div{grid-template-columns:repeat(2,1fr)}}
 @media (min-width:3200px){
   .app-content:not(.pentest-content) .page{max-width:2800px}
@@ -502,6 +574,48 @@ a { color: var(--primary); cursor: pointer; }
   .material-dashboard>.feature-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}
   .material-dashboard>.dashboard-main-grid,.material-dashboard>.dashboard-bottom-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;height:100%;min-height:0}
   .material-dashboard>.dashboard-main-grid>*,.material-dashboard>.dashboard-bottom-grid>*{min-width:0;min-height:0;height:100%;aspect-ratio:auto}
+}
+
+/* Overview acceptance rule: the 1920x1080 design is one canvas. At smaller
+   browser viewports, fit the complete canvas uniformly and preserve all node
+   proportions. */
+@media (min-width:1024px){
+  .app-shell:has(.dashboard-page.material-dashboard) .app-content{
+    overflow:hidden;
+  }
+  .app-shell:has(.dashboard-page.material-dashboard) .dashboard-page.material-dashboard{
+    width:100%;
+    max-width:none;
+  }
+}
+
+/* Figma 1:3082 fixes the shell geometry at 260px aside + 64px header. The
+   responsive shell must not shrink those anchors on medium desktop widths. */
+@media (min-width:1024px){
+  .app-shell:has(.figma-vuln-overview) .app-sider{
+    width:260px!important;
+    min-width:260px!important;
+    max-width:260px!important;
+    flex-basis:260px!important;
+  }
+  .app-shell:has(.figma-vuln-overview) .app-sider + .ant-layout{margin-left:260px!important}
+  .app-shell:has(.figma-vuln-overview) .app-header{height:64px;padding-inline:24px}
+  .app-shell:has(.figma-vuln-overview) .app-content{height:calc(100dvh - 64px);min-height:0}
+}
+
+/* Fit the 1636x968 content canvas by whichever viewport dimension is tighter.
+   This is the standard fixed-artboard approach: one uniform scale, no per-card
+   reflow, and a flow height that matches the transformed canvas. */
+@media (min-width:1024px) and (max-width:2200px){
+  .app-content:has(.figma-vuln-overview){padding:24px;overflow:hidden}
+  .app-content:has(.figma-vuln-overview) .app-content-frame{
+    --figma-overview-scale:min(1, min(calc((100vw - 308px) * 0.000611), calc((100dvh - 112px) * 0.001033)));
+    width:1636px;
+    max-width:none;
+    height:calc(968px * var(--figma-overview-scale));
+    transform:scale(var(--figma-overview-scale));
+    transform-origin:top left;
+  }
 }
 
 /* Vulnerability list material: Figma nodes 1:4136 and 1:857. */
@@ -1040,8 +1154,9 @@ html,body,#root{min-width:0;overflow-x:auto}
     min-width:0;
     min-height:0;
     box-sizing:border-box;
-    padding:22px 328px 16px 8px!important;
+    padding:24px 328px 16px 8px!important;
     overflow:hidden;
+    transition:padding-right .28s cubic-bezier(.22,1,.36,1);
   }
   .pentest-tool-stream .stream-title{height:42px;min-height:42px;margin:0;gap:12px;align-items:center}
   .pentest-tool-stream .stream-title h2{min-width:0;margin:0;overflow:hidden;color:#191b23;font-size:16px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}
@@ -1069,7 +1184,7 @@ html,body,#root{min-width:0;overflow-x:auto}
   .pentest-tool-stream .task-tool-card-copy strong{overflow:hidden;color:#172b4d;font-size:13px;text-overflow:ellipsis;white-space:nowrap}
   .pentest-tool-stream .task-tool-card time{color:#8e99aa;font-size:10px;white-space:nowrap}
   .pentest-tool-stream .task-tool-card .ant-tag{margin:0;white-space:nowrap}
-  .pentest-tool-stream .task-conversation-composer--floating{position:absolute;left:0;right:328px;bottom:24px;width:clamp(640px,49vw,940px);max-width:calc(100% - 48px);box-sizing:border-box;margin:0 auto;padding:0 12px;border:1px solid #7d9eff;border-radius:24px;background:#fff;box-shadow:0 10px 28px rgba(48,74,142,.14);backdrop-filter:none}
+  .pentest-tool-stream .task-conversation-composer--floating{position:absolute;left:0;right:328px;bottom:24px;width:clamp(640px,49vw,940px);max-width:calc(100% - 48px);box-sizing:border-box;margin:0 auto;padding:0 12px;border:1px solid #7d9eff;border-radius:24px;background:#fff;box-shadow:0 10px 28px rgba(48,74,142,.14);backdrop-filter:none;transition:right .28s cubic-bezier(.22,1,.36,1),width .28s cubic-bezier(.22,1,.36,1)}
   .pentest-material-canvas:has(.pentest-execution-drawer.is-open) .pentest-tool-stream .task-conversation-composer--floating{width:clamp(560px,40vw,768px)}
   .pentest-tool-stream .pentest-composer .task-conversation-progress{display:none}
   .pentest-tool-stream .pentest-composer .task-conversation-input-row{height:46px;align-items:center}
@@ -1115,10 +1230,13 @@ html,body,#root{min-width:0;overflow-x:auto}
     transform:translateX(105%);
     visibility:hidden;
     pointer-events:none;
-    transition:transform .2s ease,visibility 0s linear .2s;
+    transition:transform .28s cubic-bezier(.22,1,.36,1),visibility 0s linear .28s;
     box-shadow:none;
   }
   .pentest-execution-drawer.is-open{transform:translateX(0);visibility:visible;pointer-events:auto;transition-delay:0s}
+  .pentest-material-canvas:has(.pentest-execution-drawer.is-open) .pentest-execution-drawer{width:280px!important;padding-inline:16px}
+  .pentest-material-canvas:has(.pentest-execution-drawer.is-open) .pentest-tool-stream{padding-right:280px!important}
+  .pentest-material-canvas:has(.pentest-execution-drawer.is-open) .pentest-tool-stream .task-conversation-composer--floating{right:280px;width:min(940px,calc(100% - 48px))}
   .pentest-execution-drawer .execution-monitor{padding:0}
   .pentest-execution-drawer .execution-monitor>.ant-card{min-height:898px;border:1px solid #e0e6f1;border-radius:12px;background:#fff;box-shadow:0 8px 22px rgba(37,70,130,.06)}
   .pentest-execution-drawer .execution-monitor>.ant-card>.ant-card-body{padding:16px}
@@ -1126,6 +1244,22 @@ html,body,#root{min-width:0;overflow-x:auto}
   .pentest-execution-drawer .execution-monitor h3 .ant-btn{margin-left:auto;padding:0 4px;font-size:16px;line-height:1}
   .pentest-execution-drawer .execution-monitor pre{max-height:124px;margin:0 0 12px;padding:10px;border-radius:7px;overflow:auto;color:#233349;font-size:11px;line-height:1.55;overflow-wrap:anywhere}
   .pentest-execution-drawer .execution-monitor .output-preview{min-height:172px;max-height:172px;margin:0 0 14px;padding:11px;background:#1c1e22;color:#42dc7a;border:0;font-size:10px}
+}
+
+/* Final dashboard trend geometry: keep the 471x226 Figma plot inside its card. */
+@media (min-width:901px){
+  .material-dashboard .dashboard-trend-card{min-width:0;overflow:hidden}
+  .material-dashboard .dashboard-trend-card .dashboard-risk-trend{width:100%;height:auto!important;min-height:0!important;flex:1 1 auto;overflow:hidden}
+  .material-dashboard .dashboard-trend-card .dashboard-risk-chart{display:block;width:100%!important;height:auto!important;aspect-ratio:470 / 226;min-height:0!important;max-height:226px;overflow:visible}
+  .material-dashboard .dashboard-trend-card .risk-series path{stroke-width:3!important}
+  .material-dashboard .dashboard-trend-card .risk-series circle{opacity:1!important}
+  .material-dashboard .dashboard-trend-card .risk-axis-label{font:10px/14px Inter,Arial,sans-serif}
+}
+
+@media (prefers-reduced-motion: reduce){
+  .pentest-tool-stream,
+  .pentest-tool-stream .task-conversation-composer--floating,
+  .pentest-execution-drawer{transition-duration:.01ms!important}
 }
 
 @media (max-width:1440px) and (min-width:901px){
@@ -1357,4 +1491,342 @@ html,body,#root{min-width:0;overflow-x:auto}
   }
 }
 
+/* Keep the fixed navigation rail usable when every submenu is expanded. */
+.app-shell .app-sider{
+  height:100dvh;
+  overflow:hidden;
+}
+.app-shell .app-sider>.ant-layout-sider-children{
+  height:100%;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.app-shell .app-sider>.ant-layout-sider-children>.material-brand{
+  flex:0 0 auto;
+}
+.app-shell .app-sider>.ant-layout-sider-children>.ant-menu{
+  min-height:0;
+  flex:1 1 auto;
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(1,74,198,.28) transparent;
+}
+.app-shell .app-sider>.ant-layout-sider-children>.ant-menu::-webkit-scrollbar{width:6px}
+.app-shell .app-sider>.ant-layout-sider-children>.ant-menu::-webkit-scrollbar-track{background:transparent}
+.app-shell .app-sider>.ant-layout-sider-children>.ant-menu::-webkit-scrollbar-thumb{
+  border-radius:999px;
+  background:rgba(1,74,198,.28);
+}
+.app-shell .app-sider>.ant-layout-sider-children>.ant-menu::-webkit-scrollbar-thumb:hover{background:rgba(1,74,198,.45)}
 
+/* Vulnerability detail: single Figma 1:8825 / 1:1059 contract. */
+.figma-vulnerability-detail{display:grid;grid-template-columns:minmax(0,1fr) 380px;grid-template-rows:10px 111px 232px 548px;gap:24px;align-items:start;color:#191b23;font-family:"Source Han Sans SC","Microsoft YaHei",sans-serif;letter-spacing:0}
+.figma-detail-back{grid-column:1/-1;grid-row:1;justify-self:start;padding:0;border:0;background:transparent;color:#014ac6;font:500 12px/16px inherit;cursor:pointer}.figma-detail-back .anticon{margin-right:8px}
+.figma-detail-header{grid-column:1;grid-row:2;box-sizing:border-box;height:111px;display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:24px;padding:25px;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.65);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 8px 32px rgba(1,74,198,.08)}
+.figma-detail-mark{width:48px;height:48px;display:grid;place-items:center;border-radius:8px;background:rgba(1,74,198,.08);color:#014ac6;font-size:24px}
+.figma-detail-title{min-width:0;overflow:hidden}.figma-detail-title h1{max-width:100%;margin:0 0 8px;overflow:hidden;color:#191b23;font-size:24px;line-height:32px;font-weight:500;letter-spacing:0;text-overflow:ellipsis;white-space:nowrap}.figma-detail-title>div{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.figma-detail-title span{color:rgba(67,70,84,.68);font-size:12px;line-height:16px}.figma-detail-title .ant-tag{margin:0}.figma-vulnerability-id{display:block;max-width:310px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.figma-test-tag{color:#b4292c!important;background:rgba(180,41,44,.08)!important;border:0!important}.figma-ai-tag{color:#014ac6!important;background:rgba(1,74,198,.1)!important;border-color:rgba(1,74,198,.2)!important;border-radius:999px!important}
+.figma-detail-actions{display:flex;gap:10px}.figma-detail-actions .ant-btn{height:34px;border-radius:8px;font-size:12px}
+.figma-detail-ai{grid-column:1;grid-row:3;position:relative;box-sizing:border-box;height:232px;overflow:hidden;padding:25px;border:1px solid rgba(1,74,198,.24);border-radius:12px;background:rgba(255,255,255,.68);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 0 24px rgba(1,74,198,.32)}
+.figma-detail-ai h2{position:relative;margin:0 0 24px;color:#014ac6;font-size:18px;line-height:28px}.figma-detail-ai p{position:relative;margin:0;color:#434654;font-size:14px;line-height:28px}.figma-ai-watermark{position:absolute;right:8px;bottom:-70px;color:#e8eefb;font-size:220px;line-height:1}.figma-ai-metrics{position:absolute;left:24px;bottom:24px;display:flex;gap:10px}.figma-ai-metrics span{padding:8px 12px;border-radius:7px;background:#f3edff;color:#434654;font-size:12px}.figma-ai-metrics span:nth-child(2){background:#eaf5f2}.figma-ai-metrics span:nth-child(3){background:#fff3e9}.figma-ai-metrics span:nth-child(4){color:#b4292c;background:#faedef}.figma-ai-metrics b{color:#014ac6}.figma-ai-metrics span:nth-child(2) b{color:#006243}.figma-ai-metrics span:nth-child(3) b{color:#fb7a16}
+.figma-detail-risk{grid-column:2;grid-row:1/span 2;align-self:start;box-sizing:border-box;height:153px;padding:17px 20px;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.68);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 8px 32px rgba(1,74,198,.12)}
+.figma-detail-risk header{display:flex;align-items:center;gap:12px}.figma-detail-risk header h2{margin:0;font-size:16px;line-height:20px}.figma-detail-risk header .anticon{color:#b4292c}.figma-detail-risk>div{display:flex;align-items:baseline;gap:8px}.figma-detail-risk strong{font-size:38px;line-height:40px}.figma-detail-risk>i{display:block;height:8px;border-radius:99px;background:#f1f5f9;overflow:hidden}.figma-detail-risk>i b{display:block;height:100%;background:linear-gradient(90deg,rgba(180,41,44,.68),#b4292c)}.figma-detail-risk p{margin:8px 0 0;color:#434654;font-size:13px;line-height:20px}
+.figma-detail-content{grid-column:1;grid-row:4;box-sizing:border-box;height:548px;overflow:hidden;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.65);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 8px 32px rgba(1,74,198,.08)}
+.figma-detail-content>nav{height:58px;display:flex;padding:0 24px;overflow-x:auto;border-bottom:1px solid rgba(195,198,215,.32)}.figma-detail-content>nav button{flex:1;min-width:105px;padding:0 12px;border:0;border-bottom:2px solid transparent;background:transparent;color:rgba(67,70,84,.68);font-size:14px;cursor:pointer}.figma-detail-content>nav button.active{border-bottom-color:#014ac6;color:#434654;font-weight:700}.figma-detail-content>section{box-sizing:border-box;height:490px;padding:24px 25px;overflow:auto}.figma-detail-content>section>h2{margin:0 0 20px;font-size:15px}.figma-detail-content>section>p{margin:0;color:#434654;font-size:14px;line-height:26px}.figma-detail-content pre{max-height:190px;padding:14px;border-radius:8px;background:#f5f7fb;overflow:auto;white-space:pre-wrap;word-break:break-word}.figma-detail-content ul{padding-left:20px;color:#434654;line-height:2}.figma-detail-content textarea{margin:12px 0}
+.figma-detail-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;margin-top:20px}.figma-meta-card{box-sizing:border-box;height:118px;min-width:0;display:flex;gap:16px;padding:17px;border:1px solid rgba(1,74,198,.08);border-radius:16px;background:rgba(1,74,198,.04)}.figma-meta-card>i{color:#014ac6;font-size:20px}.figma-meta-card>div{min-width:0;overflow:hidden}.figma-meta-card dt{color:rgba(67,70,84,.88);font-size:12px}.figma-meta-card dd{display:block;max-width:100%;margin:8px 0 5px;overflow:hidden;color:#434654;font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}.figma-meta-card small{display:block;max-width:100%;overflow:hidden;color:rgba(67,70,84,.68);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.figma-timeline{margin-top:30px}.figma-timeline h3{margin:0 0 28px;font-size:15px}.figma-timeline>div{position:relative;display:grid;grid-template-columns:repeat(5,1fr)}.figma-timeline>div:before{content:'';position:absolute;top:20px;left:9%;right:9%;height:2px;background:#e5e9f2}.figma-timeline span{position:relative;display:flex;flex-direction:column;align-items:center;color:#c4cad5;font-size:12px}.figma-timeline span>.anticon{z-index:1;width:42px;height:42px;display:grid;place-items:center;margin-bottom:8px;border-radius:50%;background:#eef1f6;font-size:18px}.figma-timeline span.done{color:#b4292c}.figma-timeline span.done>.anticon{color:white;background:#c82d31}.figma-timeline span.green{color:#006243}.figma-timeline span.green>.anticon{background:#006243}.figma-timeline span.active{color:#6d28d9}.figma-timeline span.active>.anticon{color:white;background:#7c3aed;box-shadow:0 0 0 6px #eee7ff}.figma-timeline span small{margin-top:6px;color:#98a2b3}
+.figma-detail-info{grid-column:2;grid-row:3/span 2;box-sizing:border-box;height:559px;overflow:hidden;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.68);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 8px 32px rgba(1,74,198,.12)}
+.figma-detail-info h2{padding:16px 20px 13px;margin:0;border-bottom:1px solid rgba(195,198,215,.3);font-size:16px;line-height:20px}.figma-detail-info dl{margin:0}.figma-detail-info dl>div{height:41px;display:grid;grid-template-columns:42% 58%;align-items:center;padding:0 20px;border-top:1px solid rgba(195,198,215,.2)}.figma-detail-info dt{color:rgba(67,70,84,.68);font-size:12px}.figma-detail-info dd{margin:0;overflow:hidden;color:#434654;text-align:right;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.figma-info-tags{height:48px;display:flex;align-items:center;gap:6px;padding:0 20px;color:rgba(67,70,84,.68);font-size:12px}.figma-info-tags>span{margin-right:auto}.figma-info-tags .ant-tag{margin:0;padding:0 6px;color:#014ac6;background:#e5eeff;border:0;font-size:10px}
+.figma-detail-quick{grid-column:2;grid-row:4;align-self:end;box-sizing:border-box;height:230px;display:flex;flex-direction:column;gap:20px;padding:20px;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.65);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 8px 32px rgba(1,74,198,.08)}
+.figma-detail-quick h2{padding:0;margin:0;border:0;font-size:16px;line-height:20px}.figma-detail-quick>div{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,68px);gap:12px 20px;padding:0}.figma-detail-quick .ant-btn{width:100%;height:68px;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:13px;border:1px solid rgba(1,74,198,.08);border-radius:16px;background:rgba(1,74,198,.04);box-shadow:0 0 8px rgba(1,74,198,.08);color:#434654;font-size:12px;line-height:16px}
+.figma-node-icon{display:block;width:18px;height:18px;object-fit:contain}.figma-status-button .figma-node-icon{width:10px;height:6px;margin-left:2px;filter:brightness(0) invert(1)}.figma-favorite-button .figma-node-icon{width:15px;height:15px}.figma-more-button .figma-node-icon{width:12px;height:4px}.figma-detail-quick .figma-node-icon{width:18px;height:18px;flex:0 0 18px}
+@media(min-width:901px){.app-content:has(.figma-vulnerability-detail){padding:18px 24px 24px}}
+@media(max-width:1500px) and (min-width:1251px){.figma-detail-header{grid-template-columns:40px minmax(0,1fr) auto;padding:14px 18px;gap:14px}.figma-detail-mark{width:40px;height:40px}.figma-detail-title h1{display:-webkit-box;margin-bottom:4px;font-size:18px;line-height:24px;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2}.figma-detail-title>div{gap:5px;overflow:hidden;flex-wrap:nowrap}.figma-vulnerability-id{max-width:240px;flex:0 1 auto}.figma-detail-actions{gap:7px}.figma-detail-actions .ant-btn{padding-inline:10px}.figma-status-button{padding-inline:12px!important}.figma-meta-card dd,.figma-meta-card small{white-space:normal;overflow-wrap:anywhere;word-break:break-word}.figma-meta-card dd{display:-webkit-box;line-height:15px;-webkit-box-orient:vertical;-webkit-line-clamp:2}.figma-meta-card small{display:-webkit-box;line-height:14px;-webkit-box-orient:vertical;-webkit-line-clamp:2}.figma-detail-content>nav button{min-width:90px;padding-inline:8px}}
+@media(max-width:1250px){.figma-vulnerability-detail{grid-template-columns:minmax(0,1fr);grid-template-rows:auto;gap:16px}.figma-detail-back,.figma-detail-header,.figma-detail-ai,.figma-detail-risk,.figma-detail-content,.figma-detail-info,.figma-detail-quick{grid-column:1;grid-row:auto;width:100%}.figma-detail-header{height:auto;min-height:111px;grid-template-columns:48px minmax(0,1fr)}.figma-detail-actions{grid-column:2}.figma-detail-risk,.figma-detail-info,.figma-detail-quick{height:auto}.figma-detail-info dl{display:grid;grid-template-columns:1fr 1fr}.figma-detail-quick{align-self:auto}.figma-detail-meta{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Vulnerability overview: Figma 1:3082 / component sheet 1:761. */
+.figma-vuln-overview{position:relative;min-width:0;color:#191b23;font-family:"Source Han Sans SC","Microsoft YaHei",sans-serif;letter-spacing:0}
+.figma-vuln-overview,.figma-vuln-overview *{box-sizing:border-box}
+.figma-vuln-overview h1,.figma-vuln-overview h2,.figma-vuln-overview h3,.figma-vuln-overview p,.figma-vuln-overview dl,.figma-vuln-overview dd{margin:0}
+.figma-vuln-overview button,.figma-vuln-overview input{font:inherit}
+.figma-vuln-overview-error{position:absolute;z-index:5;top:0;left:0;right:0}
+.figma-vuln-overview-range{height:32px;display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-bottom:12px;color:rgba(67,70,84,.68);font-size:12px}
+.figma-vuln-overview-range .overview-range-selector .ant-radio-button-wrapper{height:28px;min-width:54px;padding:0 12px;border-color:rgba(1,74,198,.14);font-size:12px;line-height:26px}
+.figma-vuln-overview-range .overview-range-selector .ant-radio-button-wrapper:first-child{border-radius:7px 0 0 7px}.figma-vuln-overview-range .overview-range-selector .ant-radio-button-wrapper:last-child{border-radius:0 7px 7px 0}
+.figma-vuln-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;margin-bottom:16px}
+.figma-vuln-metric{box-sizing:border-box;height:108px;min-width:0;display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.65);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 8px 32px rgba(1,74,198,.08)}
+.figma-vuln-metric>div{min-width:0;display:grid;grid-template-columns:auto auto;align-items:baseline;column-gap:10px}.figma-vuln-metric span{grid-column:1/-1;color:rgba(67,70,84,.72);font-size:13px;line-height:20px}.figma-vuln-metric strong{color:#191b23;font-size:30px;line-height:38px;font-weight:600}.figma-vuln-metric small{overflow:hidden;color:rgba(67,70,84,.5);font-size:11px;line-height:16px;text-overflow:ellipsis;white-space:nowrap}.figma-vuln-metric>i{width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;border-radius:12px;background:rgba(1,74,198,.06)}.figma-vuln-metric img{width:24px;height:24px;object-fit:contain}.figma-vuln-metric.tone-danger strong{color:#b4292c}.figma-vuln-metric.tone-warning strong{color:#fb7a16}.figma-vuln-metric.tone-purple strong{color:#6d28d9}.figma-vuln-metric.tone-blue strong{color:#014ac6}
+.figma-vuln-overview-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:stretch;min-width:0}
+.figma-vuln-overview-main{min-width:0;display:grid;gap:16px}
+.figma-vuln-analysis-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,250px);gap:16px}
+.figma-vuln-panel,.figma-vuln-list-panel,.figma-vuln-ai{box-sizing:border-box;min-width:0;overflow:hidden;border:1px solid rgba(255,255,255,.5);border-radius:12px;background:rgba(255,255,255,.65);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 8px 32px rgba(1,74,198,.08)}
+.figma-vuln-panel{height:250px;padding:18px 20px}.figma-vuln-panel>header,.figma-vuln-list-panel>header{height:28px;display:flex;align-items:center;gap:10px}.figma-vuln-panel>header>span,.figma-vuln-list-panel>header>span{width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;border-radius:8px;color:#014ac6;background:rgba(1,74,198,.06);font-size:14px}.figma-vuln-panel h2,.figma-vuln-list-panel h2{min-width:0;margin:0;color:#191b23;font-size:14px;line-height:20px;font-weight:600;white-space:nowrap}.figma-vuln-panel header small{margin-left:auto;color:rgba(67,70,84,.55);font-size:11px}.figma-vuln-panel-body{height:calc(100% - 36px);min-width:0;margin-top:8px;overflow:hidden}.figma-vuln-panel-body .overview-chart{height:100%;min-height:0}.figma-vuln-panel-body .overview-chart svg{max-height:184px}.figma-vuln-panel-body .truthful-empty{height:100%;display:grid;place-items:center}
+.figma-vuln-panel .vulnerability-line-chart{height:100%}.figma-vuln-panel .vulnerability-line-chart svg{width:100%;height:calc(100% - 22px)}.figma-vuln-panel .vulnerability-chart-legend{height:20px;margin:0}.figma-vuln-top-bars{display:grid;gap:10px;padding-top:8px}.figma-vuln-top-bars>div{min-width:0;display:grid;grid-template-columns:minmax(70px,32%) minmax(40px,1fr) 24px;align-items:center;gap:8px}.figma-vuln-top-bars span{overflow:hidden;color:#434654;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.figma-vuln-top-bars strong{text-align:right;color:#434654;font-size:11px}.figma-vuln-top-bars .ant-progress{min-width:0;margin:0}
+.figma-vuln-lists{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.figma-vuln-list-panel{height:246px;padding:18px 20px}.figma-vuln-list-panel header{margin-bottom:10px}.figma-vuln-list-panel header .ant-btn{height:28px;margin-left:auto;padding:0;color:#014ac6;font-size:11px}.figma-vuln-rows>div{height:35px;min-width:0;display:grid;grid-template-columns:minmax(90px,1fr) 52px 56px 68px;align-items:center;gap:8px;border-bottom:1px solid rgba(195,198,215,.22);font-size:11px}.figma-vuln-row-title{min-width:0;overflow:hidden;color:#434654;text-overflow:ellipsis;white-space:nowrap}.figma-vuln-rows .ant-tag{max-width:100%;margin:0;padding-inline:5px;overflow:hidden;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.figma-vuln-rows time{color:rgba(67,70,84,.55);white-space:nowrap}
+.figma-vuln-ai{height:100%;min-height:512px;padding:20px}.figma-vuln-ai>header{height:34px;display:flex;align-items:center;gap:10px;color:#014ac6}.figma-vuln-ai>header>.anticon{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;background:rgba(1,74,198,.08);font-size:17px}.figma-vuln-ai h2{margin:0;color:#191b23;font-size:16px;line-height:22px}.figma-vuln-ai-summary{margin:16px 0;padding:14px;border:1px solid rgba(1,74,198,.12);border-radius:8px;background:rgba(1,74,198,.04);color:#434654;font-size:12px;line-height:22px}.figma-vuln-ai-summary strong{color:#014ac6}.figma-vuln-ai-summary b{color:#b4292c}.figma-vuln-ai-summary em{color:#fb7a16;font-style:normal;font-weight:600}.figma-vuln-ai>section h3{display:flex;justify-content:space-between;margin:0 0 8px;color:#434654;font-size:12px}.figma-vuln-ai>section h3 strong{color:#014ac6}.figma-vuln-ai>section .ant-progress{margin:0}.figma-vuln-ai dl{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}.figma-vuln-ai dl>div{padding:11px 8px;border-radius:8px;background:rgba(241,243,255,.62);text-align:center}.figma-vuln-ai dt{color:rgba(67,70,84,.62);font-size:10px}.figma-vuln-ai dd{margin:4px 0 0;color:#191b23;font-size:18px;font-weight:600}.figma-vuln-ai-recommend-title{margin:18px 0 10px;font-size:13px}.figma-vuln-ai-recommendations{display:grid;gap:9px}.figma-vuln-ai-recommendations article{min-width:0;min-height:54px;display:grid;grid-template-columns:24px minmax(0,1fr) 14px;align-items:center;gap:9px;padding:9px;border-left:3px solid #b4292c;border-radius:7px;background:rgba(180,41,44,.04)}.figma-vuln-ai-recommendations article.tone-1{border-color:#fb7a16;background:rgba(251,122,22,.04)}.figma-vuln-ai-recommendations article.tone-2{border-color:#006243;background:rgba(0,98,67,.04)}.figma-vuln-ai-recommendations article>i{width:24px;height:24px;display:grid;place-items:center;border-radius:7px;color:#b4292c;background:rgba(180,41,44,.08);font-size:11px;font-style:normal}.figma-vuln-ai-recommendations p{min-width:0;margin:0;overflow:hidden;color:#434654;font-size:11px;line-height:17px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}.figma-vuln-ai-recommendations .anticon{color:rgba(67,70,84,.42);font-size:10px}
+@media(min-width:1024px){.app-content:has(.figma-vuln-overview){box-sizing:border-box;padding:12px 24px 24px}.app-content:has(.figma-vuln-overview) .app-content-frame{max-width:none}}
+@media(max-width:1700px) and (min-width:1101px){.app-content:has(.figma-vuln-overview){padding-top:8px;padding-bottom:12px}.figma-vuln-overview-range{height:24px;margin-bottom:8px}.figma-vuln-overview-range .overview-range-selector .ant-radio-button-wrapper{height:24px;line-height:22px}.figma-vuln-metrics{gap:12px;margin-bottom:12px}.figma-vuln-metric{height:86px;padding:10px 14px}.figma-vuln-metric strong{font-size:25px;line-height:31px}.figma-vuln-metric>i{width:38px;height:38px;flex-basis:38px}.figma-vuln-overview-layout,.figma-vuln-overview-main,.figma-vuln-analysis-grid,.figma-vuln-lists{gap:12px}.figma-vuln-analysis-grid{grid-template-rows:repeat(2,180px)}.figma-vuln-panel{height:180px;padding:10px 12px}.figma-vuln-panel>header,.figma-vuln-list-panel>header{height:24px}.figma-vuln-panel>header>span,.figma-vuln-list-panel>header>span{width:24px;height:24px;flex-basis:24px}.figma-vuln-panel-body{height:calc(100% - 28px);margin-top:4px}.figma-vuln-panel-body .overview-chart svg{max-height:132px}.figma-vuln-top-bars{gap:4px;padding-top:2px}.figma-vuln-list-panel{height:180px;padding:10px 12px}.figma-vuln-list-panel header{margin-bottom:4px}.figma-vuln-rows>div{height:27px}.figma-vuln-ai{min-height:0;padding:12px}.figma-vuln-ai-summary{margin:8px 0;padding:9px;line-height:18px}.figma-vuln-ai dl{margin:8px 0}.figma-vuln-ai dl>div{padding:6px}.figma-vuln-ai-recommend-title{margin:9px 0 6px}.figma-vuln-ai-recommendations{gap:5px}.figma-vuln-ai-recommendations article{min-height:43px;padding:6px}}
+@media(max-width:1500px) and (min-width:1024px){.figma-vuln-overview-layout{grid-template-columns:minmax(0,1fr) 280px}.figma-vuln-rows>div{grid-template-columns:minmax(80px,1fr) 48px 52px}.figma-vuln-rows time{display:none}.figma-vuln-metric small{display:none}}
+@media(max-width:1100px){.figma-vuln-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.figma-vuln-overview-layout{grid-template-columns:1fr}.figma-vuln-analysis-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none}.figma-vuln-panel{height:250px}.figma-vuln-ai{height:auto;min-height:0}.figma-vuln-lists{grid-template-columns:1fr}}
+@media(max-width:700px){.figma-vuln-overview-range{height:auto;align-items:flex-end;flex-direction:column}.figma-vuln-metrics,.figma-vuln-analysis-grid{grid-template-columns:1fr}.figma-vuln-metric{height:96px}.figma-vuln-rows>div{grid-template-columns:minmax(80px,1fr) 48px 52px}.figma-vuln-rows time{display:none}}
+
+/* Exact node proportions at the 1920px artboard. */
+@media(min-width:1701px){.figma-vuln-overview-layout{grid-template-columns:minmax(0,1228px) 360px;gap:24px}.figma-vuln-overview-main{gap:24px}.figma-vuln-analysis-grid{gap:16px}.figma-vuln-panel{height:250px}.figma-vuln-lists{gap:16px}.figma-vuln-ai{padding:21px}.figma-vuln-ai>header{height:40px;gap:12px}.figma-vuln-ai>header>.anticon{width:40px;height:40px}.figma-vuln-ai>header>span{margin-left:auto;padding:4px 8px;border-radius:6px;color:#014ac6;background:#eaf1ff;font-size:11px}.figma-vuln-ai-summary{height:182px;margin:20px 0;padding:19px;line-height:24px}.figma-vuln-ai-recommendations article{min-height:78px;padding:9px 17px;border-left-width:4px;border-radius:0}.figma-vuln-ai-recommendations p{display:block}.figma-vuln-ai-recommendations p strong,.figma-vuln-ai-recommendations p span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.figma-vuln-ai-recommendations p strong{font-size:12px;color:#191b23}.figma-vuln-ai-recommendations p span{margin-top:4px;color:rgba(67,70,84,.65)}}
+.app-content:has(.figma-vuln-overview){min-height:0}
+@media(min-width:1701px){.app-content:has(.figma-vuln-overview){height:calc(100dvh - 64px);overflow:hidden}.app-content:has(.figma-vuln-overview) .app-content-frame{height:100%}.figma-vuln-overview{height:100%;overflow:hidden}}
+.figma-vuln-metric small{display:flex;align-items:center;gap:4px;color:#006243}.figma-vuln-metric small b{font-size:12px}.figma-vuln-metric small em{margin-left:5px;color:rgba(67,70,84,.5);font-style:normal}.figma-vuln-metric>i{width:48px;height:48px;flex-basis:48px;border-radius:50%}
+.figma-vuln-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* Keep the 1920x1080 Figma geometry intact. Smaller desktop viewports scale the
+   complete canvas uniformly instead of compressing individual components. */
+@media(max-width:1700px) and (min-width:1024px){
+  .app-content:has(.figma-vuln-overview){height:calc(100dvh - 64px);min-height:0;padding:24px;overflow:hidden}
+  .app-content:has(.figma-vuln-overview) .app-content-frame{width:1636px;max-width:none;height:968px;transform-origin:top left}
+  .figma-vuln-overview{width:1636px;height:968px;overflow:visible}
+  .figma-vuln-metrics{position:absolute;top:0;left:0;width:1228px;height:114px;grid-template-columns:repeat(5,226.4px);gap:24px;margin:0}
+  .figma-vuln-metric{height:114px;padding:17px 25px}
+  .figma-vuln-metric strong{font-size:30px;line-height:38px}.figma-vuln-metric small{display:flex}
+  .figma-vuln-overview-layout{width:1612px;height:968px;grid-template-columns:1228px 360px;gap:24px;padding-top:130px;box-sizing:border-box}
+  .figma-vuln-overview-main{width:1228px;height:838px;grid-template-rows:554px 268px;gap:16px}
+  .figma-vuln-analysis-grid{height:554px;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,270px);gap:16px}
+  .figma-vuln-panel{height:270px;padding:20px}.figma-vuln-panel>header{height:40px}.figma-vuln-panel>header>span{width:40px;height:40px;flex-basis:40px}.figma-vuln-panel-body{height:194px;margin-top:16px}
+  .figma-vuln-lists{height:268px;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.figma-vuln-list-panel{height:268px;padding:20px}
+  .figma-vuln-ai{width:360px;height:968px;min-height:968px;margin-top:-130px;padding:21px}
+}
+
+@media(min-width:1701px){
+  .app-shell:has(.figma-vuln-overview) .app-header{height:64px;padding:0 24px;gap:48px}
+  .app-shell:has(.figma-vuln-overview) .app-header h2{width:108px;min-width:108px;font-size:28px!important;line-height:36px;letter-spacing:0}
+  .app-shell:has(.figma-vuln-overview) .global-search{width:420px;height:46px}
+  .app-shell:has(.figma-vuln-overview) .app-content{padding:24px}
+  .figma-vuln-metric>div{position:absolute;left:25px;top:17px;display:block;width:176px}
+  .figma-vuln-metric span{display:block;line-height:16px}
+  .figma-vuln-metric strong{display:inline-block;margin-top:8px;line-height:32px}
+  .figma-vuln-metric small{display:inline-flex;margin-left:8px;vertical-align:6px}
+}
+@media(max-width:1700px) and (min-width:1551px){.app-content:has(.figma-vuln-overview) .app-content-frame{transform:scale(min(.85,calc((100dvh - 40px)/968)))}}
+@media(max-width:1550px) and (min-width:1401px){.app-content:has(.figma-vuln-overview) .app-content-frame{transform:scale(min(.76,calc((100dvh - 40px)/968)))}}
+@media(max-width:1400px) and (min-width:1251px){.app-content:has(.figma-vuln-overview) .app-content-frame{transform:scale(min(.67,calc((100dvh - 40px)/968)))}}
+@media(max-width:1250px) and (min-width:1024px){.app-content:has(.figma-vuln-overview) .app-content-frame{transform:scale(min(.58,calc((100dvh - 40px)/968)))}}
+
+/* A CSS transform does not change flow height; reserve the scaled canvas height
+   so the bottom Figma panels remain inside the viewport instead of being clipped. */
+@media(max-width:1700px) and (min-width:1551px){.app-content:has(.figma-vuln-overview) .app-content-frame{--overview-scale:min(.85,calc((100dvh - 40px)/968));height:calc(968px * var(--overview-scale))}}
+@media(max-width:1550px) and (min-width:1401px){.app-content:has(.figma-vuln-overview) .app-content-frame{--overview-scale:min(.76,calc((100dvh - 40px)/968));height:calc(968px * var(--overview-scale))}}
+@media(max-width:1400px) and (min-width:1251px){.app-content:has(.figma-vuln-overview) .app-content-frame{--overview-scale:min(.67,calc((100dvh - 40px)/968));height:calc(968px * var(--overview-scale))}}
+@media(max-width:1250px) and (min-width:1024px){.app-content:has(.figma-vuln-overview) .app-content-frame{--overview-scale:min(.58,calc((100dvh - 40px)/968));height:calc(968px * var(--overview-scale))}}
+
+/* Figma 1:3082 final geometry. */
+.figma-vuln-panel .material-donut{width:100%;height:194px;min-width:0;grid-template-columns:minmax(0,1fr) 148px;gap:12px;overflow:hidden}
+.figma-vuln-panel .material-donut-graphic{position:relative;width:178px;height:178px;max-width:100%;max-height:100%;margin:auto;overflow:hidden;contain:layout paint}
+.figma-vuln-panel .material-donut-center{inset:0;overflow:hidden;white-space:nowrap}
+.figma-vuln-panel .material-donut-center span{max-width:100%;overflow:hidden;font-size:10px;line-height:14px;text-overflow:ellipsis;white-space:nowrap}
+.figma-vuln-panel .material-donut-center strong{max-width:100%;overflow:hidden;font-size:24px;line-height:28px;text-overflow:ellipsis;white-space:nowrap}
+
+/* Final fixed-artboard fit rule. This intentionally comes last so legacy
+   breakpoint transforms cannot override the Figma canvas scale. */
+@media (min-width:1024px) and (max-width:2200px){
+  .app-content:has(.figma-vuln-overview) .app-content-frame{
+    --figma-overview-scale:min(1, min(calc((100vw - 308px) * 0.000611), calc((100dvh - 112px) * 0.001033)));
+    width:1636px;
+    max-width:none;
+    height:calc(968px * var(--figma-overview-scale));
+    transform:scale(var(--figma-overview-scale));
+    transform-origin:top left;
+  }
+}
+
+/* The /overview canvas has four Figma rows. Let the two content rows consume
+   the remaining viewport instead of keeping a 340px minimum that clips below
+   the browser's actual visual viewport (especially with the OS taskbar). */
+@media (min-width:1024px){
+  .app-content:has(.dashboard-page.material-dashboard){
+    height:calc(100dvh - 64px);
+    min-height:0;
+    overflow:hidden;
+  }
+  .app-content:has(.dashboard-page.material-dashboard) .app-content-frame{
+    height:100%;
+    min-height:0;
+  }
+  .dashboard-page.material-dashboard{
+    height:100%;
+    min-height:0;
+    grid-template-rows:122px 90px minmax(0,1fr) minmax(0,1fr);
+    gap:24px;
+    overflow:hidden;
+  }
+  .material-dashboard>.dashboard-main-grid,
+  .material-dashboard>.dashboard-bottom-grid{
+    min-height:0;
+    height:100%;
+  }
+  .material-dashboard>.dashboard-main-grid>*,
+  .material-dashboard>.dashboard-bottom-grid>*{
+    min-height:0;
+    height:100%;
+  }
+}
+@media(min-width:1701px){
+  .app-content:has(.figma-vuln-overview){padding:24px;}
+  .figma-vuln-overview-layout{height:968px;grid-template-columns:1228px 360px;gap:24px}
+  .figma-vuln-overview-main{height:968px;grid-template-rows:114px 554px 268px;gap:16px}
+  .figma-vuln-metrics{position:absolute;top:0;left:0;width:1228px;height:114px;grid-template-columns:repeat(5,226.4px);gap:24px;margin:0}
+  .figma-vuln-overview-layout{padding-top:130px;box-sizing:border-box}
+  .figma-vuln-overview-main{height:838px;grid-template-rows:554px 268px}
+  .figma-vuln-metric{height:114px;padding:17px 25px;overflow:hidden}
+  .figma-vuln-metric>i{position:absolute;right:-16px;top:-41px;width:128px;height:128px;opacity:.11;background:transparent}
+  .figma-vuln-metric img{width:64px;height:64px}
+  .figma-vuln-analysis-grid{height:554px;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,270px);gap:16px}
+  .figma-vuln-panel{height:270px;padding:20px}
+  .figma-vuln-panel>header{height:40px}.figma-vuln-panel>header>span{width:40px;height:40px;flex-basis:40px}
+  .figma-vuln-panel h2{font-size:16px}.figma-vuln-panel-body{height:194px;margin-top:16px}
+  .figma-vuln-panel-body .overview-chart svg{max-height:194px}
+  .figma-vuln-lists{height:268px;gap:16px}
+  .figma-vuln-list-panel{height:268px;padding:20px}
+  .figma-vuln-list-panel>header{height:28px;margin-bottom:12px}.figma-vuln-list-panel>header>span{display:none}.figma-vuln-list-panel h2{font-size:16px}
+  .figma-vuln-ai{height:968px;min-height:968px;margin-top:-130px}
+}
+.figma-vuln-metric{position:relative}.figma-vuln-table-head{height:40px!important;display:grid!important;align-items:center!important;border:0!important;border-radius:8px;background:#f1f4fb;color:#434654!important;font-size:11px!important}.figma-vuln-rows:not(.ranking) .figma-vuln-table-head,.figma-vuln-rows:not(.ranking)>div:not(.figma-vuln-table-head){grid-template-columns:minmax(150px,1fr) 74px 90px 92px}.figma-vuln-rows.ranking .figma-vuln-table-head,.figma-vuln-rows.ranking>div:not(.figma-vuln-table-head){grid-template-columns:28px minmax(150px,1fr) 70px 92px}.figma-vuln-rows>div:not(.figma-vuln-table-head){height:31px;border:0;padding:0 12px}.figma-vuln-rows>div>span,.figma-vuln-rows>div>b,.figma-vuln-rows time{min-width:0}.figma-vuln-source{color:rgba(67,70,84,.68)}.figma-vuln-asset-count{justify-self:start;padding:2px 9px;border-radius:4px;color:#014ac6;background:#e7efff}.figma-vuln-rows .ant-tag{border:0;border-radius:4px}
+/* Fluid responsive dashboard layout: preserve the Figma hierarchy while
+   allowing the browser to reflow cards instead of shrinking the whole page. */
+@media (min-width:1024px){
+  .app-content:has(.figma-vuln-overview){height:auto;min-height:calc(100dvh - 64px);overflow:auto;padding:24px}
+  .app-content:has(.figma-vuln-overview) .app-content-frame{width:100%;max-width:none;height:auto;transform:none}
+  .figma-vuln-overview{width:100%;height:auto;overflow:visible}
+  .figma-vuln-overview-layout{grid-template-columns:minmax(0,1fr) minmax(300px,360px);gap:24px}
+  .figma-vuln-analysis-grid{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(220px,270px))}
+  .figma-vuln-panel{height:100%;min-height:220px}
+  .figma-vuln-lists{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .figma-vuln-list-panel{height:auto;min-height:268px}
+  .figma-vuln-ai{height:100%;min-height:968px}
+}
+@media (max-width:1400px) and (min-width:901px){
+  .figma-vuln-overview-layout{grid-template-columns:minmax(0,1fr) 300px;gap:16px}
+  .figma-vuln-analysis-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,minmax(210px,1fr))}
+  .figma-vuln-panel{min-height:210px}
+  .figma-vuln-ai{min-height:720px;padding:16px}
+  .figma-vuln-ai-recommendations article{min-height:58px}
+}
+@media (max-width:900px){
+  .app-content:has(.figma-vuln-overview){height:auto;overflow:visible;padding:16px}
+  .app-content:has(.figma-vuln-overview) .app-content-frame{width:100%;height:auto}
+  .figma-vuln-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .figma-vuln-overview-layout{grid-template-columns:1fr;gap:16px}
+  .figma-vuln-analysis-grid{grid-template-columns:1fr;grid-template-rows:none}
+  .figma-vuln-panel{height:240px}
+  .figma-vuln-lists{grid-template-columns:1fr}
+  .figma-vuln-list-panel{min-height:240px}
+  .figma-vuln-ai{height:auto;min-height:0}
+}
+@media (max-width:560px){
+  .figma-vuln-metrics{grid-template-columns:1fr}
+  .figma-vuln-overview-range{align-items:stretch;flex-direction:column}
+  .figma-vuln-panel,.figma-vuln-list-panel{padding:14px}
+}
+
+/* Figma 1:6823 entry state. Planning and session layouts remain independent. */
+.app-content:has(.pentest-welcome.is-entry){padding:0;overflow:hidden;background:#f8f9ff}
+.app-content:has(.pentest-welcome.is-entry) .app-content-frame{width:100%;max-width:none;height:100%}
+.pentest-welcome.is-entry{min-height:calc(100dvh - 64px);margin:0;overflow:hidden;background:radial-gradient(ellipse 292px 143px at 0 0,#e0e7ff 0,transparent 70%),radial-gradient(ellipse 292px 143px at 100% 100%,#f0f4ff 0,transparent 70%),#f8f9ff;font-family:Inter,"Source Han Sans SC","Microsoft YaHei",sans-serif}
+.pentest-entry-stage{position:relative;isolation:isolate;width:100%;height:calc(100dvh - 64px);min-height:720px;overflow:hidden}
+.pentest-entry-stage:before{content:"";position:absolute;z-index:-1;left:922px;top:85px;width:614.39px;height:512px;border-radius:50%;background:rgba(229,222,255,.3);filter:blur(60px);pointer-events:none}
+.pentest-entry-visual{position:absolute;z-index:0;inset:0;pointer-events:none}
+.pentest-entry-shield{position:absolute;left:873px;top:138px;width:820px;height:820px;object-fit:contain}
+.pentest-entry-expert{position:absolute;left:969px;top:121px;width:480px;height:352px;overflow:hidden}.pentest-entry-expert img{position:absolute;left:0;top:-44.54%;width:100%;height:192.66%;max-width:none}
+.pentest-entry-panel{position:absolute;z-index:1;left:290px;top:283px;width:1080px;display:flex;flex-direction:column;align-items:center}
+.pentest-entry-heading{align-self:flex-start;width:660px;text-align:center}.pentest-entry-heading h1{height:56px;margin:0;color:#0b1c30;font-size:36px;font-weight:700;line-height:56px;letter-spacing:0;white-space:nowrap}.pentest-entry-heading h1 span{background:linear-gradient(90deg,#014ac6,#4648d4);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}.pentest-entry-heading p{margin:18px 0 0;color:#434654;font-size:20px;font-weight:500;line-height:24px;white-space:nowrap}
+.pentest-welcome.is-entry .target-form{box-sizing:border-box;position:relative;width:100%;height:220px;min-height:220px;margin:52px 0 0;padding:9px;display:flex;flex-direction:column;gap:14px;border:1px solid #014ac6;border-radius:32px;background:rgba(255,255,255,.78);backdrop-filter:blur(6px);box-shadow:2px 2px 48px rgba(1,74,198,.24),4px 6px 12px rgba(69,72,212,.16)}
+.pentest-welcome.is-entry .target-form .ant-input-textarea{flex:1;min-height:0}.pentest-welcome.is-entry .target-form .ant-input-textarea textarea{height:100%!important;min-height:0!important;padding:24px 16px 16px;border:0;background:transparent;box-shadow:none;resize:none;color:#191b23;font-size:20px;line-height:24px}.pentest-welcome.is-entry .target-form textarea::placeholder{color:rgba(67,70,84,.68)}
+.pentest-welcome.is-entry .figma-data-entry{position:absolute;z-index:3;right:16px;top:16px;height:28px;display:flex;align-items:center;gap:8px;padding:5px 9px;border:1px solid rgba(195,198,215,.32);border-radius:8px;background:#f8f9ff;color:rgba(1,74,198,.74);font-size:12px;line-height:16px}.pentest-welcome.is-entry .figma-data-entry img{width:10px;height:12px}
+.pentest-welcome.is-entry .target-form-footer{box-sizing:border-box;height:61px;display:flex;align-items:center;justify-content:space-between;padding:9px 8px 8px;border-top:1px solid rgba(195,198,215,.1)}
+.pentest-welcome.is-entry .target-form-controls{display:flex;align-items:center;gap:12px}.pentest-welcome.is-entry .material-compact-select{box-sizing:border-box;height:36px;display:flex;align-items:center;gap:8px;padding:7px 13px;border:1px solid rgba(195,198,215,.3);border-radius:8px;background:rgba(255,255,255,.5);color:#434654;font-size:14px;white-space:nowrap}.pentest-welcome.is-entry .material-compact-select .ant-select{min-width:88px}.pentest-welcome.is-entry .material-compact-select .ant-select-selection-item{font-size:14px}
+.pentest-welcome.is-entry .target-form-footer>.ant-btn{height:36px;padding:10px 24px;border:0;border-radius:10px;background:linear-gradient(90deg,#014ac6,#712ae2);box-shadow:0 0 4px rgba(1,74,198,.32);font-size:14px;line-height:16px}
+.pentest-welcome.is-entry .prompt-examples{align-self:flex-start;height:40px;margin:38px 0 0;display:flex;justify-content:center;gap:24px}.pentest-welcome.is-entry .prompt-examples .ant-btn{height:40px;display:flex;align-items:center;gap:4px;padding:9px 19px;border:1px solid #014ac6;border-radius:9999px;background:rgba(255,255,255,.88);color:#434654;font-size:14px;line-height:20px}.pentest-welcome.is-entry .prompt-examples .ant-btn img{width:24px;height:24px}
+@media(max-width:1500px){.pentest-entry-panel{top:18%;width:min(900px,calc(100% - 64px))}.pentest-entry-shield{left:50%;top:7%;width:700px;height:700px}.pentest-entry-expert{left:calc(50% + 80px);top:10%;width:410px;height:auto;aspect-ratio:480/352}.pentest-entry-heading h1{font-size:32px}.pentest-entry-heading p{font-size:17px}.pentest-welcome.is-entry .target-form{margin-top:36px}}
+@media(max-width:900px){.app-shell:has(.pentest-welcome.is-entry) .app-sider{width:72px!important;min-width:72px!important;max-width:72px!important;flex-basis:72px!important}.app-shell:has(.pentest-welcome.is-entry) .app-sider+.ant-layout{margin-left:72px!important}.app-shell:has(.pentest-welcome.is-entry) .brand{height:64px;padding:0;justify-content:center}.app-shell:has(.pentest-welcome.is-entry) .brand>div:last-child,.app-shell:has(.pentest-welcome.is-entry) .app-sider .ant-menu-title-content,.app-shell:has(.pentest-welcome.is-entry) .app-sider .ant-menu-submenu-arrow{display:none}.app-shell:has(.pentest-welcome.is-entry) .app-sider .ant-menu{padding-inline:8px}.app-shell:has(.pentest-welcome.is-entry) .app-sider .ant-menu-item,.app-shell:has(.pentest-welcome.is-entry) .app-sider .ant-menu-submenu-title{padding-inline:16px!important}.app-shell:has(.pentest-welcome.is-entry) .app-header{height:58px;padding-inline:14px}.app-shell:has(.pentest-welcome.is-entry) .app-header h2{min-width:0;font-size:20px!important}.app-shell:has(.pentest-welcome.is-entry) .global-search,.app-shell:has(.pentest-welcome.is-entry) .header-actions{display:none}.app-content:has(.pentest-welcome.is-entry){overflow:auto}.pentest-welcome.is-entry,.pentest-entry-stage{min-height:calc(100dvh - 58px);height:auto;overflow:visible}.pentest-entry-stage{padding:56px 20px 40px}.pentest-entry-visual{opacity:.28;overflow:hidden}.pentest-entry-shield{left:30%;top:60px;width:520px;height:520px}.pentest-entry-expert{display:none}.pentest-entry-panel{position:relative;left:auto;top:auto;width:100%;transform:none}.pentest-entry-heading h1{height:auto;font-size:28px;line-height:40px;white-space:normal}.pentest-entry-heading p{font-size:15px;line-height:23px;white-space:normal}.pentest-welcome.is-entry .target-form{height:auto;min-height:260px;margin-top:28px}.pentest-welcome.is-entry .target-form-footer{height:auto;align-items:stretch;gap:12px;flex-direction:column}.pentest-welcome.is-entry .target-form-controls{align-items:stretch;flex-direction:column}.pentest-welcome.is-entry .material-compact-select{width:100%}.pentest-welcome.is-entry .target-form-footer>.ant-btn{width:100%}.pentest-welcome.is-entry .prompt-examples{height:auto;flex-direction:column;align-items:stretch;width:100%;margin-top:24px}.pentest-welcome.is-entry .prompt-examples .ant-btn{height:auto;min-height:40px;white-space:normal}}
+
+/* Metric cards use the Figma decorative component, not a compact status icon.
+   The source node is 128x128 and intentionally bleeds from the top-right. */
+@media (min-width:901px){
+  .figma-vuln-metric{position:relative;overflow:hidden}
+  .figma-vuln-metric>i{position:absolute;left:147px;top:-42px;width:128px;height:128px;flex:0 0 128px;border-radius:0;background:transparent;opacity:1;display:block}
+  .figma-vuln-metric>i img{width:128px;height:128px;object-fit:contain}
+.figma-vuln-metric>div{position:relative;z-index:1}
+}
+
+/* Dashboard metric decorations: Figma 1:1762/1773/1778/1809 use their
+   native artwork bounds, unlike the compact legacy MetricCard defaults. */
+@media (min-width:901px){
+  .material-dashboard .metric-card>i{right:-7.8px;bottom:-10px;width:72px;height:80px;display:block}
+  .material-dashboard .metric-card>i img{width:100%;height:100%;max-height:none;object-fit:fill}
+}
+
+/* Keep the Figma 1:1762 artwork bounds above all legacy responsive rules. */
+@media (min-width:901px){
+  .app-shell:not(.pentest-shell) .material-dashboard .metric-card>i{right:-7.8px!important;bottom:-10px!important;width:72px!important;height:80px!important;display:block!important}
+  .app-shell:not(.pentest-shell) .material-dashboard .metric-card>i img{width:72px!important;height:80px!important;max-width:none!important;max-height:none!important;object-fit:fill!important}
+}
+
+/* /overview uses natural document height. The Figma rows keep their native
+   dimensions and the application content area owns vertical scrolling. */
+@media (min-width:1024px){
+  .app-content:has(.dashboard-page.material-dashboard){
+    height:auto;
+    min-height:calc(100dvh - 64px);
+    overflow-x:hidden;
+    overflow-y:auto;
+  }
+  .app-content:has(.dashboard-page.material-dashboard) .app-content-frame{
+    height:auto;
+    min-height:0;
+  }
+  .dashboard-page.material-dashboard{
+    height:auto;
+    min-height:0;
+    grid-template-rows:122px 90px 340px 340px;
+    gap:24px;
+    overflow:visible;
+  }
+  .material-dashboard>.dashboard-main-grid,
+  .material-dashboard>.dashboard-bottom-grid{
+    height:340px;
+    min-height:340px;
+  }
+  .material-dashboard>.dashboard-main-grid>*,
+  .material-dashboard>.dashboard-bottom-grid>*{
+    height:340px;
+    min-height:340px;
+  }
+  .material-dashboard .dashboard-trend-card .dashboard-risk-trend{
+    width:100%;
+    height:auto!important;
+    min-height:0!important;
+    flex:0 0 auto;
+    aspect-ratio:471 / 226;
+    overflow:hidden;
+  }
+  .material-dashboard .dashboard-trend-card .dashboard-risk-chart{
+    display:block;
+    width:100%!important;
+    height:100%!important;
+    min-height:0!important;
+    max-height:none;
+    aspect-ratio:471 / 226;
+    overflow:hidden;
+  }
+}
+
+
+.figma-vuln-remediation{grid-column:1/-1;min-width:0;padding:16px;border:1px solid #e7ebf3;border-radius:10px;background:#fff}.figma-vuln-remediation>header{display:flex;align-items:center;justify-content:space-between;height:30px;margin-bottom:8px}.figma-vuln-remediation h2{margin:0;font-size:16px;color:#191b23}.figma-vuln-remediation-table{overflow:auto}.figma-vuln-remediation-head,.figma-vuln-remediation-table button{display:grid;grid-template-columns:minmax(260px,1.8fr) 110px 120px 140px;align-items:center;gap:16px;min-width:720px}.figma-vuln-remediation-head{padding:8px 12px;color:rgba(67,70,84,.62);font-size:12px}.figma-vuln-remediation-table button{width:100%;padding:12px;border:0;border-top:1px solid #eef1f6;background:#fff;text-align:left;color:#303746;cursor:pointer}.figma-vuln-remediation-table button:hover{background:#f7faff}.figma-vuln-remediation-table strong,.figma-vuln-remediation-table small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.figma-vuln-remediation-table strong{font-size:13px}.figma-vuln-remediation-table small,.figma-vuln-remediation-table time{margin-top:4px;color:#8a93a3;font-size:11px}.figma-vuln-remediation-table time{white-space:nowrap}
+.vulnerability-management-page{width:100%;max-width:1500px;margin:0 auto;color:#17233b}.vulnerability-management-header{display:flex;align-items:center;justify-content:space-between;gap:28px;margin-bottom:20px;padding:24px 28px;border:1px solid #e3eaf5;border-radius:14px;background:linear-gradient(120deg,#fff,#f5f8ff);box-shadow:0 10px 28px rgba(31,61,112,.06)}.vulnerability-management-eyebrow{color:#6d7b91;font-size:12px}.vulnerability-management-header h1{margin:8px 0 6px;font-size:28px;line-height:1.2}.vulnerability-management-header p{margin:0;color:#66748a;line-height:1.6}.vulnerability-management-icon{display:grid;place-items:center;width:56px;height:56px;border-radius:12px;background:#e9f1ff;color:#1456c3;font-size:26px}.vulnerability-management-stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:20px}.vulnerability-management-stat-grid .ant-card{border:1px solid #e5eaf3;box-shadow:none}.vulnerability-management-stat-grid .ant-card-body{display:flex;min-height:108px;flex-direction:column;justify-content:center;gap:5px}.vulnerability-management-stat-grid span{color:#6d788b;font-size:13px}.vulnerability-management-stat-grid strong{font-size:28px;line-height:1.1;color:#1a2d52}.vulnerability-management-stat-grid strong.danger{color:#c62b36}.vulnerability-management-stat-grid small{color:#8994a6}.vulnerability-sla-stat-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.vulnerability-sla-stat-grid .ant-progress{margin-top:10px}.vulnerability-management-panel{padding:22px;border-radius:14px}.vulnerability-management-panel>header{height:auto;align-items:flex-start;margin-bottom:16px}.vulnerability-management-panel>header h2{font-size:20px}.vulnerability-management-panel>header p{margin:6px 0 0;color:#7b8799;font-size:13px}.vulnerability-management-table button{position:relative;padding-right:38px}.vulnerability-management-table button>.anticon{position:absolute;right:16px;color:#7b8799}.vulnerability-management-table button{grid-template-columns:minmax(260px,1.8fr) 110px 120px 140px}.vulnerability-management-table .figma-vuln-remediation-head{grid-template-columns:minmax(260px,1.8fr) 110px 120px 140px}.vulnerability-management-table .figma-vuln-remediation-head:after{content:''}.vulnerability-management-table .figma-vuln-remediation-head,.vulnerability-management-table button{padding-right:38px}
+@media(max-width:900px){.vulnerability-management-header{padding:20px}.vulnerability-management-stat-grid,.vulnerability-sla-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.vulnerability-management-panel{padding:16px}}
+@media (min-width:1024px){
+  .figma-vuln-overview-main{grid-template-rows:none;height:auto}
+  .figma-vuln-lists{height:auto}
+}

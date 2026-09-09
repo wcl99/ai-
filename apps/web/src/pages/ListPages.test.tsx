@@ -196,7 +196,7 @@ describe('resource list pages', () => {
     renderPage(<><VulnerabilitiesPage /><LocationProbe /></>);
 
     expect(await screen.findByText('资源暂不可用')).toBeInTheDocument();
-    expect(screen.getByText('本页高危')).toBeInTheDocument();
+    expect(screen.getByText('高危漏洞')).toBeInTheDocument();
     await interaction.click(screen.getByRole('button', { name: /重\s*试/ }));
     expect(await screen.findByText('暂无漏洞数据')).toBeInTheDocument();
   });
@@ -248,6 +248,34 @@ describe('resource list pages', () => {
     expect(JSON.parse((fetchMock.mock.calls[2][1] as RequestInit).body as string)).toEqual({ status: 'FIXING' });
   });
 
+  it('renders the Figma vulnerability list structure without legacy preview data', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json(envelope([vulnerability], 22))));
+
+    const { container } = renderPage(<VulnerabilitiesPage />);
+    await screen.findByText('API 真实漏洞');
+
+    expect(container.querySelector('.figma-vulnerability-list')).toBeInTheDocument();
+    expect(container.querySelectorAll('.figma-vulnerability-metric')).toHaveLength(6);
+    expect(screen.getByText('漏洞总数')).toBeInTheDocument();
+    expect(screen.getByText('高危漏洞')).toBeInTheDocument();
+    expect(screen.getByText('中危漏洞')).toBeInTheDocument();
+    expect(screen.getAllByText('待修复').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('待复测').length).toBeGreaterThan(0);
+    expect(screen.getByText('已修复')).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent === '已选择 0 项')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '来源模块' })).toBeInTheDocument();
+    expect(screen.getByText(/共22条记录/)).toBeInTheDocument();
+    expect(screen.queryByText('用于页面视觉验收的示例记录')).not.toBeInTheDocument();
+  });
+
+  it('keeps an empty server response empty instead of injecting preview vulnerabilities', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json(envelope([], 0))));
+    renderPage(<VulnerabilitiesPage />);
+    await screen.findByText('暂无漏洞数据');
+    expect(screen.queryByText('SQL 注入漏洞')).not.toBeInTheDocument();
+    expect(screen.getByText('漏洞总数').closest('.figma-vulnerability-metric')).toHaveTextContent('0');
+  });
+
   it('deletes a vulnerability after confirmation', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(envelope([vulnerability])))
@@ -279,7 +307,26 @@ describe('resource list pages', () => {
     );
     await interaction.click(screen.getByRole('button', { name: '预览' }));
     expect(await screen.findByText(/# 安全报告/)).toBeInTheDocument();
-    expect(await screen.findByText('待导出', { selector: '.ant-tag' })).toBeInTheDocument();
+    expect(await screen.findByText('未导出', { selector: '.figma-report-export-state' })).toBeInTheDocument();
+  });
+
+  it('renders the complete Figma report list structure with real report data', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json(envelope([report], 12))));
+
+    const { container } = renderPage(<ReportsPage />);
+    await screen.findByText('API 真实报告.md');
+
+    expect(container.querySelector('.figma-report-list')).toBeInTheDocument();
+    expect(container.querySelectorAll('.figma-report-metric')).toHaveLength(6);
+    expect(screen.getByText('本周新增')).toBeInTheDocument();
+    expect(screen.getByText('报告类型')).toBeInTheDocument();
+    expect(screen.getAllByText('资产分组').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText((_, element) => element?.textContent === '已选择 0 项')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /批量导出/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /导出列表/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '报告名称' })).toBeInTheDocument();
+    expect(screen.getByText(/共12份报告/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '下载 MD' })).toBeInTheDocument();
   });
 
   it('groups three generated formats under one task row', async () => {

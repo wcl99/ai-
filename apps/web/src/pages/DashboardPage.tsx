@@ -14,6 +14,7 @@ import {
 } from '@ant-design/icons';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { Alert, Button, Card } from 'antd';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getDashboardSummary, getVulnerabilityOverview, listAssets, listReports, listTasks, listVulnerabilities } from '../api/resources';
 import { MetricCard, SectionTitle } from '../components/Ui';
@@ -23,10 +24,10 @@ import { displayPhase, sanitizeDisplayText } from '../vendorDisplay';
 import type { Metric, TaskRecord } from '../types';
 
 const featureCards = [
-  { title: 'AI 渗透测试', desc: '智能化渗透测试与漏洞复测', icon: <RadarChartOutlined />, tone: 'red', path: '/pentest' },
-  { title: 'AI 应急响应', desc: '自动化研判与智能处置建议', icon: <ThunderboltOutlined />, tone: 'purple', path: '/tasks' },
-  { title: 'AI 代码审计', desc: '静态分析与逻辑漏洞挖掘', icon: <CodeOutlined />, tone: 'blue', path: '/vulnerabilities' },
-  { title: 'AI 数据分析', desc: '多维数据聚合与趋势洞察', icon: <BarChartOutlined />, tone: 'green', path: '/reports/overview' },
+  { title: 'AI 渗透测试', desc: '智能化渗透测试与漏洞复测', icon: <RadarChartOutlined />, tone: 'red', nodeId: '1:1818', path: '/pentest' },
+  { title: 'AI 应急响应', desc: '自动化研判与智能处置建议', icon: <ThunderboltOutlined />, tone: 'purple', nodeId: '1:1837', path: '/tasks' },
+  { title: 'AI 代码审计', desc: '静态分析与逻辑漏洞挖掘', icon: <CodeOutlined />, tone: 'blue', nodeId: '1:1853', path: '/vulnerabilities' },
+  { title: 'AI 数据分析', desc: '多维数据聚合与趋势洞察', icon: <BarChartOutlined />, tone: 'green', nodeId: '1:1869', path: '/reports/overview' },
 ];
 
 const quickLinks = [
@@ -91,11 +92,11 @@ export function DashboardPage() {
   const vulnerabilityTotal = riskMetrics.total;
   const highRiskTotal = riskMetrics.highRisk;
   const metrics: Metric[] = [
-    { label: '任务总数', value: totalValue(tasks.data?.total, tasks.isError), tone: 'blue' },
-    { label: '进行中任务', value: totalValue(running.data?.total, running.isError), tone: 'blue' },
-    { label: '高危风险', value: totalValue(highRiskTotal, allVulnerabilityOverview.isError && high.isError), tone: 'red' },
-    { label: '资产总数', value: totalValue(assets.data?.total, assets.isError), tone: 'purple' },
-    { label: '漏洞总数', value: totalValue(vulnerabilityTotal, allVulnerabilityOverview.isError && vulnerabilities.isError), tone: 'green' },
+    { label: '任务总数', value: totalValue(tasks.data?.total, tasks.isError), tone: 'blue', icon: 'dashboard-task-total.svg', trend: '+18.6%' },
+    { label: '进行中任务', value: totalValue(running.data?.total, running.isError), tone: 'blue', icon: 'metric-task-clock', trend: '+12.4%' },
+    { label: '高危风险', value: totalValue(highRiskTotal, allVulnerabilityOverview.isError && high.isError), tone: 'red', icon: 'metric-warning', trend: '-7.7%' },
+    { label: '资产总数', value: totalValue(assets.data?.total, assets.isError), tone: 'purple', icon: 'metric-database', trend: '+9.1%' },
+    { label: '漏洞总数', value: totalValue(vulnerabilityTotal, allVulnerabilityOverview.isError && vulnerabilities.isError), tone: 'green', icon: 'metric-danger.png', trend: '+14.3%' },
   ];
   const riskSegments = [
     { key: 'critical', label: '严重', value: riskMetrics.critical, color: '#c72d35', dot: 'severe' },
@@ -107,12 +108,12 @@ export function DashboardPage() {
   const dashboardContent = (
     <div className="page dashboard-page material-dashboard">
       {firstError && <Alert className="resource-error dashboard-resource-error" type="error" showIcon message={firstError instanceof Error ? firstError.message : '总览数据加载失败'} action={<Button onClick={() => [...queries, dashboard].forEach((query) => query.refetch())}>重试</Button>} />}
-      <div className="metric-grid metric-grid-five">{metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}</div>
+      <div className="metric-grid metric-grid-five" data-node-id="1:1750">{metrics.map((metric, index) => <MetricCard key={metric.label} metric={metric} nodeId={['1:1751','1:1764','1:1776','1:1787','1:1800'][index]} />)}</div>
 
       <div className="feature-grid">
         {featureCards.map((item) => (
           <Card key={item.title} variant="borderless" className={`feature-card tone-${item.tone}`}>
-            <span className="feature-icon">{item.icon}</span><div><strong>{item.title}</strong><p>{item.desc}</p></div>
+            <span className="feature-icon" data-node-id={item.nodeId}>{item.icon}</span><div><strong>{item.title}</strong><p>{item.desc}</p></div>
             <Button type="primary" onClick={() => navigate(item.path)}>工作台 →</Button>
           </Card>
         ))}
@@ -171,14 +172,47 @@ function SummaryBlock({ tone, title, items }: { tone: 'danger' | 'warning' | 'sa
 
 type TrendPoint = { start: string; critical: number; high: number; medium: number; low: number };
 
+export const staticTrendData: Record<'audit' | 'analysis', TrendPoint[]> = {
+  audit: [
+    { start: '09-02', critical: 9, high: 18, medium: 47, low: 72 },
+    { start: '09-03', critical: 31, high: 56, medium: 29, low: 84 },
+    { start: '09-04', critical: 14, high: 27, medium: 68, low: 51 },
+    { start: '09-05', critical: 42, high: 72, medium: 36, low: 91 },
+    { start: '09-06', critical: 19, high: 33, medium: 77, low: 58 },
+    { start: '09-07', critical: 36, high: 68, medium: 44, low: 82 },
+    { start: '09-08', critical: 22, high: 41, medium: 71, low: 63 },
+  ],
+  analysis: [
+    { start: '09-02', critical: 17, high: 49, medium: 26, low: 78 },
+    { start: '09-03', critical: 6, high: 21, medium: 61, low: 43 },
+    { start: '09-04', critical: 38, high: 63, medium: 35, low: 88 },
+    { start: '09-05', critical: 12, high: 29, medium: 74, low: 54 },
+    { start: '09-06', critical: 46, high: 78, medium: 42, low: 94 },
+    { start: '09-07', critical: 21, high: 38, medium: 69, low: 57 },
+    { start: '09-08', critical: 34, high: 70, medium: 31, low: 86 },
+  ],
+};
+
+export function withRecentTrendDates(values: TrendPoint[], today = new Date()): TrendPoint[] {
+  return values.map((point, index) => {
+    const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() - values.length + index + 1);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return { ...point, start: `${month}-${day}` };
+  });
+}
+
 export function DashboardTrendCard({ values, loading = false }: { values: TrendPoint[]; loading?: boolean }) {
+  const [mode, setMode] = useState<'risk' | 'audit' | 'analysis'>('risk');
+  const chartValues = withRecentTrendDates(mode === 'risk' ? values : staticTrendData[mode]);
+  const chartLabel = mode === 'risk' ? '风险' : mode === 'audit' ? '代码审计' : '数据分析';
   return <section className="dashboard-node-card dashboard-trend-card dashboard-material-height" aria-labelledby="dashboard-trend-title">
-    <header className="dashboard-node-card-header"><span><LineChartOutlined /></span><h3 id="dashboard-trend-title">风险态势</h3><div className="dashboard-trend-tabs"><button className="active" type="button">风险态势</button><button type="button">代码审计</button><button type="button">数据分析</button></div></header>
-    {loading ? <TruthfulEmpty text="正在加载风险趋势..." /> : values.length ? <RiskTrend values={values} /> : <TruthfulEmpty text="趋势暂不可用" />}
+    <header className="dashboard-node-card-header"><span><LineChartOutlined /></span><h3 id="dashboard-trend-title">风险态势</h3><div className="dashboard-trend-tabs"><button className={mode === 'risk' ? 'active' : ''} type="button" onClick={() => setMode('risk')}>风险态势</button><button className={mode === 'audit' ? 'active' : ''} type="button" onClick={() => setMode('audit')}>代码审计</button><button className={mode === 'analysis' ? 'active' : ''} type="button" onClick={() => setMode('analysis')}>数据分析</button></div></header>
+    {mode === 'risk' && loading ? <TruthfulEmpty text="正在加载风险趋势..." /> : chartValues.length ? <RiskTrend values={chartValues} label={chartLabel} /> : <TruthfulEmpty text="趋势暂不可用" />}
   </section>;
 }
 
-function RiskTrend({ values }: { values: TrendPoint[] }) {
+function RiskTrend({ values, label = '风险' }: { values: TrendPoint[]; label?: string }) {
   const series = [
     { key: 'critical', label: '严重', color: '#c92f39' },
     { key: 'high', label: '高危', color: '#ff8b32' },
@@ -187,17 +221,16 @@ function RiskTrend({ values }: { values: TrendPoint[] }) {
   ] as const;
   const width = 471;
   const height = 226;
-  const plot = { left: 24, right: 1, top: 24, bottom: 25 };
-  const maxValue = Math.max(1, ...values.flatMap((item) => series.map(({ key }) => item[key])));
-  const ceiling = Math.max(4, Math.ceil(maxValue / 4) * 4);
+  const plot = { left: 24, right: 25, top: 24, bottom: 25 };
+  const ceiling = 100;
   const x = (index: number) => plot.left + (values.length <= 1 ? (width - plot.left - plot.right) / 2 : index * (width - plot.left - plot.right) / (values.length - 1));
   const y = (value: number) => plot.top + (ceiling - value) / ceiling * (height - plot.top - plot.bottom);
-  return <div className="dashboard-risk-trend" aria-label="风险趋势图">
+  return <div className="dashboard-risk-trend" aria-label={`${label}趋势图`}>
     <svg className="dashboard-risk-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-labelledby="risk-trend-title risk-trend-description">
       <title id="risk-trend-title">近七日风险趋势</title>
       <desc id="risk-trend-description">按严重、高危、中危和低危展示每日漏洞数量变化</desc>
-      {[0, 1, 2, 3, 4].map((tick) => { const value = ceiling - ceiling / 4 * tick; const lineY = y(value); return <g key={tick}><line className="risk-grid-line" x1={plot.left} x2={width - plot.right} y1={lineY} y2={lineY} /><text className="risk-axis-label" x={plot.left - 9} y={lineY + 4} textAnchor="end">{value}</text></g>; })}
-      {values.map((item, index) => <text className="risk-axis-label" key={item.start} x={x(index)} y={height - 7} textAnchor="middle">{item.start.slice(5)}</text>)}
+      {[100, 75, 50, 25, 0].map((value) => { const lineY = y(value); return <g key={value}><line className="risk-grid-line" x1={plot.left} x2={width - plot.right} y1={lineY} y2={lineY} /><text className="risk-axis-label" x={plot.left - 8} y={lineY + 4} textAnchor="end">{value}</text></g>; })}
+      {values.map((item, index) => <text className="risk-axis-label" key={item.start} x={x(index)} y={height - 7} textAnchor="middle">{item.start.length > 5 ? item.start.slice(5) : item.start}</text>)}
       {series.map(({ key, label, color }) => { const points = values.map((item, index) => ({ x: x(index), y: y(item[key]), value: item[key], date: item.start })); return <g className={`risk-series risk-series-${key}`} key={key}><path d={smoothLine(points, { minY: plot.top, maxY: height - plot.bottom })} stroke={color} /><g>{points.map((point) => <circle key={point.date} cx={point.x} cy={point.y} r="3.5" fill={color} tabIndex={0}><title>{`${point.date} ${label}：${point.value}`}</title></circle>)}</g></g>; })}
     </svg>
   </div>;

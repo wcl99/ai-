@@ -17,4 +17,13 @@ __pycache__/
 .worktrees/
 data/*.db
 data/reports/
+apps/api/data/
+apps/output/
+artifacts/
+output/
+.superpowers/
+.deploy-*
+release-*.tar.gz
+数据/
+.pytest-temp/
 .DS_Store

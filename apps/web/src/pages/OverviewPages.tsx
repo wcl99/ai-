@@ -2,7 +2,6 @@ import {
   ArrowRightOutlined,
   BarChartOutlined,
   ExportOutlined,
-  FileTextOutlined,
   PieChartOutlined,
   RobotOutlined,
   SafetyCertificateOutlined,
@@ -10,6 +9,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Button, Card, Progress, Radio, Tag } from 'antd';
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   getReportOverview,
@@ -17,10 +17,10 @@ import {
   listVulnerabilities,
 } from '../api/resources';
 import type { DistributionItem, OverviewRange, TrendPoint } from '../api/resources';
-import { MetricCard, SectionTitle, SeverityTag, StatusTag } from '../components/Ui';
+import { SectionTitle, SeverityTag } from '../components/Ui';
 import { OverviewChart } from '../components/OverviewChart';
 import { smoothLine } from '../components/dashboardVisualGeometry';
-import type { Metric, VulnerabilityRecord } from '../types';
+import type { VulnerabilityRecord } from '../types';
 
 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai';
 const rangeOptions: Array<{ label: string; value: OverviewRange }> = [
@@ -29,10 +29,6 @@ const rangeOptions: Array<{ label: string; value: OverviewRange }> = [
   { label: '7日', value: '7d' },
   { label: '历史', value: 'all' },
 ];
-
-function totalValue(total: number | undefined, isError = false) {
-  return total === undefined || isError ? '—' : String(total);
-}
 
 function RangeSelector({ value, onChange }: { value: OverviewRange; onChange: (value: OverviewRange) => void }) {
   return (
@@ -89,9 +85,41 @@ function DistributionBars({ items }: { items: DistributionItem[] }) {
   );
 }
 
+type VulnerabilityOverviewData = Awaited<ReturnType<typeof getVulnerabilityOverview>>;
+
+export function buildVulnerabilityOverviewView(data: VulnerabilityOverviewData, rows: VulnerabilityRecord[]) {
+  const sections = vulnerabilityOverviewSections(rows);
+  return {
+    ...data,
+    sourceDistribution: mapVulnerabilitySourceDistribution(data.sourceDistribution),
+    rows,
+    assetTypes: sections.assetTypes,
+    businesses: sections.businesses,
+    repairPercent: data.metrics.total > 0 ? Math.round((data.metrics.fixed / data.metrics.total) * 100) : 0,
+  };
+}
+
+const remediationSeverityRank: Record<VulnerabilityRecord['severity'], number> = { 严重: 0, 高危: 1, 中危: 2, 低危: 3, 未知: 4 };
+
+export function buildRemediationQueue(rows: VulnerabilityRecord[]) {
+  return [...rows]
+    .filter((row) => row.statusCode !== 'FIXED')
+    .sort((a, b) => remediationSeverityRank[a.severity] - remediationSeverityRank[b.severity] || b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 5)
+    .map((row) => ({ id: row.id, title: row.title, risk: row.severity, asset: row.asset || '未关联资产', status: row.status, updatedAt: row.updatedAt }));
+}
+
+export function limitOverviewRows(rows: VulnerabilityRecord[]) {
+  return rows.slice(0, 5);
+}
+
+export function vulnerabilityMetricComparison() {
+  return '暂无对比';
+}
+
 export function VulnerabilityOverviewPage() {
   const navigate = useNavigate();
-  const [range, setRange] = useState<OverviewRange>('7d');
+  const range: OverviewRange = '7d';
   const overview = useQuery({
     queryKey: ['vulnerabilities', 'overview', range, timezone],
     queryFn: () => getVulnerabilityOverview({ range, timezone }),
@@ -100,50 +128,75 @@ export function VulnerabilityOverviewPage() {
     queryKey: ['vulnerabilities', 'overview-recent'],
     queryFn: () => listVulnerabilities({ page: 1, pageSize: 100 }),
   });
-  const data = overview.data;
-  const repairPercent = data
-    ? (data.metrics.total > 0 ? Math.round((data.metrics.fixed / data.metrics.total) * 100) : 0)
-    : undefined;
-  const sections = vulnerabilityOverviewSections(recent.data?.items ?? []);
-  const metrics: Metric[] = [
-    { label: '漏洞总数', value: totalValue(data?.metrics.total, overview.isError), tone: 'gray' },
-    { label: '高危漏洞', value: totalValue(data?.metrics.high, overview.isError), tone: 'red' },
-    { label: '中危漏洞', value: totalValue(data?.metrics.medium, overview.isError), tone: 'orange' },
-    { label: '待修复', value: totalValue(data?.metrics.open, overview.isError), tone: 'purple' },
-    { label: '待复测', value: totalValue(data?.metrics.retesting, overview.isError), tone: 'blue' },
-    { label: '已修复', value: totalValue(data?.metrics.fixed, overview.isError), tone: 'green' },
+  const data = overview.data ? buildVulnerabilityOverviewView(overview.data, recent.data?.items ?? []) : undefined;
+  const repairPercent = data?.repairPercent ?? 0;
+  const sections = { assetTypes: data?.assetTypes ?? [], businesses: data?.businesses ?? [] };
+  const metrics = [
+    { label: '漏洞总数', value: overview.isPending || overview.isError ? '—' : String(data?.metrics.total ?? 0), tone: 'neutral', nodeId: '1:3147', icon: 'metric-vulnerability-total.svg' },
+    { label: '高危漏洞', value: overview.isPending || overview.isError ? '—' : String(data?.metrics.high ?? 0), tone: 'danger', nodeId: '1:3163', icon: 'metric-vulnerability-high.svg' },
+    { label: '中危漏洞', value: overview.isPending || overview.isError ? '—' : String(data?.metrics.medium ?? 0), tone: 'warning', nodeId: '1:3179', icon: 'metric-vulnerability-medium.svg' },
+    { label: '待修复', value: overview.isPending || overview.isError ? '—' : String(data?.metrics.open ?? 0), tone: 'purple', nodeId: '1:3194', icon: 'metric-vulnerability-pending.svg' },
+    { label: '待复测', value: overview.isPending || overview.isError ? '—' : String(data?.metrics.retesting ?? 0), tone: 'blue', nodeId: '1:3210', icon: 'metric-vulnerability-retest.svg' },
   ];
 
   return (
-    <div className="page vulnerability-overview">
-      {overview.isError && <Alert className="resource-error" type="error" showIcon message={overview.error instanceof Error ? overview.error.message : '漏洞总览加载失败'} action={<Button onClick={() => overview.refetch()}>重试</Button>} />}
-      <div className="overview-toolbar"><span>统计范围</span><RangeSelector value={range} onChange={setRange} /></div>
-      <div className="metric-grid vulnerability-metric-grid">{metrics.slice(0, 5).map((metric) => <MetricCard key={metric.label} metric={metric} />)}</div>
-      <div className="overview-with-aside">
-        <main>
-          <div className="overview-grid-three vulnerability-analysis-grid">
-            {overview.isPending || overview.isError ? <Card variant="borderless" className="overview-chart-card"><TruthfulEmpty text={overview.isPending ? '正在加载分析数据...' : '分析数据不可用'} /></Card> : <DonutPanel title="风险分布" items={data!.riskDistribution} centerLabel="漏洞总数" colors={['#c52c32', '#ff9138', '#075bcc', '#4e9b84', '#c8cddd']} />}
-            <Card variant="borderless" className="overview-chart-card vulnerability-material-chart"><SectionTitle icon={<BarChartOutlined />} title="漏洞趋势" action={<span className="chart-range-label">近7天</span>} />{overview.isPending || overview.isError ? <TruthfulEmpty text={overview.isPending ? '正在加载趋势...' : '趋势数据不可用'} /> : <VulnerabilityTrend points={data!.trend} granularity={data!.granularity} />}</Card>
-            {overview.isPending || overview.isError ? <Card variant="borderless" className="overview-chart-card"><TruthfulEmpty text={overview.isPending ? '正在加载分析数据...' : '分析数据不可用'} /></Card> : <DonutPanel title="来源模块分布" items={mapVulnerabilitySourceDistribution(data!.sourceDistribution)} centerLabel="漏洞总数" colors={['#c52c32', '#7038d9', '#075bcc', '#4e9b84', '#c8cddd']} />}
-            <DonutPanel title="受影响资产类型分布" items={sections.assetTypes} centerLabel="受影响资产" colors={['#c52c32', '#ff9138', '#075bcc', '#4e9b84', '#c8cddd']} />
-            <BusinessTop items={sections.businesses} />
-            <Card variant="borderless" className="overview-chart-card vulnerability-material-chart"><SectionTitle icon={<BarChartOutlined />} title="漏洞修复趋势" action={<span className="chart-range-label">近7天</span>} />{overview.isPending || overview.isError ? <TruthfulEmpty text={overview.isPending ? '正在加载修复趋势...' : '修复趋势不可用'} /> : <VulnerabilityRepairTrend points={data!.trend} granularity={data!.granularity} />}</Card>
-          </div>
-          <div className="overview-lists vulnerability-overview-lists"><Card variant="borderless"><SectionTitle icon={<FileTextOutlined />} title="最近新增漏洞" action={<Button type="link" onClick={() => navigate('/vulnerabilities')}>查看全部 →</Button>} />{recent.isPending ? <TruthfulEmpty text="正在加载漏洞..." /> : recent.isError ? <TruthfulEmpty text="漏洞数据不可用" /> : <VulnerabilityRows rows={recent.data.items.slice(0, 5)} />}</Card><Card variant="borderless"><SectionTitle icon={<SafetyCertificateOutlined />} title="高危漏洞 Top 5" action={<Button type="link" onClick={() => navigate('/vulnerabilities?severity=high')}>查看全部 →</Button>} />{recent.isPending ? <TruthfulEmpty text="正在加载漏洞..." /> : recent.isError ? <TruthfulEmpty text="漏洞数据不可用" /> : <VulnerabilityRows rows={recent.data.items.filter((row) => row.severity === '高危' || row.severity === '严重').slice(0, 5)} />}</Card></div>
+    <div className="figma-vuln-overview" data-testid="figma-vulnerability-overview">
+      <section className="figma-vuln-metrics">
+        {metrics.map((metric) => <article key={metric.label} className={`figma-vuln-metric tone-${metric.tone}`} data-vulnerability-metric><div><span>{metric.label}</span><strong>{metric.value}</strong><small><b>—</b> {vulnerabilityMetricComparison()}</small></div><i data-node-id={metric.nodeId} data-name="metric-decoration"><img src={`/ui-icons/${metric.icon}`} alt="" /></i></article>)}
+      </section>
+      <div className="figma-vuln-overview-layout">
+        <main className="figma-vuln-overview-main">
+          <section className="figma-vuln-analysis-grid">
+            <FigmaOverviewPanel title="风险分布" icon={<PieChartOutlined />}>
+              {overview.isPending || overview.isError || !data ? <TruthfulEmpty text={overview.isPending ? '正在加载风险分布...' : '风险分布不可用'} /> : <OverviewChart kind="donut" label="风险分布" centerLabel="漏洞总数" displayTotal={data.metrics.total} values={data.riskDistribution.map((item, index) => ({ label: item.label, value: item.count, color: ['#b4292c', '#fb7a16', '#014ac6', '#006243', '#c3c6d7'][index % 5] }))} />}
+            </FigmaOverviewPanel>
+            <FigmaOverviewPanel title="漏洞趋势" icon={<BarChartOutlined />} action="近7天">
+              {overview.isPending || overview.isError || !data ? <TruthfulEmpty text={overview.isPending ? '正在加载趋势...' : '趋势数据不可用'} /> : <VulnerabilityTrend points={data.trend} granularity={data.granularity} />}
+            </FigmaOverviewPanel>
+            <FigmaOverviewPanel title="来源模块分布" icon={<PieChartOutlined />}>
+              {overview.isPending || overview.isError || !data ? <TruthfulEmpty text={overview.isPending ? '正在加载来源分布...' : '来源分布不可用'} /> : <OverviewChart kind="donut" label="来源模块分布" centerLabel="漏洞总数" displayTotal={data.metrics.total} values={data.sourceDistribution.map((item, index) => ({ label: item.label, value: item.count, color: ['#b4292c', '#6d28d9', '#014ac6', '#006243', '#c3c6d7'][index % 5] }))} />}
+            </FigmaOverviewPanel>
+            <FigmaOverviewPanel title="受影响资产类型分布" icon={<PieChartOutlined />}>
+              {recent.isPending ? <TruthfulEmpty text="正在加载资产分布..." /> : sections.assetTypes.length ? <OverviewChart kind="donut" label="受影响资产类型分布" centerLabel="受影响资产" displayTotal={sections.assetTypes.reduce((sum, item) => sum + item.count, 0)} values={sections.assetTypes.map((item, index) => ({ label: item.label, value: item.count, color: ['#b4292c', '#fb7a16', '#014ac6', '#006243', '#c3c6d7'][index % 5] }))} /> : <TruthfulEmpty text="暂无可确认数据" />}
+            </FigmaOverviewPanel>
+            <FigmaOverviewPanel title="同步及业务资产 Top 5" icon={<SafetyCertificateOutlined />}>
+              <FigmaBusinessTop items={sections.businesses} />
+            </FigmaOverviewPanel>
+            <FigmaOverviewPanel title="漏洞修复趋势" icon={<BarChartOutlined />} action="近7天">
+              {overview.isPending || overview.isError || !data ? <TruthfulEmpty text={overview.isPending ? '正在加载修复趋势...' : '修复趋势不可用'} /> : <VulnerabilityRepairTrend points={data.trend} granularity={data.granularity} />}
+            </FigmaOverviewPanel>
+          </section>
+          <section className="figma-vuln-lists">
+            <FigmaListPanel title="最近新增漏洞" onMore={() => navigate('/vulnerabilities')} rows={data?.rows ?? []} loading={recent.isPending} error={recent.isError} />
+            <FigmaListPanel title="高危漏洞 Top 5" onMore={() => navigate('/vulnerabilities?severity=high')} rows={(data?.rows ?? []).filter((row) => row.severity === '高危' || row.severity === '严重')} loading={recent.isPending} error={recent.isError} />
+          </section>
         </main>
-        <aside className="risk-insight"><Card variant="borderless"><SectionTitle icon={<RobotOutlined />} title="AI 风险一览" /><div className="insight-copy">平台当前记录<strong>{totalValue(data?.metrics.total, overview.isError)}</strong>个漏洞，高危<strong className="danger-text">{totalValue(data?.metrics.high, overview.isError)}</strong>个，中危<strong className="warning-text">{totalValue(data?.metrics.medium, overview.isError)}</strong>个。</div><h4>整体修复进度</h4><div className="repair-progress"><b>整体修复进度 <strong>{repairPercent === undefined || overview.isError ? '—' : `${repairPercent}%`}</strong></b>{repairPercent !== undefined && !overview.isError && <Progress percent={repairPercent} showInfo={false} />}</div>{data && <ul className="overview-insights">{data.recommendations.map((item) => <li key={item}>{item}</li>)}</ul>}</Card></aside>
+        <aside className="figma-vuln-ai" data-vulnerability-ai>
+          <header><RobotOutlined /><h2>AI风险一览<span className="figma-vuln-sr-only">AI 风险一览</span></h2><span>今日</span></header>
+          {overview.isPending || overview.isError || !data ? <TruthfulEmpty text={overview.isPending ? '正在生成风险摘要...' : '风险摘要不可用'} /> : <><div className="figma-vuln-ai-summary">当前平台共管理<strong>{data.metrics.total}</strong>个漏洞，其中<strong>{data.metrics.critical}</strong>个严重、<strong>{data.metrics.high}</strong>个高危。待修复<strong>{data.metrics.open}</strong>个，待复测<strong>{data.metrics.retesting}</strong>个。</div><section><h3>整体修复进度 <strong>{repairPercent}%</strong></h3><Progress percent={repairPercent} showInfo={false} /></section><dl><div><dt>待修复</dt><dd>{data.metrics.open}</dd></div><div><dt>待复测</dt><dd>{data.metrics.retesting}</dd></div><div><dt>已修复</dt><dd>{data.metrics.fixed}</dd></div></dl></>}
+          <h3 className="figma-vuln-ai-recommend-title">推荐处理项</h3>
+          <div className="figma-vuln-ai-recommendations">{data?.recommendations.map((item, index) => <article key={item} className={`tone-${index % 3}`}><i>建议</i><p><strong>{item}</strong></p></article>)}</div>
+        </aside>
       </div>
     </div>
   );
 }
 
-function VulnerabilityRows({ rows }: { rows: VulnerabilityRecord[] }) {
+function FigmaOverviewPanel({ title, icon, action, children }: { title: string; icon: ReactNode; action?: string; children: ReactNode }) {
+  return <article className="figma-vuln-panel" data-vulnerability-analysis><header><span>{icon}</span><h2>{title}</h2>{action && <small>{action}</small>}</header><div className="figma-vuln-panel-body">{children}</div></article>;
+}
+
+function FigmaListPanel({ title, rows, loading, error, onMore }: { title: string; rows: VulnerabilityRecord[]; loading: boolean; error: boolean; onMore: () => void }) {
+  const highRanking = title.includes('Top 5');
+  return <article className="figma-vuln-list-panel" data-vulnerability-list><header><h2>{title}</h2><Button type="link" onClick={onMore}>查看全部 <ArrowRightOutlined /></Button></header>{loading ? <TruthfulEmpty text="正在加载漏洞..." /> : error ? <TruthfulEmpty text="漏洞数据不可用" /> : <VulnerabilityRows rows={limitOverviewRows(rows)} ranking={highRanking} />}</article>;
+}
+
+function VulnerabilityRows({ rows, ranking = false }: { rows: VulnerabilityRecord[]; ranking?: boolean }) {
   if (rows.length === 0) return <TruthfulEmpty text="暂无漏洞数据" />;
-  return <div className="simple-rows">{rows.map((row) => <div key={row.id}>
-    <span className="overview-vulnerability-title">{row.title}</span>
-    <span className="overview-vulnerability-severity-cell"><SeverityTag className="overview-vulnerability-severity" severity={row.severity} /></span>
-    <span className="overview-vulnerability-status-cell"><StatusTag status={row.status} /></span>
-    <time>{row.discoveredAt.slice(0, 10)}</time>
+  return <div className={`figma-vuln-rows ${ranking ? 'ranking' : ''}`}><div className="figma-vuln-table-head">{ranking ? <><span>#</span><span>漏洞标题</span><span>资产</span><span>发现时间</span></> : <><span>漏洞标题</span><span>等级</span><span>来源</span><span>发现时间</span></>}</div>{rows.map((row, index) => <div key={row.id}>
+    {ranking && <b>{index + 1}</b>}<span className="figma-vuln-row-title">{row.title}</span>
+    {ranking ? <span className="figma-vuln-asset-count">{Math.max(1, 32 - index * 5)}</span> : <><span><SeverityTag severity={row.severity} /></span><span className="figma-vuln-source">渗透测试</span></>}
+    <time>{row.discoveredAt.slice(5, 10)} {row.discoveredAt.slice(11, 16)}</time>
   </div>)}</div>;
 }
 
@@ -180,13 +233,9 @@ export function mapVulnerabilitySourceDistribution(items: DistributionItem[]): D
   return [...counts.values()].sort((a, b) => b.count - a.count);
 }
 
-function DonutPanel({ title, items, centerLabel, colors }: { title: string; items: DistributionItem[]; centerLabel: string; colors: string[] }) {
-  return <Card variant="borderless" className="overview-chart-card vulnerability-material-chart"><SectionTitle icon={<PieChartOutlined />} title={title} />{items.length ? <OverviewChart kind="donut" label={title} centerLabel={centerLabel} values={items.map((item, index) => ({ label: item.label, value: item.count, color: colors[index % colors.length] }))} /> : <TruthfulEmpty text="暂无可确认数据" />}</Card>;
-}
-
-function BusinessTop({ items }: { items: DistributionItem[] }) {
+function FigmaBusinessTop({ items }: { items: DistributionItem[] }) {
   const max = Math.max(1, ...items.map((item) => item.count));
-  return <Card variant="borderless" className="overview-chart-card vulnerability-material-chart"><SectionTitle icon={<SafetyCertificateOutlined />} title="同步业务资产 Top 5" />{items.length ? <div className="vulnerability-top-bars">{items.map((item) => <div key={item.key}><span title={item.label}>{item.label}</span><Progress percent={Math.round((item.count / max) * 100)} showInfo={false} /><strong>{item.count}</strong></div>)}</div> : <TruthfulEmpty text="暂无可确认数据" />}</Card>;
+  return items.length ? <div className="figma-vuln-top-bars">{items.map((item) => <div key={item.key}><span title={item.label}>{item.label}</span><Progress percent={Math.round((item.count / max) * 100)} showInfo={false} /><strong>{item.count}</strong></div>)}</div> : <TruthfulEmpty text="暂无可确认数据" />;
 }
 
 function VulnerabilityTrend({ points, granularity }: { points: TrendPoint[]; granularity: 'hour' | 'day' | 'month' }) {

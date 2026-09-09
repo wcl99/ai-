@@ -573,14 +573,31 @@ class XiaoyiPrecheckSession:
         self.socket = None
 
     async def __aenter__(self):
-        base = self.settings.xiaoyi_base_url.rstrip("/")
-        ws_url = base.replace("https://", "wss://").replace("http://", "ws://")
-        self.socket = await websockets.connect(
-            f"{ws_url}/api/osCore/ws/asset-can",
-            additional_headers=self.headers,
-            open_timeout=self.settings.engine_timeout_seconds,
-            ping_interval=20,
-        )
+        endpoint = self.settings.xiaoyi_precheck_ws_url
+        if not endpoint:
+            base = self.settings.xiaoyi_base_url.rstrip("/")
+            ws_url = base.replace("https://", "wss://").replace("http://", "ws://")
+            endpoint = f"{ws_url}/api/osCore/ws/asset-can"
+        try:
+            self.socket = await websockets.connect(
+                endpoint,
+                additional_headers=self.headers,
+                open_timeout=self.settings.engine_timeout_seconds,
+                ping_interval=20,
+            )
+        except websockets.InvalidStatus as exc:
+            status = exc.response.status_code
+            if status in {401, 403}:
+                raise AppError(502, "ENGINE_AUTH_FAILED", "小易预查连接鉴权失败") from exc
+            if status == 400:
+                raise AppError(
+                    502,
+                    "ENGINE_REJECTED",
+                    "小易预查连接被拒绝，请检查接口地址或上游网关配置",
+                ) from exc
+            raise AppError(502, "ENGINE_UNAVAILABLE", "小易预查连接失败") from exc
+        except (OSError, TimeoutError, websockets.WebSocketException) as exc:
+            raise AppError(502, "ENGINE_UNAVAILABLE", "小易预查连接失败") from exc
         return self
 
     async def __aexit__(self, *_):

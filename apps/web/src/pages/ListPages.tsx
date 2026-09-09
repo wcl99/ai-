@@ -34,17 +34,11 @@ import { MetricCard, ProgressCell, SeverityTag, StatusTag } from '../components/
 import { VulnerabilityPreviewDrawer } from '../components/VulnerabilityPreviewDrawer';
 import type { Metric, ReportRecord, TaskRecord, VulnerabilityRecord } from '../types';
 import { displayPhase } from '../vendorDisplay';
+import './VulnerabilityListPage.css';
+import './ReportListPage.css';
 
 const PAGE_SIZE = 10;
 const { RangePicker } = DatePicker;
-
-const previewVulnerabilities: VulnerabilityRecord[] = [
-  { id: 'VULN-DEMO-001', title: 'SQL 注入漏洞', asset: 'demo.example.com', task: '示例渗透测试', discoveredAt: '2026-08-24T09:12:00Z', updatedAt: '2026-08-24T09:12:00Z', status: '待修复', statusCode: 'OPEN', severity: '严重', tags: ['CVE-2025', 'Web'], description: '用于页面视觉验收的示例记录' },
-  { id: 'VULN-DEMO-002', title: '越权访问漏洞', asset: 'api.demo.example.com', task: '示例 API 测试', discoveredAt: '2026-08-23T14:28:00Z', updatedAt: '2026-08-23T14:28:00Z', status: '修复中', statusCode: 'FIXING', severity: '高危', tags: ['API', '需复测'], description: '用于页面视觉验收的示例记录' },
-  { id: 'VULN-DEMO-003', title: '敏感信息泄露', asset: 'portal.demo.example.com', task: '示例安全扫描', discoveredAt: '2026-08-22T11:05:00Z', updatedAt: '2026-08-22T11:05:00Z', status: '待复测', statusCode: 'RETESTING', severity: '中危', tags: ['Web', '已验证'], description: '用于页面视觉验收的示例记录' },
-  { id: 'VULN-DEMO-004', title: '缺少安全响应头', asset: 'www.demo.example.com', task: '示例基线检查', discoveredAt: '2026-08-21T16:40:00Z', updatedAt: '2026-08-21T16:40:00Z', status: '已修复', statusCode: 'FIXED', severity: '低危', tags: ['配置'], description: '用于页面视觉验收的示例记录' },
-  { id: 'VULN-DEMO-005', title: '未知风险样例', asset: 'staging.demo.example.com', task: '示例资产发现', discoveredAt: '2026-08-20T10:20:00Z', updatedAt: '2026-08-20T10:20:00Z', status: '未知', statusCode: 'UNKNOWN', severity: '未知', tags: ['待确认'], description: '用于页面视觉验收的示例记录' },
-];
 
 function dateTime(value: string) {
   return value.replace('T', ' ').replace('Z', '').slice(0, 19);
@@ -241,8 +235,8 @@ export function VulnerabilitiesPage() {
   const [createdRange, setCreatedRange] = useState<[string, string]>();
   const [selectedId, setSelectedId] = useState<string>();
   const query = useQuery({
-    queryKey: ['vulnerabilities', { page, pageSize: PAGE_SIZE, severity, status, keyword, createdRange }],
-    queryFn: () => listVulnerabilities({ page, pageSize: PAGE_SIZE, severity, status, keyword: keyword.trim() || undefined, createdFrom: createdRange?.[0], createdTo: createdRange?.[1] }),
+    queryKey: ['vulnerabilities', { page, pageSize: 5, severity, status, keyword, createdRange }],
+    queryFn: () => listVulnerabilities({ page, pageSize: 5, severity, status, keyword: keyword.trim() || undefined, createdFrom: createdRange?.[0], createdTo: createdRange?.[1] }),
   });
   const mutation = useMutation({
     mutationFn: ({ id, nextStatus }: { id: string; nextStatus: VulnerabilityStatusCode }) => updateVulnerability(id, nextStatus),
@@ -253,16 +247,15 @@ export function VulnerabilitiesPage() {
     onSuccess: () => { message.success('漏洞已删除'); setSelectedId(undefined); void queryClient.invalidateQueries({ queryKey: ['vulnerabilities'] }); },
   });
   const rows = query.data?.items ?? [];
-  const isPreviewData = rows.length === 0;
-  const displayRows = isPreviewData ? previewVulnerabilities : rows;
-  const visibleRows = displayRows;
-  const metrics = pageMetrics('漏洞总数', query.data?.total ?? displayRows.length, query.isError, [
-    { label: '本页高危', value: displayRows.filter((item) => ['严重', '高危'].includes(item.severity)).length, tone: 'red', icon: 'metric-vulnerability-high' },
-    { label: '本页中危', value: displayRows.filter((item) => item.severity === '中危').length, tone: 'blue', icon: 'metric-vulnerability-medium' },
-    { label: '本页待修复', value: displayRows.filter((item) => item.statusCode === 'OPEN').length, tone: 'purple', icon: 'metric-vulnerability-pending' },
-    { label: '本页待复测', value: displayRows.filter((item) => item.statusCode === 'RETESTING').length, tone: 'blue', icon: 'metric-vulnerability-retest' },
-    { label: '本页已修复', value: displayRows.filter((item) => item.statusCode === 'FIXED').length, tone: 'green', icon: 'metric-vulnerability-fixed' },
-  ]);
+  const visibleRows = rows;
+  const metrics = [
+    ['漏洞总数', query.isError ? '—' : query.data?.total ?? 0, 4],
+    ['高危漏洞', query.isError ? '—' : rows.filter((item) => ['严重', '高危'].includes(item.severity)).length, 5],
+    ['中危漏洞', query.isError ? '—' : rows.filter((item) => item.severity === '中危').length, 6],
+    ['待修复', query.isError ? '—' : rows.filter((item) => item.statusCode === 'OPEN').length, 7],
+    ['待复测', query.isError ? '—' : rows.filter((item) => item.statusCode === 'RETESTING').length, 8],
+    ['已修复', query.isError ? '—' : rows.filter((item) => item.statusCode === 'FIXED').length, 9],
+  ] as const;
   const statusMenu = (row: VulnerabilityRecord): MenuProps => ({
     items: [
       { key: 'FIXING', label: '标记修复中' },
@@ -273,38 +266,71 @@ export function VulnerabilitiesPage() {
     onClick: ({ key }) => mutation.mutate({ id: row.id, nextStatus: key as VulnerabilityStatusCode }),
   });
   const columns: ColumnsType<VulnerabilityRecord> = [
-    { title: '漏洞标题/漏洞 ID', dataIndex: 'title', width: 260, render: (title, row) => <div className="primary-cell"><strong>{title}</strong><span>{row.id}</span></div> },
-    { title: '关联资产', dataIndex: 'asset', width: 190, ellipsis: true },
-    { title: '所属任务', dataIndex: 'task', width: 190, ellipsis: true },
-    { title: '首次发现时间', dataIndex: 'discoveredAt', width: 170, render: dateTime },
-    { title: '状态', dataIndex: 'status', width: 100, render: (value) => <StatusTag status={value} /> },
-    { title: '等级', dataIndex: 'severity', width: 90, render: (value) => <SeverityTag severity={value} /> },
-    { title: '标签', dataIndex: 'tags', render: (tags: string[]) => tags.map((tag) => <Tag key={tag}>{tag}</Tag>) },
-    { title: '操作', width: 250, fixed: 'right', render: (_, row) => <Space size={2}><Button type="link" aria-label="查看漏洞详情" onClick={() => setSelectedId(row.id)}>详情</Button><Dropdown menu={statusMenu(row)}><Button type="link" loading={mutation.isPending} aria-label="处置漏洞">处置</Button></Dropdown><Popconfirm title="确认删除该漏洞？" description="删除后无法恢复。" okButtonProps={{ danger: true }} onConfirm={() => remove.mutate(row.id)}><Button type="link" danger loading={remove.isPending}>删除</Button></Popconfirm></Space> },
+    { title: '漏洞标题/漏洞 ID', dataIndex: 'title', width: 228, render: (title, row) => <div className="figma-vulnerability-primary"><strong>{title}</strong><span>{row.id}</span></div> },
+    { title: '来源模块', width: 124, render: () => <span className="figma-vulnerability-source"><img src="/figma/vulnerability-list/table-05.svg" alt="" />渗透测试</span> },
+    { title: '关联资产', dataIndex: 'asset', width: 192, render: (asset) => <div className="figma-vulnerability-primary"><strong>{asset}</strong><span>资产</span></div> },
+    { title: '所属任务', dataIndex: 'task', width: 168, render: (task) => <div className="figma-vulnerability-primary"><strong>{task || '未关联任务'}</strong><span>—</span></div> },
+    { title: '首次发现时间', dataIndex: 'discoveredAt', width: 168, render: dateTime },
+    { title: '最近发现时间', dataIndex: 'updatedAt', width: 168, render: dateTime },
+    { title: '状态', dataIndex: 'status', width: 112, render: (value) => <StatusTag status={value} /> },
+    { title: '等级', dataIndex: 'severity', width: 112, render: (value) => <SeverityTag severity={value} /> },
+    { title: 'AI标签', dataIndex: 'tags', width: 148, render: (tags: string[]) => <div className="figma-vulnerability-tags">{tags.slice(0, 2).map((tag) => <Tag key={tag}>{tag}</Tag>)}</div> },
+    { title: '操作', width: 126, fixed: 'right', render: (_, row) => <Space size={0} className="figma-vulnerability-actions"><Button type="link" aria-label="查看漏洞详情" onClick={() => setSelectedId(row.id)}>详情</Button><Dropdown menu={statusMenu(row)}><Button type="link" loading={mutation.isPending} aria-label="处置漏洞">处置</Button></Dropdown><Popconfirm title="确认删除该漏洞？" description="删除后无法恢复。" okButtonProps={{ danger: true }} onConfirm={() => remove.mutate(row.id)}><Button type="text" danger loading={remove.isPending} aria-label="删除"><img src="/figma/vulnerability-list/table-06.svg" alt="" /></Button></Popconfirm></Space> },
   ];
+  const total = query.data?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / 5));
+  const resetFilters = () => {
+    setKeyword('');
+    setSeverity(undefined);
+    setStatus(undefined);
+    setCreatedRange(undefined);
+    setPage(1);
+  };
 
   return (
-    <div className="page list-page vulnerability-material-page">
-      <div className="vulnerability-summary-grid">{metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}</div>
-      <Card variant="borderless" className="data-card vulnerability-data-card">
-        <div className="vulnerability-toolbar">
-          <div className="vulnerability-filter-group">
-            <Input className="vulnerability-search" allowClear prefix={<SearchOutlined />} value={keyword} onChange={(event) => { setKeyword(event.target.value); setPage(1); }} placeholder="搜索资产、任务、漏洞、报告..." />
-            <Select aria-label="漏洞等级" value={severity} allowClear placeholder="漏洞等级" options={[['critical', '严重'], ['high', '高危'], ['medium', '中危'], ['low', '低危']].map(([value, label]) => ({ value, label }))} onChange={(value) => { setSeverity(value as VulnerabilitySeverityCode | undefined); setPage(1); }} />
-            <Select aria-label="漏洞状态" value={status} allowClear placeholder="漏洞状态" options={[['OPEN', '待修复'], ['FIXING', '修复中'], ['RETESTING', '待复测'], ['FIXED', '已修复']].map(([value, label]) => ({ value, label }))} onChange={(value) => { setStatus(value as VulnerabilityStatusCode | undefined); setPage(1); }} />
-            <RangePicker aria-label="漏洞发现时间" onChange={(_, values) => { setCreatedRange(values[0] && values[1] ? [`${values[0]}T00:00:00Z`, `${values[1]}T23:59:59Z`] : undefined); setPage(1); }} />
+    <div className="figma-vulnerability-list" data-node-id="1:4187">
+      <section className="figma-vulnerability-metrics" data-node-id="1:4273">
+        {metrics.map(([label, value, icon]) => <article className="figma-vulnerability-metric" key={label}>
+          <img className="figma-vulnerability-metric-art" src={`/figma/vulnerability-list/metric-0${icon}.svg`} alt="" />
+          <span>{label}</span><strong>{value}</strong><small><b>—</b> 较昨日</small>
+        </article>)}
+      </section>
+      <section className="figma-vulnerability-data" data-node-id="1:4370">
+        <div className="figma-vulnerability-filters" data-node-id="1:4371">
+          <div className="figma-vulnerability-filter-row">
+            <label>漏洞等级<Select aria-label="漏洞等级" value={severity} allowClear placeholder="全部" options={[['critical', '严重'], ['high', '高危'], ['medium', '中危'], ['low', '低危']].map(([value, label]) => ({ value, label }))} onChange={(value) => { setSeverity(value as VulnerabilitySeverityCode | undefined); setPage(1); }} /></label>
+            <label>漏洞状态<Select aria-label="漏洞状态" value={status} allowClear placeholder="全部" options={[['OPEN', '待修复'], ['FIXING', '修复中'], ['RETESTING', '待复测'], ['FIXED', '已修复']].map(([value, label]) => ({ value, label }))} onChange={(value) => { setStatus(value as VulnerabilityStatusCode | undefined); setPage(1); }} /></label>
+            {['来源模块', '资产类型', '所属业务'].map((label) => <label key={label}>{label}<Select aria-label={label} placeholder="全部" options={[{ value: 'all', label: '全部' }]} /></label>)}
+            <Button>更多筛选</Button>
+            <Input className="figma-vulnerability-search" allowClear prefix={<SearchOutlined />} value={keyword} onChange={(event) => { setKeyword(event.target.value); setPage(1); }} placeholder="搜索漏洞标题、漏洞 ID、资产、任务..." />
             <Button type="primary" onClick={() => query.refetch()}>搜索</Button>
-            <Button onClick={() => { setKeyword(''); setSeverity(undefined); setStatus(undefined); setCreatedRange(undefined); setPage(1); }}>重置</Button>
+            <Button onClick={resetFilters}>重置</Button>
+            <Button className="figma-vulnerability-save">保存视图</Button>
           </div>
-          <div className="vulnerability-action-group">
-            <Button>批量指派</Button><Button>批量变更状态</Button><Button>批量加入报告</Button><Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>导出</Button>
+          <div className="figma-vulnerability-filter-row figma-vulnerability-filter-row-secondary">
+            <label className="figma-vulnerability-date-label">时间范围<span>首次发现时间</span><RangePicker key={createdRange ? 'set' : 'clear'} aria-label="漏洞发现时间" onChange={(_, values) => { setCreatedRange(values[0] && values[1] ? [`${values[0]}T00:00:00Z`, `${values[1]}T23:59:59Z`] : undefined); setPage(1); }} /></label>
+            <span>是否需人工复测</span>
+            <label className="figma-vulnerability-check"><input type="checkbox" /> AI 推荐优先</label>
+            <label className="figma-vulnerability-check"><input type="checkbox" /> 是否已生成报告</label>
+            <Button type="link" className="figma-vulnerability-clear" onClick={resetFilters}>清空筛选</Button>
           </div>
         </div>
-      {mutation.isError && <Alert type="error" showIcon message={errorMessage(mutation.error)} />}
-      {query.isError && <Alert className="vulnerability-preview-notice" type="info" showIcon message="当前为页面验收展示数据，未写入后端" action={<Button size="small" onClick={() => query.refetch()}>重试接口</Button>} />}
-      <Table className="vulnerability-table" rowKey="id" columns={columns} dataSource={visibleRows} loading={query.isPending && !isPreviewData} locale={{ emptyText: '暂无漏洞数据' }} pagination={pagination(page, query.data?.total ?? displayRows.length, setPage)} scroll={{ x: 1250 }} />
+        <div className="figma-vulnerability-bulk" data-node-id="1:4470">
+          <span>已选择 <b>0</b> 项</span><i />
+          <Button icon={<img src="/figma/vulnerability-list/table-01.svg" alt="" />}>批量指派</Button>
+          <Button icon={<img src="/figma/vulnerability-list/table-02.svg" alt="" />}>批量变更状态</Button>
+          <Button icon={<img src="/figma/vulnerability-list/table-03.svg" alt="" />}>批量加入报告</Button>
+          <Button className="figma-vulnerability-export" icon={<img src="/figma/vulnerability-list/table-04.svg" alt="" />} onClick={() => query.refetch()}>导出</Button>
+        </div>
+        {mutation.isError && <Alert type="error" showIcon message={errorMessage(mutation.error)} />}
+        {query.isError && <ErrorState error={query.error} retry={() => query.refetch()} />}
+        <Table className="figma-vulnerability-table" rowKey="id" columns={columns} dataSource={visibleRows} loading={query.isPending} locale={{ emptyText: '暂无漏洞数据' }} pagination={false} scroll={{ x: 1594 }} />
+        <footer className="figma-vulnerability-pagination" data-node-id="1:4814">
+          <span>共{total}条记录，当前显示 {total ? (page - 1) * 5 + 1 : 0} - {Math.min(page * 5, total)} 条（点击可查看详情）</span>
+          <div><Button disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</Button>{Array.from({ length: Math.min(3, pages) }, (_, index) => index + 1).map((number) => <Button type={number === page ? 'primary' : 'default'} key={number} onClick={() => setPage(number)}>{number}</Button>)}{pages > 3 && <span>...</span>}<Button disabled={page >= pages} onClick={() => setPage(page + 1)}>下一页</Button></div>
+        </footer>
+      </section>
       <VulnerabilityPreviewDrawer vulnerabilityId={selectedId} onClose={() => setSelectedId(undefined)} />
-      </Card>
     </div>
   );
 }
@@ -336,57 +362,64 @@ export function ReportsPage() {
   }, new Map<string, { key: string; task: string; plan: string; createdAt: string; formats: Map<string, ReportRecord> }>()).values());
   const visibleBundles = bundles;
   const metricValue = query.data && !query.isError;
-  const metrics: Metric[] = [
-    { label: '报告总数', value: metricValue ? String(query.data.total) : '—', tone: 'gray', icon: 'metric-report-total' },
-    { label: '本页新增', value: metricValue ? String(bundles.length) : '—', tone: 'red' },
-    { label: '待导出', value: metricValue ? String(rows.filter((item) => !item.firstExportedAt).length) : '—', tone: 'orange' },
-    { label: '已导出', value: metricValue ? String(rows.filter((item) => item.firstExportedAt).length) : '—', tone: 'blue' },
-    { label: '待确认', value: metricValue ? String(rows.filter((item) => !item.firstViewedAt).length) : '—', tone: 'purple' },
-    { label: '本月交付', value: '—', tone: 'green' },
+  const metrics = [
+    { label: '报告总数', value: metricValue ? String(query.data.total) : '—', art: 'metric-01.svg' },
+    { label: '本周新增', value: '—', art: 'metric-02.svg' },
+    { label: '待导出', value: metricValue ? String(rows.filter((item) => !item.firstExportedAt).length) : '—', art: 'metric-03.svg' },
+    { label: '已导出', value: metricValue ? String(rows.filter((item) => item.firstExportedAt).length) : '—', art: 'metric-04.svg' },
+    { label: '待确认', value: metricValue ? String(rows.filter((item) => !item.firstViewedAt).length) : '—', art: 'metric-05.svg' },
+    { label: '本月交付', value: '—', art: 'metric-06.svg' },
   ];
   const columns: ColumnsType<(typeof bundles)[number]> = [
-    { title: '所属任务', dataIndex: 'task', width: 260, render: (task, row) => <div className="primary-cell"><strong>{task}</strong><span>{row.key}</span></div> },
-    { title: '所属计划', dataIndex: 'plan', width: 190 },
-    { title: '创建时间', dataIndex: 'createdAt', width: 170, render: dateTime },
-    { title: '报告格式', width: 360, render: (_, row) => <Space wrap>{(['md', 'docx', 'pdf'] as const).map((format) => {
+    { title: '报告名称', width: 240, render: (_, row) => { const report = Array.from(row.formats.values())[0]; return <div className="figma-report-primary"><strong>{report?.name ?? '—'}</strong><span>{report?.id ?? row.key}</span></div>; } },
+    { title: '类型', width: 132, render: (_, row) => <span className="figma-report-type"><ExperimentOutlined />{row.task === '—' ? '—' : '渗透测试'}</span> },
+    { title: '资产分组', width: 148, render: () => '—' },
+    { title: '所属任务', dataIndex: 'task', width: 260, render: (task, row) => <div className="figma-report-primary"><strong>{task}</strong><span>{row.key}</span></div> },
+    { title: '创建时间', dataIndex: 'createdAt', width: 188, render: dateTime },
+    { title: '状态', width: 124, render: (_, row) => <Tag className="figma-report-state">{Array.from(row.formats.values()).some((item) => !item.firstViewedAt) ? '待确认' : '已完成'}</Tag> },
+    { title: '导出状态', width: 124, render: (_, row) => <Tag className="figma-report-export-state">{Array.from(row.formats.values()).some((item) => item.firstExportedAt) ? '已导出' : '未导出'}</Tag> },
+    { title: '报告信息', width: 200, render: (_, row) => <div className="figma-report-formats">{(['md', 'docx', 'pdf'] as const).map((format) => {
       const report = row.formats.get(format);
       return report
         ? <a key={format} aria-label={`下载 ${format.toUpperCase()}`} href={reportDownloadUrl(report.id)} download><Tag color="blue">{format.toUpperCase()}</Tag></a>
-        : <Tag key={format}>{format.toUpperCase()} 未生成</Tag>;
-      })}</Space> },
-    { title: '生命周期', width: 120, render: (_, row) => {
-      const reports = Array.from(row.formats.values());
-      const lifecycle = reports.some((report) => report.firstExportedAt)
-        ? { label: '已导出', color: 'green' }
-        : reports.some((report) => !report.firstViewedAt)
-          ? { label: '待确认', color: 'orange' }
-          : { label: '待导出', color: 'blue' };
-      return <Tag color={lifecycle.color}>{lifecycle.label}</Tag>;
-    } },
-    { title: '预览', width: 100, render: (_, row) => {
+        : null;
+      })}</div> },
+    { title: '操作', width: 130, fixed: 'right', render: (_, row) => {
       const report = row.formats.get('md');
-      return <Button type="link" disabled={!report?.previewSupported} onClick={() => { if (report) { setSelected(report); preview.mutate(report.id); } }}>预览</Button>;
+      const downloadable = report ?? Array.from(row.formats.values())[0];
+      return <div className="figma-report-actions"><Button type="link" disabled={!report?.previewSupported} onClick={() => { if (report) { setSelected(report); preview.mutate(report.id); } }}>预览</Button>{downloadable && <a href={reportDownloadUrl(downloadable.id)} download>下载</a>}</div>;
     } },
   ];
 
+  const resetFilters = () => {
+    setKeyword(''); setFormat(undefined); setStatus(''); setCreatedRange(undefined); setSearchParams({}, { replace: true }); setPage(1);
+  };
+  const total = query.data?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   return (
-    <ListPage metrics={metrics}>
-      <div className="filter-bar material-filter-bar">
-        <Input allowClear prefix={<SearchOutlined />} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索报告、任务或计划" />
-        <Select allowClear value={format} onChange={setFormat} placeholder="全部格式" options={['md', 'docx', 'pdf'].map((value) => ({ value, label: value.toUpperCase() }))} />
-        <Select aria-label="报告状态" allowClear value={status || undefined} onChange={(value) => { setStatus(value ?? ''); setSearchParams(value ? { status: value } : {}, { replace: true }); setPage(1); }} placeholder="全部状态" options={[{ value: 'PENDING_EXPORT', label: '待导出' }, { value: 'EXPORTED', label: '已导出' }, { value: 'PENDING_CONFIRMATION', label: '待确认' }]} />
-        <RangePicker aria-label="报告创建时间" onChange={(_, values) => { setCreatedRange(values[0] && values[1] ? [`${values[0]}T00:00:00Z`, `${values[1]}T23:59:59Z`] : undefined); setPage(1); }} />
-        <div className="filter-spacer" /><Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>刷新</Button>
-      </div>
-      {query.isError ? <ErrorState error={query.error} retry={() => query.refetch()} /> : (
-        <Table rowKey="key" columns={columns} dataSource={visibleBundles} loading={query.isPending} locale={{ emptyText: '暂无报告数据' }} pagination={pagination(page, query.data?.total ?? 0, setPage)} scroll={{ x: 1100 }} />
-      )}
+    <div className="figma-report-list" data-node-id="1:9473">
+      <div className="figma-report-metrics" data-node-id="1:9609">{metrics.map((metric) => <article className="figma-report-metric" key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong><small><b>—</b>较昨日</small><img src={`/figma/report-list/${metric.art}`} alt="" /></article>)}</div>
+      <section className="figma-report-data" data-node-id="1:9706">
+        <div className="figma-report-filters" data-node-id="1:9707">
+          <label>报告类型<Select allowClear value={format} onChange={setFormat} placeholder="全部" options={['md', 'docx', 'pdf'].map((value) => ({ value, label: value.toUpperCase() }))} /></label>
+          <label>报告状态<Select aria-label="报告状态" allowClear value={status || undefined} onChange={(value) => { setStatus(value ?? ''); setSearchParams(value ? { status: value } : {}, { replace: true }); setPage(1); }} placeholder="全部" options={[{ value: 'PENDING_EXPORT', label: '待导出' }, { value: 'EXPORTED', label: '已导出' }, { value: 'PENDING_CONFIRMATION', label: '待确认' }]} /></label>
+          <label>资产分组<Select disabled placeholder="全部" options={[]} /></label>
+          <label>创建时间<RangePicker aria-label="报告创建时间" onChange={(_, values) => { setCreatedRange(values[0] && values[1] ? [`${values[0]}T00:00:00Z`, `${values[1]}T23:59:59Z`] : undefined); setPage(1); }} /></label>
+          <Input className="figma-report-search" allowClear prefix={<SearchOutlined />} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索报告名称、ID、任务、创建人..." />
+          <Button type="primary" onClick={() => setPage(1)}>搜索</Button><Button onClick={resetFilters}>重置</Button>
+        </div>
+        <div className="figma-report-bulk" data-node-id="1:9760"><span>已选择 <b>0</b> 项</span><div><Button>批量导出</Button><Button onClick={() => query.refetch()}>导出列表</Button></div></div>
+        {query.isError && <ErrorState error={query.error} retry={() => query.refetch()} />}
+        <Table className="figma-report-table" rowKey="key" columns={columns} dataSource={visibleBundles} loading={query.isPending} locale={{ emptyText: '暂无报告数据' }} pagination={false} scroll={{ x: 1594 }} />
+        <footer className="figma-report-pagination" data-node-id="1:10177"><span>共{total}份报告，当前显示 {total ? (page - 1) * PAGE_SIZE + 1 : 0} - {Math.min(page * PAGE_SIZE, total)} 份（点击可查看详情）</span><div><Button disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</Button>{Array.from({ length: Math.min(3, pages) }, (_, index) => index + 1).map((number) => <Button type={number === page ? 'primary' : 'default'} key={number} onClick={() => setPage(number)}>{number}</Button>)}{pages > 3 && <span>...</span>}<Button disabled={page >= pages} onClick={() => setPage(page + 1)}>下一页</Button></div></footer>
+      </section>
       <Drawer open={Boolean(selected)} width={680} title={selected?.name ?? '报告预览'} onClose={() => { setSelected(undefined); preview.reset(); }}>
         {preview.isPending && <p>正在加载报告...</p>}
         {preview.isError && <Alert type="error" showIcon message={errorMessage(preview.error)} />}
         {preview.data && <pre className="report-preview">{preview.data}</pre>}
       </Drawer>
-    </ListPage>
+    </div>
   );
 }
 

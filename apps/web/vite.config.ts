@@ -11,12 +11,27 @@ function localPreviewApi(): Plugin {
     apply: 'serve',
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
-        if (request.method !== 'GET' || !request.url) return next();
-        const preview = getLocalPreviewResponse(request.url);
-        if (!preview) return next();
-        response.statusCode = preview.status;
-        response.setHeader('Content-Type', 'application/json; charset=utf-8');
-        response.end(JSON.stringify(preview.body));
+        if (!request.url) return next();
+        const method = request.method ?? 'GET';
+        const sendPreview = (body?: Record<string, unknown>) => {
+          const preview = getLocalPreviewResponse(request.url!, method, body);
+          if (!preview) return next();
+          response.statusCode = preview.status;
+          response.setHeader('Content-Type', 'application/json; charset=utf-8');
+          response.end(JSON.stringify(preview.body));
+        };
+        if (method === 'GET') return sendPreview();
+        if (method !== 'POST' && method !== 'PATCH') return next();
+        let rawBody = '';
+        request.setEncoding('utf8');
+        request.on('data', (chunk: string) => { rawBody += chunk; });
+        request.on('end', () => {
+          try {
+            sendPreview(rawBody ? JSON.parse(rawBody) as Record<string, unknown> : undefined);
+          } catch {
+            next();
+          }
+        });
       });
     },
   };

@@ -165,24 +165,11 @@ const dashboardSummarySchema = z.object({
   }),
 });
 const vulnerabilityOverviewSchema = z.object({
-  success: z.literal(true),
-  message: z.string(),
-  data: z.object({
-    range: overviewRangeSchema,
-    timezone: z.string(),
-    granularity: z.enum(['hour', 'day', 'month']),
-    metrics: z.object({
-      total: z.number().int().nonnegative(), critical: z.number().int().nonnegative(),
-      high: z.number().int().nonnegative(), medium: z.number().int().nonnegative(),
-      low: z.number().int().nonnegative(), unknown: z.number().int().nonnegative(),
-      open: z.number().int().nonnegative(), retesting: z.number().int().nonnegative(),
-      fixed: z.number().int().nonnegative(),
-    }),
-    risk_distribution: z.array(distributionItemSchema),
-    source_distribution: z.array(distributionItemSchema),
-    trend: z.array(trendPointSchema),
-    recommendations: z.array(z.string()),
-  }),
+  success: z.literal(true), message: z.string(), data: z.object({
+    range: overviewRangeSchema, timezone: z.string(), granularity: z.enum(['hour','day','month']),
+    metrics: z.object({ total:z.number(), critical:z.number(), high:z.number(), medium:z.number(), low:z.number(), unknown:z.number(), open:z.number(), retesting:z.number(), fixed:z.number() }),
+    risk_distribution:z.array(distributionItemSchema), source_distribution:z.array(distributionItemSchema), trend:z.array(trendPointSchema), recommendations:z.array(z.string())
+  })
 });
 const reportOverviewSchema = z.object({
   success: z.literal(true),
@@ -417,6 +404,7 @@ export async function getVulnerability(id: string) {
     payload: text('payload'),
     httpRequest: text('http_request') ?? text('request_example'),
     httpResponse: text('http_response') ?? text('response_example'),
+    aiRiskSummary: textFrom('ai_risk_summary', 'risk_summary', 'ai_summary'),
     remediation: text('vuln_suggestions') ?? text('remediation') ?? text('recommendation'),
     assigneeName: textFrom('assignee_name', 'assignee', 'owner_name', 'responsible_person'),
     dueDate: textFrom('due_date', 'deadline', 'repair_deadline', 'fix_deadline'),
@@ -425,7 +413,31 @@ export async function getVulnerability(id: string) {
     reportStatus: textFrom('report_status', 'report_link_status'),
     manualRetest: booleanFrom('manual_retest', 'requires_manual_retest'),
     cvssScore: numberFrom('cvss_score', 'cvss'),
+    priorityScore: numberFrom('priority_score'),
+    duplicateCount: numberFrom('duplicate_count'),
+    slaEscalated: booleanFrom('sla_escalated'),
+    ticketSynced: booleanFrom('ticket_synced'),
+    ticketSyncError: text('ticket_sync_error'),
+    favorite: response.data_json.favorite === true,
+    ticketId: text('ticket_id'),
+    resolution: text('resolution'),
+    actionHistory: Array.isArray(response.data_json.action_history) ? response.data_json.action_history : [],
+    comments: Array.isArray(response.data_json.comments) ? response.data_json.comments : [],
   };
+}
+
+export async function actOnVulnerability(id: string, action: 'favorite' | 'assign' | 'retest' | 'close_retest' | 'set_due_date' | 'add_report' | 'create_ticket' | 'ignore' | 'false_positive' | 'comment', value?: string | boolean) {
+  await apiRequest(`/api/v1/vulnerabilities/${uuid.parse(id)}/actions`, vulnerabilityDetailSchema, { method: 'POST', body: { action, value } });
+  return getVulnerability(id);
+}
+
+export async function submitRetestResult(id: string, passed: boolean) {
+  await apiRequest(`/api/v1/vulnerabilities/${uuid.parse(id)}/retest-result?passed=${passed}`, vulnerabilityDetailSchema, { method: 'POST' });
+  return getVulnerability(id);
+}
+
+export async function escalateVulnerabilitySla() {
+  return apiRequest('/api/v1/vulnerabilities/sla/escalate', z.object({ escalated: z.number().int().nonnegative() }), { method: 'POST' });
 }
 
 export async function listAssets(input: { page: number; pageSize: number }) {
@@ -482,6 +494,18 @@ export async function listVulnerabilities(input: {
   return result(response.data, mapVulnerability);
 }
 
+export async function updateAsset(id: string, input: Partial<AssetCreateInput>) {
+  const payload = z.object({ asset_type: assetTypeSchema.optional(), address: z.string().min(1).optional(), owner: z.string().optional(), authorized: z.boolean().optional() }).parse(input);
+  const response = await apiRequest(`/api/v1/assets/${uuid.parse(id)}`, assetSchema, { method: 'PATCH', body: payload });
+  return mapAsset(response);
+}
+
+export async function createAssetsBulk(assets: AssetCreateInput[]) {
+  const payload = z.object({ assets: z.array(z.object({ asset_type: assetTypeSchema, address: z.string().min(1), owner: z.string(), authorized: z.boolean() })).min(1).max(500) }).parse({ assets });
+  const response = await apiRequest('/api/v1/assets/bulk', z.array(assetSchema), { method: 'POST', body: payload });
+  return response.map(mapAsset);
+}
+
 export async function getDashboardSummary() {
   const response = await apiRequest('/api/v1/dashboard/summary', dashboardSummarySchema);
   return {
@@ -521,18 +545,8 @@ export async function listReports(input: { taskId?: string; planId?: string; key
 
 export async function getVulnerabilityOverview(input: { range: OverviewRange; timezone: string }) {
   const range = overviewRangeSchema.parse(input.range);
-  const query = params([['range', range], ['timezone', input.timezone]]);
-  const { data } = await apiRequest(`/api/v1/vulnerabilities/overview?${query}`, vulnerabilityOverviewSchema);
-  return {
-    range: data.range,
-    timezone: data.timezone,
-    granularity: data.granularity,
-    metrics: data.metrics,
-    riskDistribution: data.risk_distribution,
-    sourceDistribution: data.source_distribution.map((item) => ({ ...item, label: sanitizeDisplayText(item.label) })),
-    trend: data.trend,
-    recommendations: data.recommendations,
-  };
+  const { data } = await apiRequest(`/api/v1/vulnerabilities/overview?${params([['range', range], ['timezone', input.timezone]])}`, vulnerabilityOverviewSchema);
+  return { range:data.range, timezone:data.timezone, granularity:data.granularity, metrics:data.metrics, riskDistribution:data.risk_distribution, sourceDistribution:data.source_distribution, trend:data.trend, recommendations:data.recommendations };
 }
 
 export async function getReportOverview(input: { range: OverviewRange; timezone: string }) {

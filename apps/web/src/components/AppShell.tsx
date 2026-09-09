@@ -62,7 +62,15 @@ function menuItems(): MenuProps['items'] {
       { key: '/tasks?status=SUCCEEDED', label: '已完成' },
     ],
   },
-  { key: '/assets', icon: <NavIcon name="assets" />, label: '资产中心' },
+  {
+    key: 'assets',
+    icon: <NavIcon name="assets" />,
+    label: '资产中心',
+    children: [
+      { key: '/asset-management', label: '资产管理' },
+      { key: '/assets', label: '资产列表' },
+    ],
+  },
   {
     key: 'vulnerability',
     icon: <NavIcon name="vulnerabilities" />,
@@ -70,6 +78,14 @@ function menuItems(): MenuProps['items'] {
     children: [
       { key: '/vulnerabilities/overview', label: '漏洞总览' },
       { key: '/vulnerabilities', label: '漏洞列表' },
+      {
+        key: 'vulnerability-management',
+        label: '漏洞管理',
+        children: [
+          { key: '/vulnerabilities/management/remediation', label: '修复任务' },
+          { key: '/vulnerabilities/management/sla', label: 'SLA 管理' },
+        ],
+      },
     ],
   },
   {
@@ -98,8 +114,11 @@ const pageTitles: Record<string, string> = {
   '/overview': '平台总览',
   '/tasks': '全部任务',
   '/assets': '资产中心',
+  '/asset-management': '资产管理',
   '/vulnerabilities/overview': '漏洞总览',
   '/vulnerabilities': '漏洞列表',
+  '/vulnerabilities/management/remediation': '修复任务与 SLA',
+  '/vulnerabilities/management/sla': 'SLA 管理',
   '/reports/overview': '报告总览',
   '/reports': '报告列表',
   '/pentest': 'AI 渗透测试',
@@ -135,9 +154,8 @@ export function AppShell({ children }: AppShellProps) {
     : basePath === '/tasks' && location.search.startsWith('?status=')
       ? `/tasks?status=${new URLSearchParams(location.search).get('status')}`
       : basePath;
-  const title = basePath.startsWith('/vulnerabilities/')
-    ? '漏洞详情'
-    : pageTitles[basePath] ?? 'AI 安服平台';
+  const title = pageTitles[basePath]
+    ?? (basePath !== '/vulnerabilities/overview' && basePath.startsWith('/vulnerabilities/') ? '漏洞详情' : 'AI 安服平台');
   const openSection = isPentestSession
     ? 'tasks'
     : basePath === '/pentest'

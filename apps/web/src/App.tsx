@@ -5,12 +5,13 @@ import { AppShell } from './components/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
 import { ReportsPage, TasksPage, VulnerabilitiesPage } from './pages/ListPages';
-import { AssetsPage, SettingsPage } from './pages/ManagementPages';
+import { AssetDetailPage, AssetManagementPage, AssetsPage, SettingsPage } from './pages/ManagementPages';
 import { AuthorizationPage } from './pages/AuthorizationPage';
 import { TeamPage } from './pages/TeamPage';
 import { ReportOverviewPage, VulnerabilityOverviewPage } from './pages/OverviewPages';
 import { VulnerabilityDetailPage } from './pages/VulnerabilityDetailPage';
 import { PentestPage, PentestSessionPage } from './pages/PentestPage';
+import { VulnerabilityRemediationPage, VulnerabilitySlaPage } from './pages/VulnerabilityManagementPages';
 
 export function App({ localAuthBypass = false }: { localAuthBypass?: boolean }) {
   const location = useLocation();
@@ -25,8 +26,12 @@ export function App({ localAuthBypass = false }: { localAuthBypass?: boolean }) 
           <Route path="/overview" element={<DashboardPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/assets" element={<AssetsPage />} />
+          <Route path="/asset-management" element={<AssetManagementPage />} />
+          <Route path="/assets/:assetId" element={<AssetDetailPage />} />
           <Route path="/vulnerabilities/overview" element={<VulnerabilityOverviewPage />} />
           <Route path="/vulnerabilities" element={<VulnerabilitiesPage />} />
+          <Route path="/vulnerabilities/management/remediation" element={<VulnerabilityRemediationPage />} />
+          <Route path="/vulnerabilities/management/sla" element={<VulnerabilitySlaPage />} />
           <Route path="/vulnerabilities/:vulnerabilityId" element={<VulnerabilityDetailPage />} />
           <Route path="/reports/overview" element={<ReportOverviewPage />} />
           <Route path="/reports" element={<ReportsPage />} />
