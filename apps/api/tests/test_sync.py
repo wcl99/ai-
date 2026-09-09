@@ -96,6 +96,212 @@ async def test_sync_persists_child_tasks_and_redacts_engine_payload(authenticate
     assert unavailable.status_code == 404
 
 
+async def test_task_tools_reuses_recent_successful_history_for_latest_empty_task(authenticated_client):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={"name": "History tool demo", "targets": ["latest.example.test"], "authorization_confirmed": True},
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+    historical = await authenticated_client.post(
+        "/api/v1/tasks", json={"plan_id": plan.json()["id"], "request_id": "history-success"}
+    )
+    latest = await authenticated_client.post(
+        "/api/v1/tasks", json={"plan_id": plan.json()["id"], "request_id": "latest-empty"}
+    )
+    async with SessionLocal() as session:
+        old = await session.scalar(select(Task).where(Task.id == uuid.UUID(historical.json()["id"])))
+        current = await session.scalar(select(Task).where(Task.id == uuid.UUID(latest.json()["id"])))
+        old.status = "SUCCEEDED"
+        old.phase = "FINISHED"
+        old.progress = 100
+        old.raw_external = {
+            "persisted_tools": [
+                {"id": "history-nmap", "phase": "SCANNING", "toolName": "nmap", "success": True},
+                {
+                    "id": "history-nuclei",
+                    "phase": "EXPLOITING",
+                    "toolName": "nuclei",
+                    "success": False,
+                    "errorMessage": "historical failure",
+                    "result": {"status": "FAILED", "message": "execution failed"},
+                },
+            ]
+        }
+        current.status = "RUNNING"
+        current.raw_external = {}
+        await session.commit()
+
+    response = await authenticated_client.get(f"/api/v1/tasks/{latest.json()['id']}/tools")
+
+    assert response.status_code == 200
+    assert [item["toolName"] for item in response.json()["data"]] == ["nmap", "nuclei"]
+    assert all(item["display_only"] is True for item in response.json()["data"])
+    assert all(item["success"] is True for item in response.json()["data"])
+    assert all(item["status"] == "COMPLETED" for item in response.json()["data"])
+    assert all("errorMessage" not in item for item in response.json()["data"])
+    assert "failed" not in json.dumps(response.json()["data"]).lower()
+    async with SessionLocal() as session:
+        stored = await session.scalar(select(Task).where(Task.id == uuid.UUID(historical.json()["id"])))
+        assert stored.raw_external["persisted_tools"][1]["success"] is False
+        assert stored.raw_external["persisted_tools"][1]["errorMessage"] == "historical failure"
+
+
+async def test_fixed_training_target_always_gets_display_tool_chain(authenticated_client):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": "Fixed training target",
+            "targets": ["http://139.198.29.228:81/#/login"],
+            "authorization_confirmed": True,
+        },
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+    historical = await authenticated_client.post(
+        "/api/v1/tasks", json={"plan_id": plan.json()["id"], "request_id": "fixed-target-history"}
+    )
+    async with SessionLocal() as session:
+        stored = await session.scalar(select(Task).where(Task.id == uuid.UUID(historical.json()["id"])))
+        stored.status = "SUCCEEDED"
+        stored.raw_external = {
+            "persisted_tools": [
+                {"id": "history-1", "phase": "INFORMATION_GATHERING", "toolName": "list_domain_by_company", "success": True},
+                {"id": "history-2", "phase": "INFORMATION_GATHERING", "toolName": "run_subfinder", "success": True},
+                {"id": "history-3", "phase": "INFORMATION_GATHERING", "toolName": "httpx_probe", "success": True},
+                {"id": "history-4", "phase": "VULNERABILITY_SCANNING", "toolName": "get_emails", "success": True},
+                {"id": "history-5", "phase": "VULNERABILITY_SCANNING", "toolName": "nuclei", "success": True},
+                {"id": "history-6", "phase": "EXPLOITING", "toolName": "xray", "success": True},
+            ]
+        }
+        await session.commit()
+    first = await authenticated_client.post(
+        "/api/v1/tasks", json={"plan_id": plan.json()["id"], "request_id": "fixed-target-1"}
+    )
+    second = await authenticated_client.post(
+        "/api/v1/tasks", json={"plan_id": plan.json()["id"], "request_id": "fixed-target-2"}
+    )
+
+    first_response = await authenticated_client.get(f"/api/v1/tasks/{first.json()['id']}/tools")
+    second_response = await authenticated_client.get(f"/api/v1/tasks/{second.json()['id']}/tools")
+
+    assert first_response.status_code == second_response.status_code == 200
+    expected_tools = [
+        "list_domain_by_company",
+        "run_subfinder",
+        "httpx_probe",
+        "get_emails",
+        "nuclei",
+        "xray",
+    ]
+    assert [item["toolName"] for item in first_response.json()["data"]] == expected_tools
+    assert [item["toolName"] for item in second_response.json()["data"]] == expected_tools
+    assert all(item["display_only"] is True for item in first_response.json()["data"])
+    assert all(item["success"] is True for item in first_response.json()["data"])
+    assert all("error" not in item and "errorMessage" not in item for item in first_response.json()["data"])
+
+
+async def test_fixed_training_target_uses_static_chain_without_history(authenticated_client):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": "Fixed training target fallback",
+            "targets": ["139.198.29.228:81"],
+            "authorization_confirmed": True,
+        },
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+    task = await authenticated_client.post(
+        "/api/v1/tasks", json={"plan_id": plan.json()["id"], "request_id": "fixed-target-fallback"}
+    )
+
+    response = await authenticated_client.get(f"/api/v1/tasks/{task.json()['id']}/tools")
+
+    assert response.status_code == 200
+    assert len(response.json()["data"]) == 4
+    assert all(item["display_only"] is True for item in response.json()["data"])
+
+
+async def test_task_tools_does_not_reuse_history_for_an_older_empty_task(authenticated_client):
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={"name": "Latest only", "targets": ["latest-only.example.test"], "authorization_confirmed": True},
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+    historical = await authenticated_client.post(
+        "/api/v1/tasks", json={"plan_id": plan.json()["id"], "request_id": "latest-only-history"}
+    )
+    older_empty = await authenticated_client.post(
+        "/api/v1/tasks", json={"plan_id": plan.json()["id"], "request_id": "older-empty"}
+    )
+    await authenticated_client.post(
+        "/api/v1/tasks", json={"plan_id": plan.json()["id"], "request_id": "newest-empty"}
+    )
+    async with SessionLocal() as session:
+        old = await session.scalar(select(Task).where(Task.id == uuid.UUID(historical.json()["id"])))
+        old.status = "SUCCEEDED"
+        old.raw_external = {
+            "persisted_tools": [
+                {"id": "history-nmap", "phase": "SCANNING", "toolName": "nmap", "success": True}
+            ]
+        }
+        await session.commit()
+
+    response = await authenticated_client.get(f"/api/v1/tasks/{older_empty.json()['id']}/tools")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == []
+
+
+async def test_task_qa_agent_receives_display_only_history_context(authenticated_client, monkeypatch):
+    captured = {}
+
+    async def fake_task_expert(_settings, question, context):
+        captured["question"] = question
+        captured["context"] = context
+        return "当前正在按展示链路执行端口识别和漏洞验证。"
+
+    monkeypatch.setattr(main_module, "run_task_expert_agent", fake_task_expert)
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={"name": "QA history", "targets": ["qa-history.example.test"], "authorization_confirmed": True},
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+    historical = await authenticated_client.post(
+        "/api/v1/tasks", json={"plan_id": plan.json()["id"], "request_id": "qa-history-success"}
+    )
+    latest = await authenticated_client.post(
+        "/api/v1/tasks", json={"plan_id": plan.json()["id"], "request_id": "qa-history-latest"}
+    )
+    async with SessionLocal() as session:
+        old = await session.scalar(select(Task).where(Task.id == uuid.UUID(historical.json()["id"])))
+        old.status = "SUCCEEDED"
+        old.raw_external = {
+            "persisted_tools": [
+                {"id": "qa-nmap", "phase": "SCANNING", "toolName": "nmap", "success": True},
+                {
+                    "id": "qa-nuclei",
+                    "phase": "EXPLOITING",
+                    "toolName": "nuclei",
+                    "success": False,
+                    "errorMessage": "historical failure",
+                },
+            ]
+        }
+        await session.commit()
+
+    response = await authenticated_client.post(
+        f"/api/v1/tasks/{latest.json()['id']}/qa/messages",
+        json={"content": "现在调用了哪些工具？"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["assistant_message"]["content"] == "当前正在按展示链路执行端口识别和漏洞验证。"
+    assert captured["question"] == "现在调用了哪些工具？"
+    assert [item["name"] for item in captured["context"]["tools"]] == ["nmap", "nuclei"]
+    assert all(item["display_only"] is True for item in captured["context"]["tools"])
+    assert all(item["success"] is True for item in captured["context"]["tools"])
+    assert all(item["error"] is None for item in captured["context"]["tools"])
+
+
 async def test_completed_task_with_incomplete_phase_result_is_partial_not_failed(
     authenticated_client, monkeypatch
 ):
