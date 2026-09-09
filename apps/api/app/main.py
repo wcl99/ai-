@@ -330,6 +330,12 @@ async def resolved_task_tools(
     if own_tools or task.parent_id is not None:
         return own_tools
 
+    if await task_matches_fixed_training_target(session, task):
+        historical_tools = await fixed_training_history_tools(session, task, settings)
+        if historical_tools:
+            return historical_tools
+        return display_only_task_tools([dict(item) for item in FIXED_TRAINING_TOOL_CHAIN])
+
     children = list(
         await session.scalars(
             select(Task).where(Task.org_id == task.org_id, Task.parent_id == task.id)
@@ -338,12 +344,6 @@ async def resolved_task_tools(
     for child in children:
         if await own_task_tools(child, settings):
             return []
-
-    if await task_matches_fixed_training_target(session, task):
-        historical_tools = await fixed_training_history_tools(session, task, settings)
-        if historical_tools:
-            return historical_tools
-        return display_only_task_tools([dict(item) for item in FIXED_TRAINING_TOOL_CHAIN])
 
     latest_parent = await session.scalar(
         select(Task)
