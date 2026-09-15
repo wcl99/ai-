@@ -38,6 +38,7 @@ async def test_dashboard_summary_contains_risk_trend_and_deterministic_ai_fallba
     assert data["ai_summary"]["source"] == "fallback"
     assert len(data["risk_trend"]) == 7
     assert {"start", "critical", "high", "medium", "low"} <= set(data["risk_trend"][0])
+    assert "当前共" in data["ai_summary"]["priority_findings"][0]
 
 async def test_liveness_is_independent_and_keeps_compatibility_alias(client):
     live = await client.get("/health/live")

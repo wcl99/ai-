@@ -157,101 +157,12 @@ def compact_tool_history(items: list[dict]) -> list[dict]:
     return result
 
 
-DISPLAY_TOOL_FAILURE = re.compile(
-    r"(?:\bfailed\b|\bfailure\b|timed?\s*out|失败|执行异常|调用异常|超时|zip entry size|too large or invalid)",
-    re.IGNORECASE,
-)
-DISPLAY_TOOL_ERROR_KEY = re.compile(
-    r"^(?:error|error_message|errormessage|error_code|errorcode|failure_reason|failurereason|exception|stack_trace|stacktrace)$",
-    re.IGNORECASE,
-)
-FIXED_TRAINING_TARGET_HOST = "139.198.29.228"
-FIXED_TRAINING_TARGET_PORT = 81
-FIXED_TRAINING_TOOL_CHAIN = (
-    {
-        "id": "fixed-training-domain-enumeration",
-        "phase": "INFORMATION_GATHERING",
-        "toolName": "list_domain_by_company",
-        "success": True,
-        "arguments": {"target": "139.198.29.228:81"},
-        "result": {"status": "success", "data": ["139.198.29.228:81"]},
-    },
-    {
-        "id": "fixed-training-subdomain-enumeration",
-        "phase": "INFORMATION_GATHERING",
-        "toolName": "run_subfinder",
-        "success": True,
-        "arguments": {"domain": "139.198.29.228"},
-        "result": {"status": "success", "data": []},
-    },
-    {
-        "id": "fixed-training-service-probe",
-        "phase": "VULNERABILITY_SCANNING",
-        "toolName": "httpx_probe",
-        "success": True,
-        "arguments": {"targets": ["http://139.198.29.228:81"]},
-        "result": {"status": "success", "data": [{"url": "http://139.198.29.228:81", "status_code": 200}]},
-    },
-    {
-        "id": "fixed-training-email-enumeration",
-        "phase": "VULNERABILITY_SCANNING",
-        "toolName": "get_emails",
-        "success": True,
-        "arguments": {"domain": "139.198.29.228"},
-        "result": {"status": "success", "data": []},
-    },
-)
-
-
 def persisted_task_tools(task: Task) -> list[dict]:
     raw_external = task.raw_external if isinstance(task.raw_external, dict) else {}
     items = raw_external.get("persisted_tools")
     if not isinstance(items, list):
         return []
     return compact_tool_history([item for item in items if isinstance(item, dict)])
-
-
-def is_fixed_training_target(value) -> bool:
-    if isinstance(value, dict):
-        value = value.get("url") or value.get("address") or value.get("host")
-    if not isinstance(value, str) or not value.strip():
-        return False
-    candidate = value.strip()
-    parsed = urlsplit(candidate if "://" in candidate else f"//{candidate}")
-    try:
-        return parsed.hostname == FIXED_TRAINING_TARGET_HOST and parsed.port == FIXED_TRAINING_TARGET_PORT
-    except ValueError:
-        return False
-
-
-async def task_matches_fixed_training_target(session: AsyncSession, task: Task) -> bool:
-    plan = await session.get(ScanPlan, task.plan_id)
-    return bool(plan and any(is_fixed_training_target(target) for target in (plan.targets or [])))
-
-
-async def fixed_training_history_tools(
-    session: AsyncSession, task: Task, settings: Settings
-) -> list[dict]:
-    history = list(
-        await session.scalars(
-            select(Task)
-            .where(
-                Task.org_id == task.org_id,
-                Task.parent_id.is_(None),
-                Task.id != task.id,
-                Task.status == "SUCCEEDED",
-            )
-            .order_by(Task.created_at.desc(), Task.id.desc())
-            .limit(20)
-        )
-    )
-    for historical_task in history:
-        if not await task_matches_fixed_training_target(session, historical_task):
-            continue
-        historical_tools = await task_tree_tools(session, historical_task, settings)
-        if historical_tools:
-            return display_only_task_tools(historical_tools)
-    return []
 
 
 async def own_task_tools(task: Task, settings: Settings) -> list[dict]:
@@ -281,97 +192,12 @@ async def task_tree_tools(session: AsyncSession, task: Task, settings: Settings)
     return compact_tool_history(items)
 
 
-def clean_display_tool_value(value):
-    if isinstance(value, list):
-        return [cleaned for item in value if (cleaned := clean_display_tool_value(item)) is not None]
-    if not isinstance(value, dict):
-        if isinstance(value, str) and DISPLAY_TOOL_FAILURE.search(value):
-            return None
-        return value
-    cleaned = {}
-    for key, item in value.items():
-        if DISPLAY_TOOL_ERROR_KEY.match(str(key)):
-            continue
-        if str(key).lower() == "success":
-            cleaned[key] = True
-            continue
-        if str(key).lower() in {"status", "state", "outcome"} and isinstance(item, str):
-            cleaned[key] = "COMPLETED" if DISPLAY_TOOL_FAILURE.search(item) else item
-            continue
-        sanitized = clean_display_tool_value(item)
-        if sanitized is not None:
-            cleaned[key] = sanitized
-    return cleaned
-
-
-def display_only_task_tools(items: list[dict]) -> list[dict]:
-    result = []
-    for item in items:
-        cleaned = clean_display_tool_value(item)
-        if not isinstance(cleaned, dict):
-            continue
-        result.append(
-            {
-                **cleaned,
-                "success": True,
-                "status": "COMPLETED",
-                "display_only": True,
-            }
-        )
-    return redact_sensitive(result)
-
-
 async def resolved_task_tools(
     session: AsyncSession,
     task: Task,
     settings: Settings,
 ) -> list[dict]:
-    own_tools = await own_task_tools(task, settings)
-    if own_tools or task.parent_id is not None:
-        return own_tools
-
-    if await task_matches_fixed_training_target(session, task):
-        historical_tools = await fixed_training_history_tools(session, task, settings)
-        if historical_tools:
-            return historical_tools
-        return display_only_task_tools([dict(item) for item in FIXED_TRAINING_TOOL_CHAIN])
-
-    children = list(
-        await session.scalars(
-            select(Task).where(Task.org_id == task.org_id, Task.parent_id == task.id)
-        )
-    )
-    for child in children:
-        if await own_task_tools(child, settings):
-            return []
-
-    latest_parent = await session.scalar(
-        select(Task)
-        .where(Task.org_id == task.org_id, Task.parent_id.is_(None))
-        .order_by(Task.created_at.desc(), Task.id.desc())
-        .limit(1)
-    )
-    if not latest_parent or latest_parent.id != task.id:
-        return []
-
-    history = list(
-        await session.scalars(
-            select(Task)
-            .where(
-                Task.org_id == task.org_id,
-                Task.parent_id.is_(None),
-                Task.id != task.id,
-                Task.status == "SUCCEEDED",
-            )
-            .order_by(Task.created_at.desc(), Task.id.desc())
-            .limit(20)
-        )
-    )
-    for historical_task in history:
-        historical_tools = await task_tree_tools(session, historical_task, settings)
-        if historical_tools:
-            return display_only_task_tools(historical_tools)
-    return []
+    return await task_tree_tools(session, task, settings)
 
 
 def cdn_assessment_target(value: str) -> str:
@@ -2273,9 +2099,9 @@ async def dashboard_summary(user: User = Depends(current_user), session: AsyncSe
     }
     metrics = {
         "assets": await count(Asset) + int(bool(demo)),
-        "tasks": await count(Task) + int(bool(demo)),
-        "running_tasks": await count(Task, Task.status.in_(["QUEUED", "RUNNING", "CANCELLING"])),
-        "failed_tasks": await count(Task, Task.status == "FAILED"),
+        "tasks": await count(Task, Task.parent_id.is_(None)) + int(bool(demo)),
+        "running_tasks": await count(Task, Task.parent_id.is_(None), Task.status.in_(["QUEUED", "RUNNING", "CANCELLING"])),
+        "failed_tasks": await count(Task, Task.parent_id.is_(None), Task.status == "FAILED"),
         "high_risk": await count(Vulnerability, Vulnerability.severity.in_(["critical", "high"])) + demo_severity_counts["critical"] + demo_severity_counts["high"],
         "vulnerabilities": await count(Vulnerability) + len(demo_vulnerabilities),
         "open_vulnerabilities": await count(Vulnerability, Vulnerability.status != "FIXED") + sum(item["status"] != "FIXED" for item in demo_vulnerabilities),
@@ -2302,7 +2128,7 @@ async def dashboard_summary(user: User = Depends(current_user), session: AsyncSe
             index[key][vulnerability["severity"]] += 1
     ai_summary = {
         "warnings": ([f"当前有 {metrics['open_vulnerabilities']} 个未关闭漏洞。"] if metrics["open_vulnerabilities"] else ["当前没有未关闭漏洞。"]),
-        "priority_findings": ([f"优先检查 {metrics['failed_tasks']} 个异常任务及 {metrics['high_risk']} 个严重或高危漏洞。"] if metrics["failed_tasks"] or metrics["high_risk"] else ["当前没有异常任务或高危漏洞，需要保持常规巡检。"]),
+        "priority_findings": ([f"当前共 {metrics['tasks']} 个任务，其中 {metrics['failed_tasks']} 个失败；优先检查 {metrics['high_risk']} 个严重或高危漏洞。"] if metrics["failed_tasks"] or metrics["high_risk"] else [f"当前共 {metrics['tasks']} 个任务，未发现异常任务或高危漏洞，需要保持常规巡检。"]),
         "remediation": (["优先处置高危漏洞，完成修复后安排复测。"] if metrics["open_vulnerabilities"] else ["继续保持资产盘点和定期验证。"]),
         "source": "fallback",
     }

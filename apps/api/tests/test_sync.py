@@ -96,7 +96,7 @@ async def test_sync_persists_child_tasks_and_redacts_engine_payload(authenticate
     assert unavailable.status_code == 404
 
 
-async def test_task_tools_reuses_recent_successful_history_for_latest_empty_task(authenticated_client):
+async def test_task_tools_does_not_reuse_recent_successful_history_for_latest_empty_task(authenticated_client):
     plan = await authenticated_client.post(
         "/api/v1/scan-plans",
         json={"name": "History tool demo", "targets": ["latest.example.test"], "authorization_confirmed": True},
@@ -134,19 +134,14 @@ async def test_task_tools_reuses_recent_successful_history_for_latest_empty_task
     response = await authenticated_client.get(f"/api/v1/tasks/{latest.json()['id']}/tools")
 
     assert response.status_code == 200
-    assert [item["toolName"] for item in response.json()["data"]] == ["nmap", "nuclei"]
-    assert all(item["display_only"] is True for item in response.json()["data"])
-    assert all(item["success"] is True for item in response.json()["data"])
-    assert all(item["status"] == "COMPLETED" for item in response.json()["data"])
-    assert all("errorMessage" not in item for item in response.json()["data"])
-    assert "failed" not in json.dumps(response.json()["data"]).lower()
+    assert response.json()["data"] == []
     async with SessionLocal() as session:
         stored = await session.scalar(select(Task).where(Task.id == uuid.UUID(historical.json()["id"])))
         assert stored.raw_external["persisted_tools"][1]["success"] is False
         assert stored.raw_external["persisted_tools"][1]["errorMessage"] == "historical failure"
 
 
-async def test_fixed_training_target_always_gets_display_tool_chain(authenticated_client):
+async def test_fixed_training_target_does_not_reuse_historical_tool_chain(authenticated_client):
     plan = await authenticated_client.post(
         "/api/v1/scan-plans",
         json={
@@ -184,22 +179,11 @@ async def test_fixed_training_target_always_gets_display_tool_chain(authenticate
     second_response = await authenticated_client.get(f"/api/v1/tasks/{second.json()['id']}/tools")
 
     assert first_response.status_code == second_response.status_code == 200
-    expected_tools = [
-        "list_domain_by_company",
-        "run_subfinder",
-        "httpx_probe",
-        "get_emails",
-        "nuclei",
-        "xray",
-    ]
-    assert [item["toolName"] for item in first_response.json()["data"]] == expected_tools
-    assert [item["toolName"] for item in second_response.json()["data"]] == expected_tools
-    assert all(item["display_only"] is True for item in first_response.json()["data"])
-    assert all(item["success"] is True for item in first_response.json()["data"])
-    assert all("error" not in item and "errorMessage" not in item for item in first_response.json()["data"])
+    assert first_response.json()["data"] == []
+    assert second_response.json()["data"] == []
 
 
-async def test_fixed_training_target_uses_static_chain_without_history(authenticated_client):
+async def test_fixed_training_target_does_not_invent_chain_without_history(authenticated_client):
     plan = await authenticated_client.post(
         "/api/v1/scan-plans",
         json={
@@ -216,8 +200,7 @@ async def test_fixed_training_target_uses_static_chain_without_history(authentic
     response = await authenticated_client.get(f"/api/v1/tasks/{task.json()['id']}/tools")
 
     assert response.status_code == 200
-    assert len(response.json()["data"]) == 4
-    assert all(item["display_only"] is True for item in response.json()["data"])
+    assert response.json()["data"] == []
 
 
 async def test_task_tools_does_not_reuse_history_for_an_older_empty_task(authenticated_client):
@@ -251,7 +234,7 @@ async def test_task_tools_does_not_reuse_history_for_an_older_empty_task(authent
     assert response.json()["data"] == []
 
 
-async def test_task_qa_agent_receives_display_only_history_context(authenticated_client, monkeypatch):
+async def test_task_qa_agent_does_not_receive_historical_tool_context(authenticated_client, monkeypatch):
     captured = {}
 
     async def fake_task_expert(_settings, question, context):
@@ -296,10 +279,7 @@ async def test_task_qa_agent_receives_display_only_history_context(authenticated
     assert response.status_code == 201
     assert response.json()["assistant_message"]["content"] == "当前正在按展示链路执行端口识别和漏洞验证。"
     assert captured["question"] == "现在调用了哪些工具？"
-    assert [item["name"] for item in captured["context"]["tools"]] == ["nmap", "nuclei"]
-    assert all(item["display_only"] is True for item in captured["context"]["tools"])
-    assert all(item["success"] is True for item in captured["context"]["tools"])
-    assert all(item["error"] is None for item in captured["context"]["tools"])
+    assert captured["context"]["tools"] == []
 
 
 async def test_completed_task_with_incomplete_phase_result_is_partial_not_failed(
