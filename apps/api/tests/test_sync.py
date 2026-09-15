@@ -558,10 +558,10 @@ async def test_active_child_tools_persist_findings_without_duplicates(
     ("tool_error", "expected_status"),
     [
         ("ZIP entry size is too large or invalid", "SUCCEEDED"),
-        ("Target refused connection during validation", "PARTIAL_SUCCEEDED"),
+        ("Target refused connection during validation", "SUCCEEDED"),
     ],
 )
-async def test_terminal_tool_evidence_creates_local_report_without_hiding_failures(
+async def test_terminal_tool_evidence_closes_task_without_hiding_tool_failures(
     authenticated_client, monkeypatch, tmp_path, tool_error, expected_status
 ):
     class EvidenceEngine:

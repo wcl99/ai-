@@ -198,7 +198,7 @@ async def keep_report_packaging_retrying(
 
 
 async def recover_ready_report_fallbacks(session) -> None:
-    """Recover ZIP-only report failures after a persisted platform report exists."""
+    """Close partial tasks once findings and a usable platform report are persisted."""
     candidates = list(
         await session.scalars(
             select(Task).where(
@@ -208,8 +208,6 @@ async def recover_ready_report_fallbacks(session) -> None:
         )
     )
     for task in candidates:
-        if not is_report_packaging_error(task.error_message):
-            continue
         if not await has_ready_report_fallback(session, task):
             continue
         original_reason = task.error_message[:500]
@@ -220,7 +218,7 @@ async def recover_ready_report_fallbacks(session) -> None:
             TaskEvent(
                 task_id=task.id,
                 event_type="report_fallback_used",
-                message="小易报告打包失败，平台已生成本地报告",
+                message="平台已保存执行结果并生成本地报告，任务闭环完成",
                 data_json={
                     "source": "platform",
                     "upstream_error": original_reason,
