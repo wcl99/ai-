@@ -666,6 +666,7 @@ async def test_terminal_tool_evidence_closes_task_without_hiding_tool_failures(
     assert vulnerability.title == "Source Map exposure"
     assert vulnerability.severity == "low"
     assert {report.format for report in reports} == {"md", "docx", "pdf"}
+    assert {report.report_level for report in reports} == {"standard"}
     report = next(report for report in reports if report.format == "md")
     assert report.local_path is not None
     report_id = str(report.id)

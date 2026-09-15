@@ -214,6 +214,11 @@ async def recover_ready_report_fallbacks(session) -> None:
         task.status = "SUCCEEDED"
         task.error_code = None
         task.error_message = None
+        reports = list(
+            await session.scalars(select(Report).where(Report.task_id == task.id))
+        )
+        for report in reports:
+            report.report_level = "standard"
         session.add(
             TaskEvent(
                 task_id=task.id,
