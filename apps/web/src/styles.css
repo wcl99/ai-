@@ -1246,6 +1246,14 @@ html,body,#root{min-width:0;overflow-x:auto}
   .pentest-execution-drawer .execution-monitor .output-preview{min-height:172px;max-height:172px;margin:0 0 14px;padding:11px;background:#1c1e22;color:#42dc7a;border:0;font-size:10px}
 }
 .pentest-execution-drawer{overflow-x:hidden}
+.pentest-execution-drawer .ant-card,
+.pentest-execution-drawer .ant-card-body,
+.pentest-execution-drawer .live-findings,
+.pentest-execution-drawer .live-findings-list,
+.pentest-execution-drawer .live-finding,
+.pentest-execution-drawer .live-finding-preview-button{min-width:0;max-width:100%;box-sizing:border-box}
+.pentest-execution-drawer .live-finding>p,
+.pentest-execution-drawer .live-finding-preview-button>p{white-space:normal;overflow-wrap:anywhere;word-break:break-word}
 
 /* Final dashboard trend geometry: keep the 471x226 Figma plot inside its card. */
 @media (min-width:901px){

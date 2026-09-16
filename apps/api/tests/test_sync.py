@@ -47,6 +47,18 @@ class ChildEngine:
             )
         ]
 
+    async def get_tools(self, external_task_id: str) -> list[dict]:
+        assert external_task_id == "child-external"
+        return [
+            {
+                "id": "child-tool-1",
+                "toolName": "nmap",
+                "phase": "SCANNING",
+                "success": True,
+                "result": {"ports": [443]},
+            }
+        ]
+
     async def stop_task(self, external_task_id: str) -> None:
         return None
 
@@ -83,7 +95,17 @@ async def test_sync_persists_child_tasks_and_redacts_engine_payload(authenticate
         child = await session.scalar(select(Task).where(Task.external_task_id == "child-external"))
         report = await session.scalar(select(Report).where(Report.task_id == parent.id))
     assert parent.raw_external["authorization"] == "***"
-    assert child.raw_external == {"password": "***", "result": "safe"}
+    assert child.raw_external["password"] == "***"
+    assert child.raw_external["result"] == "safe"
+    assert child.raw_external["persisted_tools"] == [
+        {
+            "id": "child-tool-1",
+            "toolName": "nmap",
+            "phase": "SCANNING",
+            "success": True,
+            "result": {"ports": [443]},
+        }
+    ]
     assert report.filename == "parent.pdf"
     assert report.format == "pdf"
     assert report.status == "EXTERNAL"

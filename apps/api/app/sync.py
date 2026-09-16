@@ -299,7 +299,7 @@ async def sync_children(session, client, parent: Task) -> tuple[list[dict], list
         previous = (child.status, child.phase, child.progress)
         apply_engine_state(child, result)
         synced_children.append(child)
-        child.raw_external = redact_sensitive(result.raw)
+        child_raw = redact_sensitive(result.raw)
         error_message = result.error_message
         tools: list[dict] = []
         get_tools = getattr(client, "get_tools", None)
@@ -310,8 +310,10 @@ async def sync_children(session, client, parent: Task) -> tuple[list[dict], list
                 pass
         if tools:
             all_tools.extend(tools)
-            child.raw_external["platform_tool_summary"] = summarize_tools(tools)
+            child_raw["persisted_tools"] = redact_sensitive(tools[:200])
+            child_raw["platform_tool_summary"] = summarize_tools(tools)
             await persist_vulnerabilities(session, parent, tools)
+        child.raw_external = child_raw
         if result.status == "FAILED" and not error_message and tools:
             error_message = summarize_tool_failures(tools)
         apply_engine_error(child, error_message)
