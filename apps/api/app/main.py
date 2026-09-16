@@ -205,7 +205,6 @@ async def own_task_tools(task: Task, settings: Settings) -> list[dict]:
 
 
 async def task_tree_tools(session: AsyncSession, task: Task, settings: Settings) -> list[dict]:
-    items = await own_task_tools(task, settings)
     children = list(
         await session.scalars(
             select(Task)
@@ -213,8 +212,13 @@ async def task_tree_tools(session: AsyncSession, task: Task, settings: Settings)
             .order_by(Task.created_at, Task.id)
         )
     )
+    child_items: list[dict] = []
     for child in children:
-        items.extend(await own_task_tools(child, settings))
+        child_items.extend(await own_task_tools(child, settings))
+    if child_items:
+        parent_items = persisted_task_tools(task) or persisted_task_tool_summary(task)
+        return compact_tool_history([*parent_items, *child_items])
+    items = await own_task_tools(task, settings)
     return compact_tool_history(items)
 
 

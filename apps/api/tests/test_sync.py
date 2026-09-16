@@ -856,6 +856,50 @@ async def test_task_tools_return_persisted_snapshot_without_external_task_id(
     assert response.json()["data"] == snapshot
 
 
+async def test_parent_task_tools_prefer_persisted_child_history(
+    authenticated_client, monkeypatch
+):
+    class UnexpectedEngine:
+        async def get_tools(self, external_task_id: str):
+            raise AssertionError("persisted child history should avoid an upstream request")
+
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={"name": "Child history", "targets": ["example.test"]},
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+    task = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": plan.json()["id"], "request_id": "parent-child-history"},
+    )
+    snapshot = [{"id": "child-history-1", "toolName": "nmap", "success": True}]
+    async with SessionLocal() as session:
+        parent = await session.get(Task, uuid.UUID(task.json()["id"]))
+        parent.external_task_id = "slow-parent-external"
+        session.add(
+            Task(
+                org_id=parent.org_id,
+                plan_id=parent.plan_id,
+                parent_id=parent.id,
+                created_by=parent.created_by,
+                request_id="child-history-record",
+                external_task_id="child-history-external",
+                name="Child history",
+                status="SUCCEEDED",
+                phase="FINISHED",
+                progress=100,
+                raw_external={"persisted_tools": snapshot},
+            )
+        )
+        await session.commit()
+
+    monkeypatch.setattr(main_module, "get_engine_client", lambda settings: UnexpectedEngine())
+    response = await authenticated_client.get(f"/api/v1/tasks/{task.json()['id']}/tools")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == snapshot
+
+
 async def test_task_tools_restore_persisted_summary_when_upstream_history_is_empty(
     authenticated_client, monkeypatch
 ):
