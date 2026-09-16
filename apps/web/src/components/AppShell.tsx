@@ -1,55 +1,137 @@
 import {
-  AppstoreOutlined,
-  BellOutlined,
-  BugOutlined,
-  DashboardOutlined,
-  DatabaseOutlined,
-  FileTextOutlined,
+  AppstoreFilled,
   SearchOutlined,
-  SettingOutlined,
-  SunOutlined,
-  ThunderboltOutlined,
-  UnorderedListOutlined,
 } from '@ant-design/icons';
-import { Avatar, Input, Layout, Menu, Space, Typography } from 'antd';
+import { Alert, Avatar, Dropdown, Input, Layout, Menu, Space, Typography } from 'antd';
 import type { MenuProps } from 'antd';
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import expertAvatar from '../../../../素材/工作 (7) 3.png';
+import { useAuth } from '../auth/AuthContext';
+import { forgetPentestSession, readPentestSession } from '../pentestSessionRoute';
 
 const { Header, Sider, Content } = Layout;
 
-const menuItems: MenuProps['items'] = [
-  { key: '/overview', icon: <DashboardOutlined />, label: '总览' },
+type NavigationIcon =
+  | 'overview'
+  | 'workbench'
+  | 'tasks'
+  | 'assets'
+  | 'vulnerabilities'
+  | 'reports'
+  | 'settings';
+
+function NavIcon({ name }: { name: NavigationIcon }) {
+  return (
+    <span className="design-nav-icon" aria-hidden="true">
+      <img src={'/ui-icons/nav-' + name + '.png'} alt="" />
+      <img className="active" src={'/ui-icons/nav-' + name + '-active.png'} alt="" />
+    </span>
+  );
+}
+
+function HeaderIcon({ name, label }: { name: string; label: string }) {
+  return (
+    <button type="button" className="header-icon-button" aria-label={label}>
+      <img src={'/ui-icons/header-' + name + '.png'} alt="" />
+    </button>
+  );
+}
+
+function menuItems(): MenuProps['items'] {
+  return [
+  { key: '/overview', icon: <NavIcon name="overview" />, label: '总览' },
   {
     key: 'workbench',
-    icon: <ThunderboltOutlined />,
+    icon: <NavIcon name="workbench" />,
     label: '工作台',
-    children: [{ key: '/pentest', label: '渗透测试' }],
+    children: [
+      { key: '/pentest', label: '渗透测试' },
+      { key: 'incident', label: '应急响应', disabled: true },
+      { key: 'audit', label: '代码审计', disabled: true },
+      { key: 'analysis', label: '数据分析', disabled: true },
+    ],
   },
-  { key: '/tasks', icon: <UnorderedListOutlined />, label: '任务中心' },
-  { key: '/assets', icon: <DatabaseOutlined />, label: '资产中心' },
+  {
+    key: 'tasks',
+    icon: <NavIcon name="tasks" />,
+    label: '任务中心',
+    children: [
+      { key: '/tasks', label: '全部任务' },
+      { key: '/tasks?status=RUNNING', label: '进行中' },
+      { key: '/tasks?status=QUEUED', label: '排队中' },
+      { key: '/tasks?status=SUCCEEDED', label: '已完成' },
+    ],
+  },
+  {
+    key: 'assets',
+    icon: <NavIcon name="assets" />,
+    label: '资产中心',
+    children: [
+      { key: '/asset-management', label: '资产管理' },
+      { key: '/assets', label: '资产列表' },
+    ],
+  },
   {
     key: 'vulnerability',
-    icon: <BugOutlined />,
+    icon: <NavIcon name="vulnerabilities" />,
     label: '漏洞中心',
-    children: [{ key: '/vulnerabilities', label: '漏洞列表' }],
+    children: [
+      { key: '/vulnerabilities/overview', label: '漏洞总览' },
+      { key: '/vulnerabilities', label: '漏洞列表' },
+      {
+        key: 'vulnerability-management',
+        label: '漏洞管理',
+        children: [
+          { key: '/vulnerabilities/management/remediation', label: '修复任务' },
+          { key: '/vulnerabilities/management/sla', label: 'SLA 管理' },
+        ],
+      },
+    ],
   },
   {
     key: 'report',
-    icon: <FileTextOutlined />,
+    icon: <NavIcon name="reports" />,
     label: '报告中心',
-    children: [{ key: '/reports', label: '报告列表' }],
+    children: [
+      { key: '/reports/overview', label: '报告总览' },
+      { key: '/reports', label: '报告列表' },
+    ],
   },
-  { key: '/settings', icon: <SettingOutlined />, label: '平台设置' },
-];
+  {
+    key: 'settings',
+    icon: <NavIcon name="settings" />,
+    label: '平台设置',
+    children: [
+      { key: '/settings', label: '系统设置' },
+      { key: '/settings/team', label: '团队管理' },
+      { key: '/settings/authorization', label: '授权管理' },
+    ],
+  },
+  ];
+}
 
 const pageTitles: Record<string, string> = {
   '/overview': '平台总览',
   '/tasks': '全部任务',
   '/assets': '资产中心',
+  '/asset-management': '资产管理',
+  '/vulnerabilities/overview': '漏洞总览',
   '/vulnerabilities': '漏洞列表',
+  '/vulnerabilities/management/remediation': '修复任务与 SLA',
+  '/vulnerabilities/management/sla': 'SLA 管理',
+  '/reports/overview': '报告总览',
   '/reports': '报告列表',
   '/pentest': 'AI 渗透测试',
+  '/settings': '平台设置',
+  '/settings/team': '团队管理',
+  '/settings/authorization': '授权管理',
+};
+
+const roleLabels: Record<string, string> = {
+  admin: '管理员',
+  security_expert: '安全专家',
+  operator: '操作员',
+  auditor: '审计员',
 };
 
 interface AppShellProps {
@@ -59,25 +141,65 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const basePath = location.pathname.startsWith('/pentest/session') ? '/pentest' : location.pathname;
-  const title = pageTitles[basePath] ?? 'AI 安服平台';
+  const { user, logout } = useAuth();
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const isPentestSession = location.pathname.startsWith('/pentest/session/');
+  const currentSessionPath = isPentestSession
+    ? location.pathname
+    : readPentestSession(user?.id ?? '');
+  const currentTaskRoute = currentSessionPath;
+  const basePath = isPentestSession ? '/pentest' : location.pathname;
+  const selectedPath = isPentestSession
+    ? location.pathname
+    : basePath === '/tasks' && location.search.startsWith('?status=')
+      ? `/tasks?status=${new URLSearchParams(location.search).get('status')}`
+      : basePath;
+  const title = pageTitles[basePath]
+    ?? (basePath !== '/vulnerabilities/overview' && basePath.startsWith('/vulnerabilities/') ? '漏洞详情' : 'AI 安服平台');
+  const openSection = isPentestSession
+    ? 'tasks'
+    : basePath === '/pentest'
+    ? 'workbench'
+    : basePath === '/tasks'
+      ? 'tasks'
+      : basePath.startsWith('/vulnerabilities')
+        ? 'vulnerability'
+        : basePath.startsWith('/reports')
+          ? 'report'
+          : basePath.startsWith('/settings')
+            ? 'settings'
+            : undefined;
+  const profileMenu: MenuProps = {
+    items: [{ key: 'logout', label: '退出登录' }],
+    onClick: async ({ key }) => {
+      if (key !== 'logout') return;
+      setLogoutError(null);
+      try {
+        await logout();
+        forgetPentestSession(user?.id ?? '');
+        navigate('/login', { replace: true });
+      } catch (error) {
+        setLogoutError(error instanceof Error ? error.message : '退出登录失败，请稍后重试');
+      }
+    },
+  };
 
   return (
     <Layout className="app-shell">
       <Sider width={260} theme="light" className="app-sider">
-        <div className="brand">
-          <div className="brand-mark">盾</div>
-          <div>
-            <Typography.Title level={4}>AI 安服平台</Typography.Title>
-            <span>下一代安全服务平台</span>
-          </div>
-        </div>
+        <div className="brand material-brand" aria-label="AI 安服平台"><img src="/material/source/brand/sidebar-brand-exact.png" alt="AI 安服平台 下一代安全服务平台" /></div>
         <Menu
           mode="inline"
-          selectedKeys={[basePath]}
-          defaultOpenKeys={['workbench', 'vulnerability', 'report']}
-          items={menuItems}
-          onClick={({ key }) => key.startsWith('/') && navigate(key)}
+          selectedKeys={[selectedPath]}
+          defaultOpenKeys={openSection ? [openSection] : []}
+          items={menuItems()}
+          onClick={({ key }) => {
+            if (key === '/pentest' && currentTaskRoute) {
+              navigate(currentTaskRoute);
+              return;
+            }
+            if (key.startsWith('/')) navigate(key);
+          }}
         />
       </Sider>
       <Layout>
@@ -89,21 +211,34 @@ export function AppShell({ children }: AppShellProps) {
             placeholder="搜索资产、任务、漏洞、报告..."
           />
           <Space size={22} className="header-actions">
-            <ThunderboltOutlined />
-            <SunOutlined />
-            <BellOutlined />
-            <div className="profile">
-              <div>
-                <strong>安全专家</strong>
-                <span>Aiscanner</span>
-              </div>
-              <Avatar size={42} src={expertAvatar} />
-              <i />
-            </div>
+            <HeaderIcon name="ai" label="AI 助手" />
+            <HeaderIcon name="theme" label="切换主题" />
+            <HeaderIcon name="notification" label="通知" />
+            <Dropdown menu={profileMenu} trigger={['click']}>
+              <button type="button" className="profile" aria-label="用户菜单">
+                <span className="profile-copy">
+                  <strong>{user?.name ?? user?.username}</strong>
+                  <span>{roleLabels[user?.role ?? ''] ?? user?.role}</span>
+                </span>
+                <Avatar size={42} src="/material/source/avatar/expert.svg" />
+                <img className="profile-chevron" src="/ui-icons/arrow-down.png" alt="" />
+                <i />
+              </button>
+            </Dropdown>
           </Space>
         </Header>
-        <Content className={basePath === '/pentest' ? 'app-content pentest-content' : 'app-content'}>
-          {children}
+        {logoutError && (
+          <Alert
+            className="shell-error"
+            type="error"
+            showIcon
+            closable
+            message={logoutError}
+            onClose={() => setLogoutError(null)}
+          />
+        )}
+        <Content className="app-content">
+          <div className="app-content-frame">{children}</div>
         </Content>
       </Layout>
     </Layout>
@@ -113,7 +248,7 @@ export function AppShell({ children }: AppShellProps) {
 export function EmptyStatePage({ title }: { title: string }) {
   return (
     <div className="empty-state">
-      <AppstoreOutlined />
+      <AppstoreFilled />
       <h2>{title}正在接入</h2>
       <p>当前验证版本优先完成渗透任务黄金路径。</p>
     </div>
