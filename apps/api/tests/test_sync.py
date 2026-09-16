@@ -833,6 +833,60 @@ async def test_task_tools_return_persisted_snapshot_without_external_task_id(
     assert response.status_code == 200
     assert response.json()["data"] == snapshot
 
+
+async def test_task_tools_restore_persisted_summary_when_upstream_history_is_empty(
+    authenticated_client, monkeypatch
+):
+    class EmptyToolEngine:
+        async def get_tools(self, external_task_id: str):
+            assert external_task_id == "finished-external-task"
+            return []
+
+    plan = await authenticated_client.post(
+        "/api/v1/scan-plans",
+        json={
+            "name": "Persisted tool summary",
+            "targets": ["example.test"],
+            "asset_list": [{"host": "example.test", "hostType": "domain"}],
+        },
+    )
+    await authenticated_client.post(f"/api/v1/scan-plans/{plan.json()['id']}/confirm")
+    task = await authenticated_client.post(
+        "/api/v1/tasks",
+        json={"plan_id": plan.json()["id"], "request_id": "persisted-tool-summary"},
+    )
+    async with SessionLocal() as session:
+        stored = await session.scalar(
+            select(Task).where(Task.id == uuid.UUID(task.json()["id"]))
+        )
+        stored.external_task_id = "finished-external-task"
+        stored.raw_external = {
+            "platform_tool_summary": [
+                {"tool_name": "tideFinger_tool", "phase": "INFO_COLLECTING", "success": True},
+                {"tool_name": "scan_get_status", "phase": "SCANNING", "success": False},
+            ]
+        }
+        await session.commit()
+
+    monkeypatch.setattr(main_module, "get_engine_client", lambda settings: EmptyToolEngine())
+    response = await authenticated_client.get(f"/api/v1/tasks/{task.json()['id']}/tools")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == [
+        {
+            "id": "persisted-summary-0",
+            "toolName": "tideFinger_tool",
+            "phase": "INFO_COLLECTING",
+            "success": True,
+        },
+        {
+            "id": "persisted-summary-1",
+            "toolName": "scan_get_status",
+            "phase": "SCANNING",
+            "success": False,
+        },
+    ]
+
 def test_engine_report_url_rejects_unsupported_or_credentialed_urls():
     assert sync.engine_report_url({"reportUrl": "ftp://engine.local/report.pdf"}) is None
     assert sync.engine_report_url({"reportUrl": "http://user:pass@engine.local/report.pdf"}) is None

@@ -1234,9 +1234,9 @@ html,body,#root{min-width:0;overflow-x:auto}
     box-shadow:none;
   }
   .pentest-execution-drawer.is-open{transform:translateX(0);visibility:visible;pointer-events:auto;transition-delay:0s}
-  .pentest-material-canvas:has(.pentest-execution-drawer.is-open) .pentest-execution-drawer{width:280px!important;padding-inline:16px}
-  .pentest-material-canvas:has(.pentest-execution-drawer.is-open) .pentest-tool-stream{padding-right:280px!important}
-  .pentest-material-canvas:has(.pentest-execution-drawer.is-open) .pentest-tool-stream .task-conversation-composer--floating{right:280px;width:min(940px,calc(100% - 48px))}
+  .pentest-material-canvas:has(.pentest-execution-drawer.is-open) .pentest-execution-drawer{width:420px!important;padding-inline:16px}
+  .pentest-material-canvas:has(.pentest-execution-drawer.is-open) .pentest-tool-stream{padding-right:420px!important}
+  .pentest-material-canvas:has(.pentest-execution-drawer.is-open) .pentest-tool-stream .task-conversation-composer--floating{right:420px;width:min(940px,calc(100% - 48px))}
   .pentest-execution-drawer .execution-monitor{padding:0}
   .pentest-execution-drawer .execution-monitor>.ant-card{min-height:898px;border:1px solid #e0e6f1;border-radius:12px;background:#fff;box-shadow:0 8px 22px rgba(37,70,130,.06)}
   .pentest-execution-drawer .execution-monitor>.ant-card>.ant-card-body{padding:16px}
@@ -1245,6 +1245,7 @@ html,body,#root{min-width:0;overflow-x:auto}
   .pentest-execution-drawer .execution-monitor pre{max-height:124px;margin:0 0 12px;padding:10px;border-radius:7px;overflow:auto;color:#233349;font-size:11px;line-height:1.55;overflow-wrap:anywhere}
   .pentest-execution-drawer .execution-monitor .output-preview{min-height:172px;max-height:172px;margin:0 0 14px;padding:11px;background:#1c1e22;color:#42dc7a;border:0;font-size:10px}
 }
+.pentest-execution-drawer{overflow-x:hidden}
 
 /* Final dashboard trend geometry: keep the 471x226 Figma plot inside its card. */
 @media (min-width:901px){

@@ -165,17 +165,43 @@ def persisted_task_tools(task: Task) -> list[dict]:
     return compact_tool_history([item for item in items if isinstance(item, dict)])
 
 
+def persisted_task_tool_summary(task: Task) -> list[dict]:
+    raw_external = task.raw_external if isinstance(task.raw_external, dict) else {}
+    items = raw_external.get("platform_tool_summary")
+    if not isinstance(items, list):
+        return []
+    restored = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            continue
+        tool_name = str(item.get("tool_name") or "").strip()
+        if not tool_name:
+            continue
+        tool = {
+            "id": f"persisted-summary-{index}",
+            "toolName": tool_name,
+            "phase": str(item.get("phase") or ""),
+            "success": item.get("success") is True,
+        }
+        if item.get("error"):
+            tool["errorMessage"] = str(item["error"])
+        restored.append(tool)
+    return compact_tool_history(restored)
+
+
 async def own_task_tools(task: Task, settings: Settings) -> list[dict]:
     persisted = persisted_task_tools(task)
     if persisted:
         return persisted
+    summary = persisted_task_tool_summary(task)
     if not task.external_task_id:
-        return []
+        return summary
     try:
         items = await get_engine_client(settings).get_tools(task.external_task_id)
     except AppError:
-        return []
-    return compact_tool_history([item for item in items if isinstance(item, dict)])
+        return summary
+    tools = compact_tool_history([item for item in items if isinstance(item, dict)])
+    return tools or summary
 
 
 async def task_tree_tools(session: AsyncSession, task: Task, settings: Settings) -> list[dict]:
